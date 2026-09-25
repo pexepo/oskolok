@@ -1,7 +1,7 @@
 import { describe,it,expect } from 'vitest';
 import express from 'express';
 import { randomBytes } from 'node:crypto';
-import { musicAccountCallback, saveOAuthAttempt, takeOAuthAttempt } from '../server/src/controllers/musicAccounts.js';
+import { musicAccountCallback, musicAccountError, saveOAuthAttempt, takeOAuthAttempt } from '../server/src/controllers/musicAccounts.js';
 import { prisma } from '../server/src/database/client.js';
 describe('music OAuth callback',()=>{
  it('rejects an unsolicited callback before exchanging a code',async()=>{
@@ -20,5 +20,12 @@ describe('music OAuth callback',()=>{
   }finally{
    await prisma.musicAccountToken.deleteMany({where:{userId:user}});
   }
+ });
+});
+describe('Spotify access errors',()=>{
+ it('distinguishes a blocked test account from an inaccessible followed playlist',()=>{
+  expect(musicAccountError('spotify',403,'/v1/me/playlists')).toContain('Users Management');
+  expect(musicAccountError('spotify',403,'/v1/playlists/abc/items')).toContain('соавтор');
+  expect(musicAccountError('spotify',429,'/v1/me/playlists')).toContain('ограничил запросы');
  });
 });

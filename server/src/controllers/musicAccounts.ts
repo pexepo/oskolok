@@ -74,8 +74,17 @@ async function access(p:Provider,user:string){
 async function request(p:Provider,user:string,path:string){
  const c=providers[p],url=new URL(path,c.api+'/');if(url.origin!==new URL(c.api).origin)throw new Error('Некорректная ссылка каталога');
  const token=await access(p,user),r=await fetch(url,{headers:{Authorization:`${p==='spotify'?'Bearer':'OAuth'} ${token}`},signal:AbortSignal.timeout(15000)});
- if(!r.ok)throw new Error(r.status===403?'Площадка не разрешила доступ к этой подборке.':`Площадка вернула ошибку ${r.status}.`);
+ if(!r.ok)throw new Error(musicAccountError(p,r.status,url.pathname));
  return await r.json() as any;
+}
+export function musicAccountError(p:Provider,status:number,pathname:string){
+ if(p==='spotify'){
+  if(status===401)return 'Сессия Spotify истекла. Отключите аккаунт в Осколке и войдите снова.';
+  if(status===403&&/^\/v1\/me(?:\/playlists)?$/.test(pathname))return 'Spotify не дал доступ к аккаунту. Для тестового приложения владелец должен добавить ваш Spotify email в Dashboard → Settings → Users Management. После добавления переподключите Spotify в Осколке.';
+  if(status===403&&/^\/v1\/playlists\/[^/]+\/items$/.test(pathname))return 'Spotify разрешает импортировать треки только из ваших плейлистов и тех, где вы соавтор. Чужой плейлист, сохранённый в библиотеке, может показываться в списке, но его треки недоступны через API.';
+  if(status===429)return 'Spotify временно ограничил запросы. Повторите попытку позже.';
+ }
+ return status===403?'Площадка не разрешила доступ к этой подборке.':`Площадка вернула ошибку ${status}.`;
 }
 async function pages(p:Provider,user:string,path:string){let next:string|null=path;const out:any[]=[];const seen=new Set<string>();while(next){if(seen.has(next))throw new Error('Площадка повторила страницу каталога');seen.add(next);const d=await request(p,user,next);out.push(...(Array.isArray(d)?d:d.items||d.collection||[]));next=d.next||d.next_href||null;}return out;}
 export const musicAccountCallback=Router();
@@ -121,8 +130,10 @@ musicAccounts.post('/spotify/match',route(async(req:any,res:any)=>{
 }));
 musicAccounts.post('/spotify/player',route(async(req:any,res:any)=>{const {method,path,body}=req.body||{};if(!['PUT','POST','GET'].includes(method)||!['me/player/play','me/player/pause','me/player/seek','me/player/volume','me/player','me/player/devices'].includes(path))throw new Error('Недопустимая операция плеера');const token=await access('spotify',res.locals.userId);const url=new URL(path,providers.spotify.api+'/');if(req.body?.deviceId)url.searchParams.set('device_id',String(req.body.deviceId));if(req.body?.positionMs!==undefined)url.searchParams.set('position_ms',String(req.body.positionMs));if(req.body?.volumePercent!==undefined)url.searchParams.set('volume_percent',String(req.body.volumePercent));const result=await fetch(url,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});if(!result.ok)throw new Error(result.status===403?'Spotify Premium или разрешение воспроизведения недоступны':`Spotify вернул ${result.status}`);res.json({data:result.status===204?{ok:true}:await result.json()});}));
 musicAccounts.get('/:provider/playlists',route(async(req:any,res:any)=>{
- const p=provider(req.params.provider),list=await pages(p,res.locals.userId,p==='spotify'?'me/playlists?limit=50':'me/playlists?linked_partitioning=true&limit=50');
- res.json({data:[{id:'liked',title:'Любимые треки'},...list.map(x=>({id:String(x.id||x.urn),title:x.name||x.title,count:x.items?.total??x.tracks?.total??x.track_count,artworkUrl:x.images?.[0]?.url||x.artwork_url||x.image_url}))]});
+ const p=provider(req.params.provider),user=res.locals.userId;
+ const spotifyId=p==='spotify'?(await request('spotify',user,'me')).id:null;
+ const list=await pages(p,user,p==='spotify'?'me/playlists?limit=50':'me/playlists?linked_partitioning=true&limit=50');
+ res.json({data:[{id:'liked',title:'Любимые треки'},...list.map(x=>({id:String(x.id||x.urn),title:x.name||x.title,count:x.items?.total??x.tracks?.total??x.track_count,artworkUrl:x.images?.[0]?.url||x.artwork_url||x.image_url,...(p==='spotify'?{importable:x.owner?.id===spotifyId||x.collaborative===true}: {})}))]});
 }));
 musicAccounts.get('/:provider/playlists/:id',route(async(req:any,res:any)=>{
  const p=provider(req.params.provider),id=encodeURIComponent(req.params.id),user=res.locals.userId;let tracks:Track[]=[];
