@@ -50,6 +50,8 @@ export class SpotifyService {
   private clientSecret: string;
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
+  private tokenRequest: Promise<string | null> | null = null;
+  private searchCache = new Map<string, { expiresAt: number; result: Promise<SearchResult> }>();
 
   constructor() {
     this.clientId = env.SPOTIFY_CLIENT_ID || '';
@@ -70,6 +72,13 @@ export class SpotifyService {
       return this.accessToken;
     }
 
+    if (this.tokenRequest) return this.tokenRequest;
+    this.tokenRequest = this.refreshAccessToken();
+    try { return await this.tokenRequest; }
+    finally { this.tokenRequest = null; }
+  }
+
+  private async refreshAccessToken(): Promise<string | null> {
     try {
       const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
       const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -146,6 +155,18 @@ export class SpotifyService {
         pagination: { page: 1, limit: options?.limit || 20, hasMore: false },
       };
     }
+
+    const key = `${query.trim().toLocaleLowerCase()}:${options?.page || 1}:${options?.limit || 20}`;
+    const cached = this.searchCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.result;
+    if (this.searchCache.size >= 200) this.searchCache.delete(this.searchCache.keys().next().value!);
+    const result = this.searchUncached(query, options);
+    this.searchCache.set(key, { expiresAt: Date.now() + 90_000, result });
+    void result.catch(() => { if (this.searchCache.get(key)?.result === result) this.searchCache.delete(key); });
+    return result;
+  }
+
+  private async searchUncached(query: string, options?: SearchOptions): Promise<SearchResult> {
 
     const token = await this.getAccessToken();
 

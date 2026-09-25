@@ -49,4 +49,26 @@ describe('Spotify primary catalog', () => {
     expect(result.catalogSource).toBe('deezer');
     expect(result.catalogFallbackReason).toBe('not_configured');
   });
+
+  it('shares a token refresh and identical searches between concurrent listeners', async () => {
+    const service = new SpotifyService();
+    (service as any).clientId = 'test-id';
+    (service as any).clientSecret = 'test-secret';
+    let tokenCalls = 0, searchCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (String(input).includes('accounts.spotify.com')) {
+        tokenCalls++;
+        return { ok: true, json: async () => ({ access_token: 'test-token', expires_in: 3600 }) };
+      }
+      searchCalls++;
+      return { ok: true, json: async () => ({ tracks: { total: 0, items: [] }, artists: { items: [] } }) };
+    }));
+    try {
+      await Promise.all([service.search('shared query', { limit: 5 }), service.search('shared query', { limit: 5 }), service.search('another query', { limit: 5 })]);
+      expect(tokenCalls).toBe(1);
+      expect(searchCalls).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
