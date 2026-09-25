@@ -33,7 +33,27 @@ function yandex(input:Record<string,unknown>):Promise<any>{
  const python=process.env.PYTHON_PATH||[path.resolve('.venv/bin/python'),path.resolve('.venv/Scripts/python.exe')].find(existsSync)||'python3';
  return new Promise((resolve,reject)=>{const child=spawn(python,[worker],{stdio:['pipe','pipe','pipe']});let out='',err='';const timer=setTimeout(()=>{child.kill();reject(new Error('Яндекс Музыка не ответила вовремя'));},120000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',()=>{clearTimeout(timer);try{const result=JSON.parse(out);if(result.ok)resolve(result.data);else reject(new Error(result.error));}catch{reject(new Error(err.includes('No module named')?'Установите Python зависимость: pip install -r server/python-requirements.txt':'Не удалось прочитать ответ Яндекс Музыки'));}});child.stdin.end(JSON.stringify(input));});
 }
-const pending = new Map<string,{user:string;provider:Provider;verifier:string;redirect:string;expires:number}>();
+type OAuthAttempt={user:string;provider:Provider;verifier:string;redirect:string;expires:number};
+const pendingProvider=(p:Provider)=>`oauth_pending_${p}`;
+const pendingId=(state:string)=>`oauth:${createHash('sha256').update(state).digest('hex')}`;
+export async function saveOAuthAttempt(state:string,item:OAuthAttempt){
+ const provider=pendingProvider(item.provider),encryptedData=encryptSession(JSON.stringify(item));
+ await prisma.musicAccountToken.upsert({
+  where:{userId_provider:{userId:item.user,provider}},
+  create:{id:pendingId(state),userId:item.user,provider,encryptedData},
+  update:{id:pendingId(state),encryptedData},
+ });
+}
+export async function takeOAuthAttempt(state:string,p:Provider):Promise<OAuthAttempt|null>{
+ if(!/^[A-Za-z0-9_-]{40,100}$/.test(state))return null;
+ const id=pendingId(state),provider=pendingProvider(p);
+ const row=await prisma.musicAccountToken.findUnique({where:{id}});
+ if(!row||row.provider!==provider)return null;
+ const claimed=await prisma.musicAccountToken.deleteMany({where:{id,provider}});
+ if(claimed.count!==1)return null;
+ const item=JSON.parse(decryptStoredSession(row.encryptedData)) as OAuthAttempt;
+ return item.user===row.userId&&item.provider===p&&item.expires>Date.now()?item:null;
+}
 const callback = (p:Provider) => `${process.env.MUSIC_OAUTH_ORIGIN || `http://127.0.0.1:${env.PORT}`}/api/music-accounts/${p}/callback`;
 const provider = (s:string):Provider => {if(s!=='spotify'&&s!=='soundcloud')throw new Error('Площадка не поддерживается');return s;};
 const route = (fn:any) => async(req:any,res:any) => {try{await fn(req,res);}catch(e){res.status(400).json({error:{message:e instanceof Error?e.message:'Ошибка подключения'}});}};
@@ -59,14 +79,20 @@ async function request(p:Provider,user:string,path:string){
 }
 async function pages(p:Provider,user:string,path:string){let next:string|null=path;const out:any[]=[];const seen=new Set<string>();while(next){if(seen.has(next))throw new Error('Площадка повторила страницу каталога');seen.add(next);const d=await request(p,user,next);out.push(...(Array.isArray(d)?d:d.items||d.collection||[]));next=d.next||d.next_href||null;}return out;}
 export const musicAccountCallback=Router();
-musicAccountCallback.get('/:provider/callback',route(async(req:any,res:any)=>{
- const p=provider(req.params.provider),state=String(req.query.state||''),item=pending.get(state);pending.delete(state);
- if(!item||item.provider!==p||item.expires<Date.now())throw new Error('Ссылка входа устарела. Начните вход из Осколка.');
- if(req.query.error||!req.query.code)throw new Error('Вход отменён');
- const t=await tokenRequest(p,{grant_type:'authorization_code',code:String(req.query.code),redirect_uri:item.redirect,code_verifier:item.verifier});
- await save(p,item.user,{access:t.access_token,refresh:t.refresh_token,expires:Date.now()+t.expires_in*1000,scope:t.scope});
- res.type('html').send('<!doctype html><meta charset="utf-8"><title>Осколок</title><p>Аккаунт подключён. Вернитесь в Осколок — плейлисты появятся автоматически.</p>');
-}));
+musicAccountCallback.get('/:provider/callback',async(req:any,res:any)=>{
+ try{
+  const p=provider(req.params.provider),state=String(req.query.state||''),item=await takeOAuthAttempt(state,p);
+  if(!item)throw new Error('Ссылка входа устарела. Вернитесь в Осколок и нажмите «Spotify · Войти» ещё раз.');
+  if(req.query.error||!req.query.code)throw new Error('Вход отменён. Вернитесь в Осколок и попробуйте снова.');
+  const t=await tokenRequest(p,{grant_type:'authorization_code',code:String(req.query.code),redirect_uri:item.redirect,code_verifier:item.verifier});
+  await save(p,item.user,{access:t.access_token,refresh:t.refresh_token,expires:Date.now()+t.expires_in*1000,scope:t.scope});
+  res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8"><title>Осколок · аккаунт подключён</title><main style="font:18px system-ui;max-width:28rem;margin:15vh auto;padding:2rem;text-align:center"><h1>Аккаунт подключён ✓</h1><p>Вернитесь в Осколок — подключение появится автоматически.</p></main>');
+ }catch(error){
+  const message=error instanceof Error?error.message:'Не удалось завершить вход. Вернитесь в Осколок и попробуйте снова.';
+  const safe=message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  res.status(400).type('html').send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8"><title>Осколок · вход не завершён</title><main style="font:18px system-ui;max-width:28rem;margin:15vh auto;padding:2rem;text-align:center"><h1>Вход не завершён</h1><p>${safe}</p></main>`);
+ }
+});
 export const musicAccounts=Router();
 musicAccounts.get('/',route(async(_req:any,res:any)=>res.json({data:[...await Promise.all(Object.entries(providers).map(async([id,c])=>({id,configured:!!c.id&&(id!=='soundcloud'||!!c.secret),connected:!!await stored(id as Provider,res.locals.userId)}))),{id:'yandex',configured:true,connected:!!await stored('yandex',res.locals.userId)}]})));
 musicAccounts.post('/yandex/connect',route(async(_req:any,res:any)=>{const data=await yandex({action:'code'}),userId=res.locals.userId;yandexPending.set(userId,{deviceCode:data.deviceCode,expires:Date.now()+data.expiresIn*1000,nextPoll:0,interval:Math.max(3000,data.interval*1000)});res.json({data:{userCode:data.userCode,verificationUrl:data.verificationUrl,expiresIn:data.expiresIn}});}));
@@ -76,9 +102,9 @@ musicAccounts.get('/yandex/playlists/:id',route(async(req:any,res:any)=>{const a
 musicAccounts.delete('/yandex',route(async(_req:any,res:any)=>{await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:'yandex'}});yandexPending.delete(res.locals.userId);res.json({data:{ok:true}});}));
 musicAccounts.post('/:provider/connect',route(async(req:any,res:any)=>{
  const p=provider(req.params.provider),c=providers[p];if(!c.id||(p==='soundcloud'&&!c.secret))throw new Error('Для входа нужны ключи зарегистрированного приложения площадки.');
- for(const [k,v]of pending)if(v.expires<Date.now())pending.delete(k);
+ await prisma.musicAccountToken.deleteMany({where:{provider:{in:[pendingProvider('spotify'),pendingProvider('soundcloud')]},updatedAt:{lt:new Date(Date.now()-60*60*1000)}}});
  const state=randomBytes(32).toString('base64url'),verifier=randomBytes(48).toString('base64url'),redirect=callback(p);
- pending.set(state,{user:res.locals.userId,provider:p,verifier,redirect,expires:Date.now()+600000});
+ await saveOAuthAttempt(state,{user:res.locals.userId,provider:p,verifier,redirect,expires:Date.now()+20*60*1000});
  const u=new URL(c.auth);u.search=new URLSearchParams({client_id:c.id,response_type:'code',redirect_uri:redirect,state,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',...(c.scope?{scope:c.scope}:{})}).toString();res.json({data:{url:u.href}});
 }));
 musicAccounts.delete('/:provider',route(async(req:any,res:any)=>{await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:provider(req.params.provider)}});res.json({data:{ok:true}});}));
