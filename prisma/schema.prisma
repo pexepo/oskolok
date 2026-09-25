@@ -1,0 +1,196 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+model CreatorProfile {
+  userId String @id
+  displayName String
+  avatarUrl String?
+  bannerUrl String?
+  bio String @default("")
+  telegramFullIntegration Boolean @default(true)
+  currentTrackData String?
+  playbackSeenAt DateTime?
+  playbackSessionId String?
+  telegramSyncError String?
+}
+model ProfilePlaylist {
+  id String @id @default(uuid())
+  userId String
+  playlistId String
+  title String
+  artworkUrl String?
+  tracksData String
+  addedAt DateTime @default(now())
+  @@unique([userId, playlistId])
+  @@index([userId, addedAt])
+}
+model TelegramNowPlaying {
+  userId String @id
+  operationState String @default("idle")
+  trackId String?
+  documentId String?
+  accessHash String?
+  fileReference String?
+  desiredTrackId String?
+  seenAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+model MusicAccountToken {
+  id String @id
+  userId String
+  provider String
+  encryptedData String
+  updatedAt DateTime @updatedAt
+  @@unique([userId, provider])
+}
+model ArtistEnrichment {
+  id String @id
+  data String
+  updatedAt DateTime @updatedAt
+}
+model LyricContribution {
+  id String @id @default(uuid())
+  userId String
+  trackId String
+  trackTitle String
+  artistName String
+  credit String
+  lyricsData String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, trackId])
+  @@index([trackId])
+}
+model LyricSubmission {
+  id String @id @default(uuid())
+  userId String
+  trackId String
+  trackTitle String
+  artistName String
+  credit String
+  fileName String @default("")
+  lyricsData String
+  status String @default("pending") // pending | approved | rejected
+  reviewNote String @default("")
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, createdAt])
+  @@index([userId])
+}
+model ProfileMusic {
+  id String @id @default(uuid())
+  userId String
+  trackId String
+  trackData String
+  addedAt DateTime @default(now())
+  @@unique([userId, trackId])
+}
+model TelegramConnection {
+  userId String @id
+  encryptedSession String
+  createdAt DateTime @default(now())
+}
+model WebSession {
+  tokenHash String @id
+  userId String
+  expiresAt DateTime
+}
+
+model User {
+  id        String   @id
+  name      String   @default("Слушатель")
+  username  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  playlists   Playlist[]
+  likedTracks LikedTrack[]
+  history     HistoryItem[]
+}
+
+model Playlist {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  artworkUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracks PlaylistTrack[]
+}
+
+model PlaylistTrack {
+  id         String   @id @default(uuid())
+  playlistId String
+  trackId    String
+  trackData  String   // JSON serialized Track domain object
+  position   Int
+  addedAt    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, trackId])
+  @@index([playlistId, position])
+}
+
+model LikedTrack {
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String
+  trackData String   // JSON serialized Track domain object
+  addedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+}
+
+model HistoryItem {
+  id        String   @id @default(uuid())
+  userId    String
+  trackId   String
+  trackData String   // JSON serialized Track domain object
+  playedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, playedAt])
+}
+
+model TrackCache {
+  id        String   @id // trackId e.g. soundcloud:123456
+  source    String
+  sourceId  String
+  trackData String   // JSON serialized Track domain object
+  cachedAt  DateTime @default(now())
+  expiresAt DateTime
+}
+
+model LyricsCache {
+  id         String   @id // trackId
+  lyricsData String   // JSON serialized Lyrics object
+  cachedAt   DateTime @default(now())
+}
+
+model SpicyLyricsCredit {
+  id          String   @id
+  contributorId String
+  role        String
+  name        String
+  avatarUrl   String   @default("")
+  profileUrl  String
+  trackId     String
+  trackTitle  String
+  artistName  String
+  seenAt      DateTime @default(now())
+  @@index([contributorId, seenAt])
+  @@index([trackId])
+}

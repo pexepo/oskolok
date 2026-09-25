@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+dist-server/
+build/
+release/
+developer-panel/dist/
+developer-panel/node_modules/
+media-output/
+*.tsbuildinfo
+
+# Database & Cache
+prisma/*.db
+prisma/*.db-journal
+*.sqlite
+*.db
+server/data/audio_cache/
+server/data/audio_cache_originals_*/
+server/data/private/
+server/data/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pino.log
+
+# IDE & OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+
+# Vitest
+coverage/
+
+# Local Python runtime
+.venv/

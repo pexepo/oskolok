@@ -1,0 +1,2 @@
+yandex-music==3.0.0
+yt-dlp==2026.8.19

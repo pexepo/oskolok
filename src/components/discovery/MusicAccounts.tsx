@@ -1,0 +1,22 @@
+import React,{useEffect,useState} from 'react';
+import {telegramAuthHeaders,apiBase} from '../../telegram/runtime.js';
+import type {ImportPreview} from '../../types/index.js';
+type Account={id:string;configured:boolean;connected:boolean};
+type List={id:string;title:string;count?:number;artworkUrl?:string};
+type Device={id:string;name:string;is_active:boolean};
+
+export function MusicAccounts({onImport}:{onImport:(p:ImportPreview)=>void}){
+  const [accounts,setAccounts]=useState<Account[]>([]),[lists,setLists]=useState<List[]>([]),[source,setSource]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+  const [code,setCode]=useState<{userCode:string;verificationUrl:string;expiresIn:number}>(),[devices,setDevices]=useState<Device[]>([]);
+  async function call(path:string,method='GET',body?:unknown){const r=await fetch(`${apiBase}/music-accounts${path}`,{method,credentials:'include',headers:{'Content-Type':'application/json',...telegramAuthHeaders()},body:body?JSON.stringify(body):undefined});const j=await r.json();if(!r.ok)throw new Error(j.error?.message||'Не удалось подключиться');return j.data;}
+  const refresh=async()=>setAccounts(await call(''));
+  useEffect(()=>{void refresh().catch(()=>{});const timer=setInterval(()=>void refresh().catch(()=>{}),5000);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{if(!code)return;const timer=setInterval(()=>{void call('/yandex/status').then(d=>{if(d.state==='connected'){setCode(undefined);void refresh();}else if(d.state==='expired'){setCode(undefined);setError('Код Яндекса истёк. Начните вход снова.');}}).catch(e=>setError(e.message));},5000);return()=>clearInterval(timer);},[code]);
+  const run=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');try{await fn();}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
+  const name=(id:string)=>({spotify:'Spotify',soundcloud:'SoundCloud',yandex:'Яндекс Музыка'}[id]||id);
+  return <section className="frost-panel profile-form"><h2>Ваши аккаунты</h2><div className="account-buttons">{accounts.map(a=><div key={a.id}><button className="secondary-button" disabled={busy||!a.configured} onClick={()=>void run(async()=>{if(a.connected){setSource(a.id);setLists(await call(`/${a.id}/playlists`));if(a.id==='spotify'){try{const d=await call('/spotify/player','POST',{method:'GET',path:'me/player/devices'});setDevices(d.devices||[]);}catch{setDevices([]);}}}else if(a.id==='yandex'){setCode(await call('/yandex/connect','POST'));}else{const d=await call(`/${a.id}/connect`,'POST');window.open(d.url,'_blank','noopener,noreferrer');}})}>{name(a.id)} · {a.connected?'Плейлисты':'Войти'}</button>{!a.configured&&<small>Подключение ещё не настроено</small>}{a.connected&&<button className="text-button" onClick={()=>void run(async()=>{await call(`/${a.id}`,'DELETE');await refresh();setLists([]);})}>Отключить</button>}</div>)}</div>
+  {code&&<p role="status">Откройте <a href={code.verificationUrl} target="_blank" rel="noopener noreferrer">страницу входа Яндекса</a> и введите код <strong>{code.userCode}</strong>. Подтверждение проверяется автоматически.</p>}
+  {devices.length>0&&<label>Устройство Spotify Connect<select className="glass-input" value={localStorage.getItem('oskolok_spotify_device')||''} onChange={e=>{localStorage.setItem('oskolok_spotify_device',e.target.value);setDevices([...devices]);}}><option value="">Активное устройство</option>{devices.map(d=><option key={d.id} value={d.id}>{d.name}{d.is_active?' · играет сейчас':''}</option>)}</select></label>}
+  <details><summary>Как подключить Spotify и выбрать источник</summary><p>Зарегистрируйте приложение Spotify и укажите callback из руководства. После входа здесь выберите устройство Connect. На странице релиза или рядом с треком откройте «Источник» и выберите Spotify; «Автовыбор» тоже предпочитает Spotify для доступной версии. Требуется Premium.</p></details>
+  {error&&<p role="alert">{error}</p>}{busy&&<p role="status">Загружаем подборку…</p>}{lists.length>0&&<div className="account-playlists">{lists.map(l=><button className="secondary-button" key={l.id} disabled={busy} onClick={()=>void run(async()=>{const d=await call(`/${source}/playlists/${encodeURIComponent(l.id)}`);onImport({...d,title:l.title,artworkUrl:l.artworkUrl});})}>{l.artworkUrl&&<img src={l.artworkUrl} alt="" width="36" height="36"/>}{l.title}{l.count!==undefined?` · ${l.count}`:''}</button>)}</div>}</section>;
+}

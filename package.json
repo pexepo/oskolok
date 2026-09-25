@@ -1,0 +1,131 @@
+{
+  "name": "oskolok",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Oskolok Desktop Music Player",
+  "author": "Oskolok",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n \"server,client,desktop\" -c \"magenta,cyan,green\" \"npm run dev:server\" \"npm run dev:client\" \"node scripts/launchDesktop.js\"",
+    "dev:desktop": "concurrently -k -n \"server,client,desktop\" -c \"magenta,cyan,green\" \"npm run dev:server\" \"npm run dev:client\" \"node scripts/launchDesktop.js\"",
+    "dev:web": "concurrently -k -n \"server,client\" -c \"magenta,cyan\" \"npm run dev:server\" \"npm run dev:client\"",
+    "start": "electron .",
+    "start:server": "node dist-server/server.js",
+    "dev:server": "tsx watch server/src/server.ts",
+    "dev:client": "vite",
+    "mobile:tunnel": "node scripts/mobileTunnel.mjs",
+    "mobile:test": "npm run build && node scripts/startMobileTest.mjs",
+    "mobile:test:stop": "node scripts/stopMobileTest.mjs",
+    "dev:electron": "wait-on http://localhost:3000 && electron .",
+    "desktop": "node scripts/launchDesktop.js",
+    "build": "npm run build:server && npm run build:client",
+    "build:client": "tsc -b --force && vite build",
+    "build:server": "prisma generate && tsc -p server/tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist-server/services', {recursive:true}); for(const name of ['ytdlp_worker.py','yandex_worker.py']) fs.copyFileSync('server/src/services/'+name, 'dist-server/services/'+name); fs.copyFileSync('server/python-requirements.txt','dist-server/services/python-requirements.txt');\"",
+    "build:win": "npm run build:server && npm run build:client && electron-packager . Oskolok --platform=win32 --arch=x64 --out=release --overwrite --asar.unpack=\"{dist-server/**,prisma/**,node_modules/.prisma/**,node_modules/@prisma/client/**}\" --icon=electron/icon.ico",
+    "dist": "node scripts/buildDist.js",
+    "dist:portable": "node scripts/buildDist.js --portable",
+    "dist:installer": "node scripts/buildDist.js --installer",
+    "electron:build": "electron-builder --win portable --prepackaged release/win-unpacked",
+    "build:installer": "node scripts/buildDist.js --installer",
+    "build:portable": "node scripts/buildDist.js --portable",
+    "db:push": "prisma db push",
+    "db:push:pg": "prisma db push --schema=prisma/schema.postgresql.prisma",
+    "db:migrate:pg": "prisma migrate deploy --schema=prisma/schema.postgresql.prisma",
+    "db:generate:pg": "prisma generate --schema=prisma/schema.postgresql.prisma",
+    "db:studio": "prisma studio",
+    "typecheck": "tsc -b --force && tsc -p server/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@prisma/client": "^5.19.0",
+    "@tanstack/react-query": "^5.52.0",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "framer-motion": "^11.3.28",
+    "helmet": "^7.1.0",
+    "lucide-react": "^0.428.0",
+    "motion": "^11.18.2",
+    "pino": "^9.3.2",
+    "pino-pretty": "^11.2.2",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.1",
+    "tailwind-merge": "^2.5.2",
+    "teleproto": "^1.229.0",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.5.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@xmldom/xmldom": "^0.9.12",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "electron": "^32.3.3",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.9.0",
+    "postcss": "^8.4.41",
+    "prisma": "^5.19.0",
+    "tailwindcss": "^3.4.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.1",
+    "vitest": "^2.0.5",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.oskolok.app",
+    "productName": "Oskolok",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-server/**/*",
+      "electron/**/*",
+      "prisma/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "dist-server/**/*",
+      "prisma/**/*",
+      "**/node_modules/.prisma/**/*",
+      "**/node_modules/@prisma/client/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Oskolok",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable.${ext}"
+    }
+  }
+}
