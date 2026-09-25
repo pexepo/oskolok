@@ -16,13 +16,14 @@ export const LyricsView=React.memo(function LyricsView({trackId,trackName,artist
   const [raw,setRaw]=useState<LyricLine[]>([]),[plain,setPlain]=useState(''),[provider,setProvider]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState('');
   const [author,setAuthor]=useState<LyricsAuthor|null>(null);
   const [attribution,setAttribution]=useState<LyricsData['attribution']>();
+  const [viaSpicy,setViaSpicy]=useState(false);
   const [offset,setOffset]=useState(0),[follow,setFollow]=useState(true),[reload,setReload]=useState(0);
   const [editor,setEditor]=useState(false),[draft,setDraft]=useState(''),[stamps,setStamps]=useState<number[]>([]),[recording,setRecording]=useState(false);
   const [clock,setClock]=useState(currentTime);
   const playing=usePlayerStore(s=>s.isPlaying),buffering=usePlayerStore(s=>s.isBuffering);
   const fileRef=useRef<HTMLInputElement>(null),containerRef=useRef<HTMLDivElement>(null),activeRef=useRef<HTMLDivElement>(null),generation=useRef(0);
   useEffect(()=>{
-    const id=++generation.current;setRaw([]);setPlain('');setProvider('');setAuthor(null);setAttribution(undefined);setLoading(true);setError('');setEditor(false);setRecording(false);setStamps([]);setFollow(true);
+    const id=++generation.current;setRaw([]);setPlain('');setProvider('');setAuthor(null);setAttribution(undefined);setViaSpicy(false);setLoading(true);setError('');setEditor(false);setRecording(false);setStamps([]);setFollow(true);
     try{setOffset(Number(localStorage.getItem(scopedStorageKey(`interference-offset:${trackId}`)))||0);}catch{setOffset(0);}
     (async()=>{
       const local=await readLocalLyrics(trackId).catch(()=>undefined);
@@ -31,7 +32,7 @@ export const LyricsView=React.memo(function LyricsView({trackId,trackName,artist
       try{
         const data=await apiClient.getLyrics(trackId,trackName,artistName,duration);
         if(id!==generation.current)return;
-        setRaw(data?.syncedLyrics||parseLrc(data?.plainLyrics||''));setPlain(data?.plainLyrics||'');setProvider(data?.provider||'');setAuthor(data?.author||null);setAttribution(data?.attribution);
+        setRaw(data?.syncedLyrics||parseLrc(data?.plainLyrics||''));setPlain(data?.plainLyrics||'');setProvider(data?.provider||'');setAuthor(data?.author||null);setAttribution(data?.attribution);setViaSpicy(data?.apiSource==='spicy_lyrics');
       }catch{if(id===generation.current)setError('Не удалось найти текст. Можно загрузить свой файл.');}
       finally{if(id===generation.current)setLoading(false);}
     })();
@@ -90,7 +91,7 @@ export const LyricsView=React.memo(function LyricsView({trackId,trackName,artist
   },[follow,editor,lines]);
   const commit=async(next:LyricLine[])=>{
     const id=trackId,request=++generation.current;
-    try{await saveLocalLyrics(id,next);if(generation.current!==request)return;setRaw(next);setPlain('');setProvider('Ваш файл');setAuthor(null);setAttribution(undefined);setLoading(false);setError('');setEditor(false);setRecording(false);}
+    try{await saveLocalLyrics(id,next);if(generation.current!==request)return;setRaw(next);setPlain('');setProvider('Ваш файл');setAuthor(null);setAttribution(undefined);setViaSpicy(false);setLoading(false);setError('');setEditor(false);setRecording(false);}
     catch{if(generation.current===request)setError('Не удалось сохранить файл на этом устройстве.');}
   };
   const upload=async(file?:File)=>{
@@ -127,7 +128,7 @@ export const LyricsView=React.memo(function LyricsView({trackId,trackName,artist
     </div> : <div ref={containerRef} className={`lyrics-scroll ${follow?'':'is-manual'}`} onWheel={()=>setFollow(false)} onTouchMove={()=>setFollow(false)}>
       {loading&&!lines.length?<div className="lyrics-empty">Ищем слова…</div>:lines.length?lines.map((line,i)=>{const singing=time>=line.time&&time<line.end,sung=time>=line.end;return <div className="lyric-slot" data-active={singing?'true':'false'} data-start={line.time} data-end={line.end} data-line-index={i} key={`${line.time}:${i}`} ref={i===active?activeRef:undefined}><LyricsLine line={line} isActive={singing} isSung={sung} currentTime={time} focusDistance={Math.abs(i-active)} onSeek={seekLine}/></div>}):plain?<div className="plain-lyrics">{plain}</div>:<div className="lyrics-empty"><h3>Добавьте текст</h3><p>Загрузите файл с временными метками или создайте разметку по словам.</p><button className="primary-button" onClick={()=>fileRef.current?.click()}><Upload size={16}/> Загрузить файл</button></div>}
     </div>}
-    {!editor&&(author?<div className="lyrics-attribution"><AuthorCard author={author}/></div>:provider&&provider!=='none'?<div className="lyrics-attribution lyrics-attribution-plain"><span>Текст · {provider}</span>{attribution?.uploader&&<AuthorCard label="Загрузил" author={{id:attribution.uploader.id,username:null,displayName:attribution.uploader.name,avatarUrl:attribution.uploader.avatarUrl,credit:attribution.uploader.name}}/>}{attribution?.maker&&<AuthorCard label="Разметил" author={{id:attribution.maker.id,username:null,displayName:attribution.maker.name,avatarUrl:attribution.maker.avatarUrl,credit:attribution.maker.name}}/>}</div>:null)}
+    {!editor&&(author?<div className="lyrics-attribution"><AuthorCard author={author}/></div>:provider&&provider!=='none'?<div className="lyrics-attribution lyrics-attribution-plain"><span>Текст · {provider}{viaSpicy&&provider!=='Spicy Lyrics'?' · через Spicy Lyrics':''}</span>{attribution?.uploader&&<AuthorCard label="Загрузил" author={{id:attribution.uploader.id,username:null,displayName:attribution.uploader.name,avatarUrl:attribution.uploader.avatarUrl,credit:attribution.uploader.name}}/>}{attribution?.maker&&<AuthorCard label="Разметил" author={{id:attribution.maker.id,username:null,displayName:attribution.maker.name,avatarUrl:attribution.maker.avatarUrl,credit:attribution.maker.name}}/>}</div>:null)}
     <div className="lyrics-footer"><div><button onClick={()=>shift(-.1)} aria-label="Текст на 0.1 секунды позже"><Minus size={13}/></button><span title="Положительное значение показывает текст раньше">{offset>0?'+':''}{offset.toFixed(1)} с</span><button onClick={()=>shift(.1)} aria-label="Текст на 0.1 секунды раньше"><Plus size={13}/></button></div><button className="text-button" onClick={()=>setFollow(true)} disabled={follow}><Crosshair size={14}/>{follow?'Следуем за музыкой':'К текущей строке'}</button></div>
   </section>;
 },(a,b)=>a.trackId===b.trackId&&a.trackName===b.trackName&&a.artistName===b.artistName&&a.duration===b.duration&&a.onSeek===b.onSeek);

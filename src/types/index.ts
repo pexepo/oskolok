@@ -102,6 +102,7 @@ export interface LyricLine {
 export interface LyricsData {
   trackId: string;
   isSynced: boolean;
+  apiSource?: 'spicy_lyrics';
   plainLyrics?: string;
   syncedLyrics?: LyricLine[];
   provider: string;
