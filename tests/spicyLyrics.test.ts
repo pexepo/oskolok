@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { mapSpicyLyrics } from '../server/src/services/SpicyLyricsService.js';
+import { mapSpicyLyrics, selectMatchingSpotifyId } from '../server/src/services/SpicyLyricsService.js';
 
 const spotifyId = '1QV6tiMFM6fSOKOGLMHYYg';
 const contributor = (id: string, username: string) => ({ id, username, url: `https://spicylyrics.org/uid/${id}` });
 
 describe('Spicy Lyrics response mapping', () => {
+  it('matches a locally known Spotify release without merging another version', () => {
+    const track = (sourceId: string, title: string, duration: number) => ({ source: 'spotify' as const, sourceId, title, duration, artist: { id: 'a', source: 'spotify' as const, sourceId: 'a', name: 'Lady Gaga' } });
+    const tracks = [track(spotifyId, 'Poker Face', 237), track('2QV6tiMFM6fSOKOGLMHYYg', 'Poker Face Remix', 237)];
+    expect(selectMatchingSpotifyId(tracks, 'Poker Face', 'Lady Gaga', 238)).toBe(spotifyId);
+    expect(selectMatchingSpotifyId(tracks, 'Poker Face live', 'Lady Gaga', 238)).toBeNull();
+    expect(selectMatchingSpotifyId(tracks, 'Poker Face', 'Another Artist', 238)).toBeNull();
+  });
   it('keeps syllable timing, background vocals and both community credits', () => {
     const result = mapSpicyLyrics({
       id: spotifyId, source: 'spicy_lyrics', Type: 'Syllable', EndTime: 120,

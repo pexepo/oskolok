@@ -3,11 +3,23 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { spotifyService } from './SpotifyService.js';
+import { prisma } from '../database/client.js';
 
 const SPOTIFY_ID = /^[A-Za-z0-9]{22}$/;
 const clean = (value: string) => value.normalize('NFKC').toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const finiteTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const sourceName: Record<string, string> = { spicy_lyrics: 'Spicy Lyrics', apple_music: 'Apple Music', spotify: 'Spotify', unknown: 'Неизвестный источник' };
+
+export function selectMatchingSpotifyId(tracks: Pick<Track, 'source' | 'sourceId' | 'title' | 'artist' | 'duration'>[], title: string, artist: string, duration?: number): string | null {
+  if (!duration || duration <= 0 || !clean(title) || !clean(artist)) return null;
+  const matches = tracks.filter(track => track.source === 'spotify' && SPOTIFY_ID.test(track.sourceId)
+    && clean(track.title) === clean(title) && clean(track.artist.name) === clean(artist)
+    && Math.abs(track.duration - duration) <= 5)
+    .sort((left, right) => Math.abs(left.duration - duration) - Math.abs(right.duration - duration));
+  if (!matches.length) return null;
+  if (matches.length > 1 && Math.abs(matches[0].duration - duration) === Math.abs(matches[1].duration - duration)) return null;
+  return matches[0].sourceId;
+}
 
 type Contributor = { id?: unknown; username?: unknown; url?: unknown; avatar?: unknown };
 type Body = Record<string, any>;
@@ -74,13 +86,29 @@ export function mapSpicyLyrics(body: Body, trackId: string, spotifyId: string): 
 export class SpicyLyricsService {
   private retryAfter = new Map<string, number>();
   private globalRetryAfter = 0;
+  private localTracks: Track[] = [];
+  private localTracksLoadedAt = 0;
   public isConfigured() { return Boolean(env.SPICY_LYRICS_SECRET_KEY.trim()); }
+
+  private async findKnownSpotifyId(title: string, artist: string, duration?: number): Promise<string | null> {
+    if (Date.now() - this.localTracksLoadedAt > 5 * 60_000) {
+      const rows = await prisma.trackCache.findMany({ where: { source: 'spotify' }, select: { sourceId: true, trackData: true } });
+      this.localTracks = rows.flatMap(row => {
+        if (!SPOTIFY_ID.test(row.sourceId)) return [];
+        try { return [JSON.parse(row.trackData) as Track]; } catch { return []; }
+      });
+      this.localTracksLoadedAt = Date.now();
+    }
+    return selectMatchingSpotifyId(this.localTracks, title, artist, duration);
+  }
 
   public async resolveSpotifyId(trackId: string, title: string, artist: string, duration?: number): Promise<string | null> {
     const direct = trackId.match(/^spotify:(?:track:)?([A-Za-z0-9]{22})$/)?.[1] || (SPOTIFY_ID.test(trackId) ? trackId : '');
     if (direct) return direct;
     const cached = await trackCacheRepository.getCachedTrack(trackId).catch(() => null);
     if (cached?.source === 'spotify' && SPOTIFY_ID.test(cached.sourceId)) return cached.sourceId;
+    const known = await this.findKnownSpotifyId(title, artist, duration);
+    if (known) return known;
     if (!spotifyService.isConfigured() || !title || !artist) return null;
     const result = await spotifyService.search(`${artist} ${title}`, { page: 1, limit: 8 });
     const exact = result.tracks.find((track: Track) => track.source === 'spotify' && SPOTIFY_ID.test(track.sourceId)
