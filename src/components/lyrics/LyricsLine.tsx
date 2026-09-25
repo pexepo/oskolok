@@ -33,10 +33,11 @@ export const LyricsLine = memo(function LyricsLine({line,isActive,isSung,current
     >
       <span aria-hidden="true">{line.timingMode==='syllable'&&line.words?.length?line.words.map((word,index)=>{
         const progress=intervalProgress(currentTime,word.start,word.end),graphemes=splitGraphemes(word.text),letterCount=graphemes.filter(g=>!/^\s+$/u.test(g)).length;
-        const emphasize=word.end-word.start>=1&&letterCount>0&&letterCount<=12&&!rtl;
+        const isSyllable=word.joinNext||line.words![index-1]?.joinNext;
+        const emphasize=(isSyllable||word.end-word.start>=1)&&letterCount>0&&letterCount<=12&&!rtl;
         const needsSpace=index<line.words!.length-1&&!word.joinNext&&!/\s$/.test(word.text);
         let letterIndex=0;
-        return <span key={`${word.start}:${index}`} className={`lyric-segment ${word.joinNext?'lyric-syllable':''} ${emphasize?'has-letter-motion':''}`} data-start={word.start} data-end={word.end} data-played={currentTime>=word.end?'true':'false'} style={progressStyle(progress)}>
+        return <span key={`${word.start}:${index}`} className={`lyric-segment ${word.joinNext?'lyric-syllable':''} ${emphasize?'has-letter-motion':''}`} data-start={word.start} data-end={word.end} data-played={currentTime>=word.end?'true':'false'} data-current={currentTime>=word.start&&currentTime<word.end?'true':'false'} style={progressStyle(progress)}>
           {emphasize?graphemes.map((grapheme,glyphIndex)=>{
             if(/^\s+$/u.test(grapheme))return <span key={glyphIndex}>{grapheme}</span>;
             const motion=letterMotion(progress,letterIndex++,letterCount);

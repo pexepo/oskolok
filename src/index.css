@@ -697,3 +697,29 @@
   .mobile-lyrics-toggle svg{transition:transform .2s ease}
 }
 @media(prefers-reduced-motion:reduce){.mobile-lyrics-toggle svg{transition:none}}
+
+/* Mobile now-playing panels share one stage so switching never remounts lyrics. */
+.mobile-player-tabs{display:none}
+@media(max-width:700px){
+  .mobile-player-tabs{position:relative;z-index:12;display:grid;grid-template-columns:1fr 1fr;align-items:center;width:min(100%,440px);min-height:48px;margin:0 auto 18px;padding:4px;border:1px solid #ffffff3a;border-radius:18px;background:#081524a8;box-shadow:inset 0 1px 0 #ffffff1f;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+  .mobile-player-tabs-indicator{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/2);border-radius:14px;background:linear-gradient(145deg,#d8eaff35,#79b4e528);box-shadow:inset 0 1px 0 #ffffff51,0 5px 18px #020a174d;transition:transform .42s cubic-bezier(.22,1,.36,1)}
+  .mobile-player-tabs[data-view=lyrics] .mobile-player-tabs-indicator{transform:translateX(100%)}
+  .mobile-player-tabs button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:9px;min-height:40px;border-radius:14px;color:#b9c9db;font-size:13px;font-weight:620;transition:color .3s ease}
+  .mobile-player-tabs button[aria-selected=true]{color:#fff}
+  .interference-modal .interference-main{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto!important;align-items:start!important;width:100%;max-width:440px;margin:0 auto;gap:0!important;flex:none!important;overflow:hidden!important;transition:height .46s cubic-bezier(.22,1,.36,1)}
+  .interference-modal .interference-main>.interference-track,.interference-modal .interference-main>.interference-text{grid-area:1/1;max-width:440px!important;width:100%!important;margin:0 auto!important;transition:opacity .34s ease,transform .46s cubic-bezier(.22,1,.36,1),visibility 0s linear .46s}
+  .interference-modal .interference-main>.interference-text{display:flex!important;height:360px!important;min-height:360px!important;padding:0!important}
+  .interference-modal .interference-main.view-info>.interference-track,.interference-modal .interference-main.view-lyrics>.interference-text{position:relative;inset:auto;opacity:1;visibility:visible;transform:translateX(0);pointer-events:auto;transition-delay:0s}
+  .interference-modal .interference-main.view-info>.interference-text,.interference-modal .interference-main.view-lyrics>.interference-track{position:absolute;inset:0;opacity:0;visibility:hidden;pointer-events:none}
+  .interference-modal .interference-main.view-info>.interference-text{transform:translateX(22px)}
+  .interference-modal .interference-main.view-lyrics>.interference-track{transform:translateX(-22px)}
+}
+
+/* A sung line fades to the same grey as an upcoming line. Within the active
+   line, syllables keep the progressive white wash and a restrained mid-word glow. */
+.interference-lyrics .interference-line{transition:filter .72s cubic-bezier(.22,1,.36,1),opacity .4s ease!important}
+.interference-lyrics .interference-line.sung:not(.active){filter:brightness(.62)!important}
+.interference-lyrics .interference-line.line-timed.active .lyric-line-fill{color:var(--lyric-lit);-webkit-text-fill-color:var(--lyric-lit);background:none}
+.interference-lyrics .interference-line.active .lyric-segment[data-current=true]{text-shadow:0 0 var(--karaoke-glow-blur,0px) #ffffffbb!important}
+.interference-lyrics .interference-line.active .lyric-letter{will-change:transform}
+@media(prefers-reduced-motion:reduce){.mobile-player-tabs-indicator,.mobile-player-tabs button,.interference-modal .interference-main,.interference-modal .interference-main>.interference-track,.interference-modal .interference-main>.interference-text,.interference-lyrics .interference-line{transition:none!important}.interference-lyrics .interference-line.active .lyric-letter{will-change:auto}}

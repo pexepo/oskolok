@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronDown, Heart, PlusCircle, Music2 } from 'lucide-react';
+import { ChevronDown, Heart, Info, PlusCircle, Music2 } from 'lucide-react';
 import { usePlayerStore } from '../../stores/usePlayerStore.js';
 import { useLibraryStore } from '../../stores/useLibraryStore.js';
 import { usePlaylistStore } from '../../stores/usePlaylistStore.js';
@@ -37,8 +37,11 @@ export const FullPlayerModal: React.FC = () => {
   const { isLiked, toggleLike } = useLibraryStore();
   const { playlists, addTrackToPlaylist } = usePlaylistStore();
   const [showPlaylistMenu, setShowPlaylistMenu] = React.useState(false);
-  const [lyricsExpanded, setLyricsExpanded] = React.useState(false);
+  const [mobileView, setMobileView] = React.useState<'info'|'lyrics'>('info');
   const [isMobile, setIsMobile] = React.useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const trackPanelRef = React.useRef<HTMLDivElement>(null);
+  const lyricsPanelRef = React.useRef<HTMLDivElement>(null);
+  const [mobilePanelHeight, setMobilePanelHeight] = React.useState<number>();
 
   const liked = currentTrack ? isLiked(currentTrack.id) : false;
   const artistName = currentTrack?.artist?.name || 'Неизвестный исполнитель';
@@ -76,7 +79,7 @@ export const FullPlayerModal: React.FC = () => {
 
   React.useEffect(() => {
     if (isFullPlayerOpen) {
-      setLyricsExpanded(false);
+      setMobileView('info');
       window.scrollTo(0, 0);
       if (document.documentElement) document.documentElement.scrollTop = 0;
       if (document.body) document.body.scrollTop = 0;
@@ -93,6 +96,24 @@ export const FullPlayerModal: React.FC = () => {
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (!isMobile || !isFullPlayerOpen) { setMobilePanelHeight(undefined); return; }
+    const panel = mobileView === 'lyrics' ? lyricsPanelRef.current : trackPanelRef.current;
+    if (!panel) return;
+    const measure = () => setMobilePanelHeight(Math.ceil(panel.scrollHeight));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [isMobile, isFullPlayerOpen, mobileView, currentTrack?.id]);
+
+  React.useEffect(() => {
+    for (const [panel, hidden] of [[trackPanelRef.current, isMobile && mobileView !== 'info'], [lyricsPanelRef.current, isMobile && mobileView !== 'lyrics']] as const) {
+      if (hidden) panel?.setAttribute('inert', '');
+      else panel?.removeAttribute('inert');
+    }
+  }, [isMobile, mobileView, isFullPlayerOpen]);
 
   return isFullPlayerOpen && currentTrack ? (
         <div
@@ -120,10 +141,16 @@ export const FullPlayerModal: React.FC = () => {
             <div className="interference-title" aria-hidden="true" />
           </div>
 
-          {/* 2-Column Main Layout matching Yandex Music */}
-          <div className="interference-main relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center min-h-0 py-2 overflow-hidden">
+          <div className="mobile-player-tabs" role="tablist" aria-label="Экран трека" data-view={mobileView}>
+            <span className="mobile-player-tabs-indicator" aria-hidden="true"/>
+            <button type="button" role="tab" id="mobile-player-info-tab" aria-selected={mobileView==='info'} aria-controls="mobile-player-info" onClick={() => setMobileView('info')}><Info size={17}/> Инфо</button>
+            <button type="button" role="tab" id="mobile-player-lyrics-tab" aria-selected={mobileView==='lyrics'} aria-controls="full-player-lyrics" onClick={() => setMobileView('lyrics')}><Music2 size={17}/> Текст</button>
+          </div>
+
+          {/* The same mounted panels crossfade on phones; lyrics keep their timing state. */}
+          <div className={`interference-main view-${mobileView} relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center min-h-0 py-2 overflow-hidden`} style={isMobile&&mobilePanelHeight?{height:mobilePanelHeight}:undefined}>
             {/* Left Column: Artwork, Info, Scrub Bar, Controls */}
-            <div className="interference-track lg:col-span-5 flex flex-col items-center justify-center max-w-sm sm:max-w-md w-full mx-auto space-y-4 shrink-0">
+            <div ref={trackPanelRef} id="mobile-player-info" role={isMobile?'tabpanel':undefined} aria-labelledby={isMobile?'mobile-player-info-tab':undefined} aria-hidden={isMobile&&mobileView!=='info'} className="interference-track lg:col-span-5 flex flex-col items-center justify-center max-w-sm sm:max-w-md w-full mx-auto space-y-4 shrink-0">
               {/* Album Artwork */}
               <div className="relative w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-[340px] lg:h-[340px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(22,43,80,0.16)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/60 dark:border-slate-800 group">
                 <ArtworkImage
@@ -226,27 +253,16 @@ export const FullPlayerModal: React.FC = () => {
               </div>
             </div>
 
-            <button
-              className="mobile-lyrics-toggle"
-              type="button"
-              aria-expanded={lyricsExpanded}
-              aria-controls="full-player-lyrics"
-              onClick={() => setLyricsExpanded(value => !value)}
-            >
-              <span><Music2 size={18}/> Текст песни</span>
-              <ChevronDown size={19} className={lyricsExpanded ? 'rotate-180' : ''}/>
-            </button>
-
             {/* Right Column: Seamless Borderless Synchronized Karaoke Lyrics */}
-            <div id="full-player-lyrics" className={`interference-text lg:col-span-7 h-full flex-1 flex flex-col justify-center overflow-hidden min-h-0 px-2 lg:px-8 ${lyricsExpanded ? 'is-expanded' : ''}`}>
-              {(!isMobile || lyricsExpanded) && <LyricsView
+            <div ref={lyricsPanelRef} id="full-player-lyrics" role={isMobile?'tabpanel':undefined} aria-labelledby={isMobile?'mobile-player-lyrics-tab':undefined} aria-hidden={isMobile&&mobileView!=='lyrics'} className="interference-text lg:col-span-7 h-full flex-1 flex flex-col justify-center overflow-hidden min-h-0 px-2 lg:px-8">
+              <LyricsView
                 trackId={currentTrack.id}
                 trackName={currentTrack.title}
                 artistName={artistName}
                 duration={duration || currentTrack.duration}
                 currentTime={currentTime}
                 onSeek={seek}
-              />}
+              />
             </div>
           </div>
         </div>

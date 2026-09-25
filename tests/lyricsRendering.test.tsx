@@ -16,11 +16,19 @@ describe('karaoke lyric rendering',()=>{
     expect(html).toContain('--karaoke-progress:0.5000');
   });
 
-  it('uses measured segments and letter accents only for long segments',()=>{
+  it('uses measured segments and letter accents on the active words',()=>{
     const html=renderToStaticMarkup(<LyricsLine {...base} line={syllableLine} isActive currentTime={2}/>);
     expect(html.match(/class="lyric-segment/g)?.length).toBe(3);
     expect(html).toContain('lyric-letter');
     expect(html).not.toContain('per-word-crossfade');
+  });
+
+  it('animates short syllables and marks only the syllable being sung',()=>{
+    const line:NormalizedLyricLine={time:0,end:.8,endEstimated:false,timingMode:'syllable',text:'мо-ре',words:[{text:'мо',start:0,end:.4,joinNext:true},{text:'ре',start:.4,end:.8}]};
+    const html=renderToStaticMarkup(<LyricsLine {...base} line={line} isActive currentTime={.2}/>);
+    expect(html.match(/class="lyric-letter"/g)).toHaveLength(4);
+    expect(html.match(/data-current="true"/g)).toHaveLength(1);
+    expect(html.match(/data-current="false"/g)).toHaveLength(1);
   });
 
   it('keeps sung state and exposes the bounded focus blur',()=>{

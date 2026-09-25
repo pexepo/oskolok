@@ -39,7 +39,7 @@ function setProgress(node:HTMLElement,progress:number):boolean {
   node.style.setProperty('--karaoke-progress',value);
   node.style.setProperty('--karaoke-start',`${stops.start.toFixed(3)}%`);
   node.style.setProperty('--karaoke-end',`${stops.end.toFixed(3)}%`);
-  node.style.setProperty('--karaoke-glow',String(Math.max(0,1-Math.abs(progress-.5)/.22).toFixed(3)));
+  node.style.setProperty('--karaoke-glow-blur',`${(Math.max(0,1-Math.abs(progress-.5)/.32)*12).toFixed(2)}px`);
   return true;
 }
 
@@ -54,6 +54,7 @@ export function paintTimedLine(root:HTMLElement,time:number,reducedMotion=false)
   root.querySelectorAll<HTMLElement>('.lyric-segment[data-start][data-end]').forEach(segment=>{
     const progress=intervalProgress(time,Number(segment.dataset.start),Number(segment.dataset.end));
     segment.dataset.played=progress>=1?'true':'false';
+    segment.dataset.current=progress>0&&progress<1?'true':'false';
     if(!setProgress(segment,progress))return;
     const letters=segment.querySelectorAll<HTMLElement>('.lyric-letter');
     letters.forEach((letter,index)=>{
