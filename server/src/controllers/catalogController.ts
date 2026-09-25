@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {previewImport} from '../services/LibraryTransferService.js';
 import {officialCatalogService} from '../services/OfficialCatalogService.js';
 import {spotifyService} from '../services/SpotifyService.js';
+import {musicCatalogService} from '../services/MusicCatalogService.js';
 import {soundCloudService} from '../services/SoundCloudService.js';
 import {trackCacheRepository} from '../repositories/trackCacheRepository.js';
 import type {Artist,Track} from '../types/index.js';
@@ -56,7 +57,7 @@ export const catalogController={
   importPreview:asyncRoute(async(req,res)=>{const {url}=z.object({url:z.string().max(2000)}).parse(req.body);res.json({data:await previewImport(url)});}),
   match:asyncRoute(async(req,res)=>{
     const {artist,title}=z.object({artist:z.string().min(1).max(200),title:z.string().min(1).max(300)}).parse(req.body);
-    const result=await officialCatalogService.search(`${artist} ${title}`,{limit:12});
+    const result=await musicCatalogService.search(`${artist} ${title}`,{limit:12});
     let candidates=result.tracks;
     if(!candidates.length)candidates=(await soundCloudService.search(`${artist} ${title}`,{limit:10,type:'tracks'})).tracks;
     const exact=candidates.find(t=>normalized(t.title)===normalized(title)&&normalized(t.artist.name)===normalized(artist));
@@ -64,7 +65,7 @@ export const catalogController={
   }),
   suggestions:asyncRoute(async(req,res)=>{
     const query=z.string().min(2).max(200).parse(req.query.q);
-    const result=await officialCatalogService.search(query,{limit:5});
+    const result=await musicCatalogService.search(query,{limit:5});
     res.json({data:result});
   }),
   release:asyncRoute(async(req,res)=>{
@@ -76,6 +77,8 @@ export const catalogController={
       res.json({data:{...release(dto),artist:tracks[0]?.artist,tracks}});return;
     }
     if(/^spotify:album:[a-zA-Z0-9]+$/.test(id)){
+      const album=await spotifyService.getAlbumFromApi(id);
+      if(album){res.json({data:album});return;}
       const tracks=await spotifyService.resolveSpotifyAlbumFromEmbed(id.split(':').at(-1)!);
       if(!tracks.length){res.status(404).json({error:{message:'Spotify не отдал этот релиз.'}});return;}
       res.json({data:{id,title:tracks[0].release?.title||'Релиз Spotify',artworkUrl:tracks[0].artworkUrl,artist:tracks[0].artist,tracks,url:`https://open.spotify.com/album/${id.split(':').at(-1)}`}});return;
@@ -86,10 +89,18 @@ export const catalogController={
     const id=req.params.id;
     let artist:Artist|null=id.startsWith('soundcloud:')?await soundCloudService.getArtist(id):id.startsWith('deezer:')?await officialCatalogService.getArtist(id):await spotifyService.getArtist(id);
     if(!artist){res.status(404).json({error:{message:'Артист не найден.'}});return;}
-    let catalogArtist=artist.source==='deezer'?artist:undefined;
-    if(!catalogArtist){const candidates=await officialCatalogService.search(artist.name,{limit:1});catalogArtist=candidates.artists.find(a=>artistNamesMatch(a.name,artist!.name));}
     const releases:any[]=[];
-    if(catalogArtist){try{let page=0;while(page<5){const data=await deezer(`artist/${catalogArtist.sourceId}/albums?limit=100&index=${page*100}`);releases.push(...(data.data||[]).map(release));if(!data.next)break;page++;}}catch{}}
+    let releaseSource:string|undefined;
+    let spotifyIdForReleases=artist.source==='spotify'&&/^[a-zA-Z0-9]{22}$/.test(artist.sourceId)?artist.sourceId:undefined;
+    if(!spotifyIdForReleases&&spotifyService.isConfigured()){
+      const match=await spotifyService.search(artist.name,{limit:5}).catch(()=>null);
+      spotifyIdForReleases=match?.artists.find(candidate=>artistNamesMatch(candidate.name,artist!.name))?.sourceId;
+    }
+    const spotifyReleases=spotifyIdForReleases?await spotifyService.getArtistReleases(spotifyIdForReleases):null;
+    if(spotifyReleases){releases.push(...spotifyReleases);releaseSource='Spotify';}
+    let catalogArtist=artist.source==='deezer'?artist:undefined;
+    if(!catalogArtist && !spotifyReleases){const candidates=await officialCatalogService.search(artist.name,{limit:1});catalogArtist=candidates.artists.find(a=>artistNamesMatch(a.name,artist!.name));}
+    if(!spotifyReleases&&catalogArtist){try{let page=0;while(page<5){const data=await deezer(`artist/${catalogArtist.sourceId}/albums?limit=100&index=${page*100}`);releases.push(...(data.data||[]).map(release));if(!data.next)break;page++;}releaseSource='Deezer';}catch{}}
     let genius:{image?:string;url?:string;name?:string;followers?:number;spotifyId?:string}|undefined;
     if(env.GENIUS_ACCESS_TOKEN){try{
       const response=await fetch(`https://api.genius.com/search?q=${encodeURIComponent(artist.name)}`,{headers:{Authorization:`Bearer ${env.GENIUS_ACCESS_TOKEN}`},signal:AbortSignal.timeout(5000)});
@@ -99,7 +110,7 @@ export const catalogController={
       const publicGenius=await publicGeniusArtist(artist.name);
       if(publicGenius) genius={...genius,...publicGenius};
     }
-    const spotifyId=artist.source==='spotify'&&/^[a-zA-Z0-9]{22}$/.test(artist.sourceId)?artist.sourceId:genius?.spotifyId;
+    const spotifyId=spotifyIdForReleases||genius?.spotifyId;
     let spotifyArtist=spotifyId?await spotifyService.getArtist(`spotify:artist:${spotifyId}`):null;
     const spotifyKey=`spotify:${normalized(artist.name)}`;
     if(spotifyArtist?.followersCount!==undefined||spotifyArtist?.monthlyListeners!==undefined){await prisma.artistEnrichment.upsert({where:{id:spotifyKey},create:{id:spotifyKey,data:JSON.stringify(spotifyArtist)},update:{data:JSON.stringify(spotifyArtist)}});}
@@ -110,6 +121,6 @@ export const catalogController={
       {platform:'Genius',label:'Подписчики страницы',value:genius?.followers,url:genius?.url||`https://genius.com/search?q=${encodeURIComponent(artist.name)}`,note:'Публичное число подписчиков страницы Genius'},
       ...(catalogArtist?.followersCount!==undefined?[{platform:'Deezer',label:'Поклонники',value:catalogArtist.followersCount,url:catalogArtist.permalinkUrl}]:[])
     ];
-    res.json({data:{artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource:catalogArtist?'Deezer':undefined}});
+    res.json({data:{artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource}});
   })
 };

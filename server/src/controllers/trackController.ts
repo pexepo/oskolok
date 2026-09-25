@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { Track } from '../types/index.js';
+import { Track, SearchResult } from '../types/index.js';
 import { spotifyService } from '../services/SpotifyService.js';
 import { soundCloudService } from '../services/SoundCloudService.js';
 import { streamResolverService } from '../services/StreamResolverService.js';
 import { studioMasterService } from '../services/StudioMasterService.js';
 import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { officialCatalogService } from '../services/OfficialCatalogService.js';
+import { musicCatalogService } from '../services/MusicCatalogService.js';
 import { rankTrack, deduplicateSearchTracks, normalizeMusicText } from '../services/trackRanking.js';
 import { logger } from '../utils/logger.js';
 
@@ -52,15 +53,15 @@ export class TrackController {
       ]);
 
       const [spotifyResResult, soundCloudResResult, youtubeResResult] = await Promise.allSettled([
-        spotifyService.search(q, { page, limit }),
+        musicCatalogService.search(q, { page, limit }),
         soundCloudService.search(q, { page, limit }),
         ytPromise,
       ]);
 
-      const spotifyResults =
+      const spotifyResults: SearchResult =
         spotifyResResult.status === 'fulfilled'
           ? spotifyResResult.value
-          : { tracks: [], artists: [], playlists: [] };
+          : { tracks: [], artists: [], playlists: [], pagination: { page, limit, hasMore: false } };
       const soundCloudResults =
         soundCloudResResult.status === 'fulfilled'
           ? soundCloudResResult.value
@@ -105,6 +106,8 @@ export class TrackController {
             limit,
             hasMore: mergedTracks.length > limit,
           },
+          catalogSource: spotifyResults.catalogSource,
+          catalogFallbackReason: spotifyResults.catalogFallbackReason,
         },
       });
     } catch (err: any) {

@@ -112,6 +112,8 @@ export interface SearchResult {
   artists: Artist[];
   playlists: Playlist[];
   pagination: SearchPagination;
+  catalogSource?: 'spotify' | 'deezer';
+  catalogFallbackReason?: 'not_configured' | 'token' | 'request';
 }
 
 export interface SearchOptions {

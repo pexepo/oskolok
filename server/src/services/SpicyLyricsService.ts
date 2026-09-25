@@ -110,7 +110,8 @@ export class SpicyLyricsService {
     const known = await this.findKnownSpotifyId(title, artist, duration);
     if (known) return known;
     if (!spotifyService.isConfigured() || !title || !artist) return null;
-    const result = await spotifyService.search(`${artist} ${title}`, { page: 1, limit: 8 });
+    const result = await spotifyService.search(`${artist} ${title}`, { page: 1, limit: 8 }).catch(() => null);
+    if (!result) return null;
     const exact = result.tracks.find((track: Track) => track.source === 'spotify' && SPOTIFY_ID.test(track.sourceId)
       && clean(track.title) === clean(title) && clean(track.artist.name) === clean(artist)
       && (!duration || !track.duration || Math.abs(track.duration - duration) <= 5));

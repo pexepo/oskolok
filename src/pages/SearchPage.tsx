@@ -192,7 +192,7 @@ export const SearchPage: React.FC = () => {
               Найдите музыку по душе
             </h3>
             <p className="text-xs text-[#5a6e85] dark:text-slate-400">
-              Треки, исполнители, плейлисты или ссылка Spotify / Deezer
+              По умолчанию — каталог Spotify. Можно вставить ссылку на трек, альбом или плейлист.
             </p>
           </div>
         </div><RecommendationShelf title="Подобрано для вас"/></>
@@ -212,6 +212,13 @@ export const SearchPage: React.FC = () => {
       ) : (
         /* Results View */
         <div className="space-y-10">
+          {results.catalogSource && <p className="text-xs text-[#5a6e85] dark:text-slate-400 px-1" role="status">
+            {results.catalogSource === 'spotify'
+              ? 'Каталог Spotify · звук подбирается из доступных источников'
+              : results.catalogFallbackReason === 'not_configured'
+                ? 'Каталог Deezer · для Spotify администратору нужно настроить ключи приложения'
+                : 'Каталог Deezer · Spotify временно недоступен'}
+          </p>}
           {/* Local Collection Matches Section */}
           {(activeTab === 'all' || activeTab === 'collection') &&
             localMatches.tracks.length > 0 && (

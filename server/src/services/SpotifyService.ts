@@ -22,7 +22,7 @@ interface SpotifyTrackDTO {
   name: string;
   duration_ms: number;
   external_urls?: { spotify?: string };
-  artists: Array<{ id: string; name: string }>;
+  artists: Array<{ id: string; name: string; external_urls?: { spotify?: string } }>;
   album?: {
     id: string;
     name: string;
@@ -37,6 +37,12 @@ interface SpotifyArtistDTO {
   followers?: { total: number };
   genres?: string[];
   external_urls?: { spotify?: string };
+}
+
+export class SpotifyCatalogUnavailableError extends Error {
+  constructor(public readonly reason: 'not_configured' | 'token' | 'request') {
+    super(`Spotify catalog unavailable: ${reason}`);
+  }
 }
 
 export class SpotifyService {
@@ -108,14 +114,13 @@ export class SpotifyService {
         sourceId: primaryArtist?.id || '',
         name: artistName,
         avatarUrl: artworkUrl,
-        permalinkUrl: dto.external_urls?.spotify,
+        permalinkUrl: primaryArtist?.external_urls?.spotify || (primaryArtist?.id ? `https://open.spotify.com/artist/${primaryArtist.id}` : undefined),
       },
       artworkUrl,
       duration: Math.round((dto.duration_ms || 0) / 1000),
       trackUrl: dto.external_urls?.spotify,
       access: 'playable',
       release: dto.album?.id ? {id:`spotify:album:${dto.album.id}`,title:dto.album.name} : undefined,
-      genre: 'Pop/Rock',
     };
   }
 
@@ -144,44 +149,41 @@ export class SpotifyService {
 
     const token = await this.getAccessToken();
 
-    // If Spotify is not configured or token fails, fallback seamlessly to official catalog
     if (!token) {
-      return officialCatalogService.search(query, options);
+      throw new SpotifyCatalogUnavailableError(this.isConfigured() ? 'token' : 'not_configured');
     }
 
-    const limit = options?.limit || 20;
+    const limit = Math.min(50, Math.max(1, options?.limit || 20));
     const page = options?.page || 1;
     const offset = (page - 1) * limit;
 
     try {
-      const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-        query
-      )}&type=track,artist&limit=${limit}&offset=${offset}`;
-
-      const res = await fetch(searchUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (!res.ok) {
-        // Fallback to official catalog on Spotify rate limit / quota
-        logger.warn({ status: res.status }, 'Spotify search returned non-200, falling back to official catalog');
-        return officialCatalogService.search(query, options);
-      }
-
-      const json = (await res.json()) as {
+      // Spotify's current Search API accepts at most 10 results per type.
+      // A single 20/25-result request used to produce HTTP 400 and a hidden Deezer fallback.
+      const batches = await Promise.all(Array.from({ length: Math.ceil(limit / 10) }, async (_, index) => {
+        const batchLimit = Math.min(10, limit - index * 10);
+        const batchOffset = offset + index * 10;
+        if (batchOffset > 1000) return null;
+        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,artist&market=US&limit=${batchLimit}&offset=${batchOffset}`;
+        const res = await fetch(searchUrl, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!res.ok) {
+          logger.warn({ status: res.status }, 'Spotify catalog search unavailable');
+          throw new SpotifyCatalogUnavailableError('request');
+        }
+        return res.json() as Promise<{
         tracks?: { items?: SpotifyTrackDTO[]; total?: number };
         artists?: { items?: SpotifyArtistDTO[] };
-      };
+        }>;
+      }));
 
-      const rawTracks = json.tracks?.items || [];
-      const rawArtists = json.artists?.items || [];
+      const rawTracks = batches.flatMap(batch => batch?.tracks?.items || []);
+      const rawArtists = batches.flatMap(batch => batch?.artists?.items || []);
 
       const tracks = rawTracks.map((t) => this.mapTrack(t));
-      const artists = rawArtists.map((a) => this.mapArtist(a));
+      const artists = [...new Map(rawArtists.map(a => [a.id, this.mapArtist(a)])).values()];
 
       // Background non-blocking SQLite caching — never hold up the caller
       Promise.all(tracks.map((t) => trackCacheRepository.setCachedTrack(t))).catch(() => {});
@@ -193,12 +195,14 @@ export class SpotifyService {
         pagination: {
           page,
           limit,
-          hasMore: tracks.length === limit,
+          hasMore: offset + tracks.length < (batches[0]?.tracks?.total || 0),
+          total: batches[0]?.tracks?.total,
         },
       };
     } catch (err) {
-      logger.error({ err, query }, 'Spotify search error, falling back to official catalog');
-      return officialCatalogService.search(query, options);
+      if (err instanceof SpotifyCatalogUnavailableError) throw err;
+      logger.warn({ message: err instanceof Error ? err.message : String(err) }, 'Spotify catalog search unavailable');
+      throw new SpotifyCatalogUnavailableError('request');
     }
   }
 
@@ -336,6 +340,81 @@ export class SpotifyService {
     } catch (err) {
       logger.debug({ err, albumId }, 'Error resolving album from Spotify embed');
       return [];
+    }
+  }
+
+  public async getAlbumFromApi(albumId: string): Promise<{ id: string; title: string; artworkUrl?: string; date?: string; type?: string; trackCount: number; url: string; artist?: Artist; tracks: Track[] } | null> {
+    const rawId = albumId.replace(/^spotify:album:/, '');
+    if (!/^[a-zA-Z0-9]{22}$/.test(rawId)) return null;
+    const token = await this.getAccessToken();
+    if (!token) return null;
+    try {
+      const res = await fetch(`https://api.spotify.com/v1/albums/${rawId}?market=US`, {
+        headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) return null;
+      const album = await res.json() as {
+        id: string; name: string; images?: Array<{ url: string }>;
+        artists?: Array<{ id: string; name: string }>;
+        release_date?: string; album_type?: string; total_tracks?: number;
+        external_urls?: { spotify?: string };
+        tracks?: { items?: SpotifyTrackDTO[]; next?: string | null };
+      };
+      const tracks = [...(album.tracks?.items || [])];
+      let offset = tracks.length;
+      while (album.tracks?.next && offset < Math.min(album.total_tracks || 0, 300)) {
+        const page = await fetch(`https://api.spotify.com/v1/albums/${rawId}/tracks?market=US&limit=50&offset=${offset}`, {
+          headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
+        });
+        if (!page.ok) return null;
+        const data = await page.json() as { items?: SpotifyTrackDTO[]; next?: string | null };
+        const items = data.items || [];
+        tracks.push(...items);
+        offset += items.length;
+        album.tracks.next = data.next;
+        if (!items.length) break;
+      }
+      const albumInfo = { id: rawId, name: album.name, images: album.images };
+      const mapped = tracks.filter(track => track.id).map(track => this.mapTrack({ ...track, album: albumInfo }));
+      await Promise.all(mapped.map(track => trackCacheRepository.setCachedTrack(track).catch(() => undefined)));
+      return {
+        id: `spotify:album:${rawId}`, title: album.name,
+        artworkUrl: album.images?.[0]?.url, date: album.release_date,
+        type: album.album_type, trackCount: album.total_tracks || mapped.length,
+        url: album.external_urls?.spotify || `https://open.spotify.com/album/${rawId}`,
+        artist: mapped[0]?.artist, tracks: mapped,
+      };
+    } catch (error) {
+      logger.warn({ message: error instanceof Error ? error.message : String(error) }, 'Spotify album unavailable');
+      return null;
+    }
+  }
+
+  public async getArtistReleases(artistId: string): Promise<Array<{ id: string; title: string; artworkUrl?: string; date?: string; type?: string; trackCount?: number; url: string }> | null> {
+    const rawId = artistId.replace(/^spotify:artist:/, '');
+    if (!/^[a-zA-Z0-9]{22}$/.test(rawId)) return null;
+    const token = await this.getAccessToken();
+    if (!token) return null;
+    try {
+      const releases: Array<{ id: string; title: string; artworkUrl?: string; date?: string; type?: string; trackCount?: number; url: string }> = [];
+      for (let offset = 0; offset < 50; offset += 10) {
+        const res = await fetch(`https://api.spotify.com/v1/artists/${rawId}/albums?include_groups=album,single&market=US&limit=10&offset=${offset}`, {
+          headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
+        });
+        if (!res.ok) return null;
+        const page = await res.json() as { items?: Array<{ id: string; name: string; images?: Array<{ url: string }>; release_date?: string; album_type?: string; total_tracks?: number; external_urls?: { spotify?: string } }>; next?: string | null };
+        for (const item of page.items || []) releases.push({
+          id: `spotify:album:${item.id}`, title: item.name,
+          artworkUrl: item.images?.[0]?.url, date: item.release_date,
+          type: item.album_type, trackCount: item.total_tracks,
+          url: item.external_urls?.spotify || `https://open.spotify.com/album/${item.id}`,
+        });
+        if (!page.next || !page.items?.length) break;
+      }
+      return [...new Map(releases.map(release => [release.id, release])).values()];
+    } catch (error) {
+      logger.warn({ message: error instanceof Error ? error.message : String(error) }, 'Spotify artist releases unavailable');
+      return null;
     }
   }
 
@@ -570,31 +649,17 @@ export class SpotifyService {
 
   public async getArtistTracks(id: string, options?: PaginationOptions): Promise<Track[]> {
     const rawId = id.replace(/^spotify:artist:/, '');
-    const token = await this.getAccessToken();
-
-    if (!token) {
+    if (!this.isConfigured()) {
       return this.matchedCatalogTracks(id, options);
     }
 
     try {
-      const res = await fetch(`https://api.spotify.com/v1/artists/${rawId}/top-tracks?market=US`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (!res.ok) {
-        return this.matchedCatalogTracks(id, options);
-      }
-
-      const json = (await res.json()) as { tracks?: SpotifyTrackDTO[] };
-      const tracks = (json.tracks || []).map((t) => this.mapTrack(t));
-
-      for (const t of tracks) {
-        await trackCacheRepository.setCachedTrack(t);
-      }
-
-      return tracks;
-    } catch (err) {
+      const artist = await this.getArtist(id);
+      if (!artist) return this.matchedCatalogTracks(id, options);
+      // The former /artists/{id}/top-tracks endpoint was removed in 2026.
+      const result = await this.search(`artist:"${artist.name.replace(/"/g, '')}"`, { page: options?.page || 1, limit: Math.min(options?.limit || 30, 30) });
+      return result.tracks.filter(track => track.artist.sourceId === rawId);
+    } catch {
       return this.matchedCatalogTracks(id, options);
     }
   }

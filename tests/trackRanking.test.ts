@@ -37,6 +37,11 @@ describe('music ranking',()=>{
   const result=diversifyTracks([track('A'),track('A','Artist','deezer'),track('B'),track('C'),track('D','Other')],10,2);
   expect(result.map(t=>t.title)).toEqual(['A','B','D']);
  });
+ it('keeps the Spotify catalog ID when the same release appears on Deezer',()=>{
+  const result=deduplicateSearchTracks([track('Crystal','Artist','deezer'),track('Crystal','Artist','spotify')]);
+  expect(result).toHaveLength(1);
+  expect(result[0].source).toBe('spotify');
+ });
  it('demotes snippets and blocked releases',()=>{
   const full={id:1,title:'Crystal',duration:180000,user:{id:1,username:'Artist'}} as SoundCloudTrackDTO;
   expect(rankSoundCloud(full,'Crystal')).toBeGreaterThan(rankSoundCloud({...full,policy:'BLOCK'},'Crystal'));

@@ -1,6 +1,6 @@
 import { Track } from '../types/index.js';
 import { prisma } from '../database/client.js';
-import { spotifyService } from './SpotifyService.js';
+import { musicCatalogService } from './MusicCatalogService.js';
 import { soundCloudService } from './SoundCloudService.js';
 import { balanceRecommendationSeeds, normalizeMusicText, trackIdentity, matchesMetadataLanguage, matchesArtistSeed } from './trackRanking.js';
 import { logger } from '../utils/logger.js';
@@ -357,7 +357,7 @@ export class RecommendationService {
     const seeds = favorites.filter(t => language === 'all' || languageArtists.has(normalizeMusicText(t.name))).slice(0, seedCount).map(t => t.name);
     const artists = [...new Set([...seeds, ...shuffleArray(character === 'discovery' ? pool.discovery : pool.popular)])].slice(0, 8);
     const queries = artists.map(async (name, index) => {
-      const result = await (index % 2 === 0 ? soundCloudService.search(name, { limit: 12, type: 'tracks' }) : spotifyService.search(name, { limit: 12 }));
+      const result = await (index % 2 === 0 ? soundCloudService.search(name, { limit: 12, type: 'tracks' }) : musicCatalogService.search(name, { limit: 12 }));
       return result.tracks.filter(t => matchesArtistSeed(t, name)).map(t => ({ ...t, recommendationReason: seeds.includes(name) ? `Потому что вы слушаете ${name}` : `Новые грани · ${name}` }));
     });
     // Several distinct listening seeds discover adjacent artists while avoiding

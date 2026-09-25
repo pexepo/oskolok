@@ -19,7 +19,7 @@ export function deduplicateSearchTracks(tracks: Track[]): Track[] {
       return title.split(' ').length >= 2 && (track.source === 'soundcloud' || other.source === 'soundcloud');
     });
     if (collision < 0) { result.push(track); continue; }
-    const sourceWeight = (item: Track) => item.source === 'spotify' || item.source === 'deezer' ? 15 : item.source === 'soundcloud' ? 5 : 0;
+    const sourceWeight = (item: Track) => item.source === 'spotify' ? 25 : item.source === 'deezer' ? 15 : item.source === 'soundcloud' ? 5 : 0;
     const quality = (item: Track) => sourceWeight(item) + (item.access === 'playable' ? 20 : item.access === 'preview' ? -20 : -100);
     if (quality(track) > quality(result[collision])) result[collision] = track;
   }
@@ -38,6 +38,8 @@ export function rankTrack(track: Track, query: string): number {
   for (const edition of editions) if (title.includes(edition) && !q.includes(edition)) score -= 90;
   if (track.access === 'blocked' || track.access === 'unavailable') score -= 500;
   if (track.access === 'preview') score -= 220;
+  if (track.source === 'spotify') score += 35;
+  else if (track.source === 'deezer') score += 15;
   return score;
 }
 export function rankSoundCloud(dto: SoundCloudTrackDTO, query: string): number {
