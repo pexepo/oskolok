@@ -8,6 +8,7 @@ import { HomeTrackWidget } from '../components/player/HomeTrackWidget.js';
 import { Modal } from '../components/common/Modal.js';
 import {ShinyButton} from '../components/ui/shiny-button.js';
 import UniqueLoading from '../components/ui/morph-loading.js';
+import LumaSpin from '../components/ui/luma-spin.js';
 
 const MOODS = [
   { id: 'energetic', label: 'Бодрое' },
@@ -269,7 +270,7 @@ export const HomePage: React.FC = () => {
             >
               {isStartingWave ? (
                 <>
-                  <UniqueLoading size="sm" className="morph-loading-compact" label="Загрузка" />
+                  <LumaSpin size="sm" label="Загрузка" />
                   <span>Загрузка...</span>
                 </>
               ) : (

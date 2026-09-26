@@ -2,7 +2,7 @@ import React from 'react';
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1 } from 'lucide-react';
 import { RepeatMode } from '../../types/index.js';
 import { clsx } from 'clsx';
-import UniqueLoading from '../ui/morph-loading.js';
+import LumaSpin from '../ui/luma-spin.js';
 
 interface PlayerControlsProps {
   isPlaying: boolean;
@@ -84,7 +84,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         title={isPlaying ? 'Пауза (Space)' : 'Воспроизвести (Space)'}
       >
         {isBuffering ? (
-          <UniqueLoading size="sm" label="Буферизация трека" />
+          <LumaSpin size="md" label="Буферизация трека" />
         ) : isPlaying ? (
           <Pause size={iconSizes.main} className="fill-white" />
         ) : (

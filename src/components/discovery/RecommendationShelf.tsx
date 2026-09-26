@@ -7,7 +7,7 @@ import { useLibraryStore } from '../../stores/useLibraryStore.js';
 import { ShardArtwork } from '../tracks/ShardArtwork.js';
 import { SourceBadge } from '../tracks/SourceBadge.js';
 import {LoadingState} from '../common/LoadingState.js';
-import UniqueLoading from '../ui/morph-loading.js';
+import LumaSpin from '../ui/luma-spin.js';
 
 export function RecommendationShelf({ character = 'discovery', title = 'Собрано для вас' }: { character?: string; title?: string }) {
   const likedSignature = useLibraryStore(s => s.likedTracks.map(t => t.id).sort().join('|'));
@@ -22,7 +22,7 @@ export function RecommendationShelf({ character = 'discovery', title = 'Собр
   });
   return <section className="discovery-shelf">
     <div className="section-heading"><h2>{title}</h2>
-      <button className="text-button" disabled={isFetching} onClick={() => data.length ? setExcluded(prev => [...new Set([...prev, ...data.map(t=>t.id)])].slice(-120)) : refetch()}>{isFetching?<UniqueLoading size="sm" className="morph-loading-compact" label="Обновляем подборку"/>:<RefreshCw size={14}/>} Другие грани</button>
+      <button className="text-button" disabled={isFetching} onClick={() => data.length ? setExcluded(prev => [...new Set([...prev, ...data.map(t=>t.id)])].slice(-120)) : refetch()}>{isFetching?<LumaSpin size="sm" label="Обновляем подборку"/>:<RefreshCw size={14}/>} Другие грани</button>
     </div>
     {!data.length && isFetching ? <LoadingState label="Настраиваемся на вашу частоту…"/> : !data.length ? <div className="empty-glass">{isError ? 'Источники временно не отвечают.' : 'Пока не удалось собрать подборку.'} <button onClick={() => refetch()}>Попробовать ещё</button></div> :
       <div className="recommendation-grid">{data.slice(0,6).map((t,i) => <button className="recommendation-card" key={t.id} onClick={() => playCollection(data,i)}>
