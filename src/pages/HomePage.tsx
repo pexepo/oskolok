@@ -284,7 +284,7 @@ export const HomePage: React.FC = () => {
 
       {/* Bottom-Left: Real Playback Info Block (Section 6 & 7) */}
       <HomeTrackWidget />
-      <NavLink to="/search" className="home-recommendations-link">Подобрано для вас <span>→</span></NavLink>
+      <NavLink to="/search" className="home-recommendations-link">Собрано для вас <span>→</span></NavLink>
     </div>
   );
 };

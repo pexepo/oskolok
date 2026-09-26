@@ -2,7 +2,7 @@ import { Track } from '../types/index.js';
 import { prisma } from '../database/client.js';
 import { musicCatalogService } from './MusicCatalogService.js';
 import { soundCloudService } from './SoundCloudService.js';
-import { balanceRecommendationSeeds, normalizeMusicText, trackIdentity, matchesMetadataLanguage, matchesArtistSeed } from './trackRanking.js';
+import { normalizeMusicText, trackIdentity, matchesMetadataLanguage, matchesArtistSeed } from './trackRanking.js';
 import { logger } from '../utils/logger.js';
 
 export interface WaveOptions {
@@ -356,10 +356,10 @@ export class RecommendationService {
     const languageArtists = new Set([...likes,...history,...library].filter(inLanguage).map(t => normalizeMusicText(t.artist.name)));
     const seeds = favorites.filter(t => language === 'all' || languageArtists.has(normalizeMusicText(t.name))).slice(0, seedCount).map(t => t.name);
     const artists = [...new Set([...seeds, ...shuffleArray(character === 'discovery' ? pool.discovery : pool.popular)])].slice(0, 8);
-    const queries = artists.map(async (name, index) => {
-      // One Spotify search page per seed keeps the shared development quota
-      // available when several friends open recommendations together.
-      const result = await (index % 2 === 0 ? soundCloudService.search(name, { limit: 12, type: 'tracks' }) : musicCatalogService.search(name, { limit: 10 }));
+    const queries = artists.map(async (name) => {
+      // Spotify (with its Deezer availability fallback) is the recommendation
+      // catalog of record. SoundCloud enters through related tracks below.
+      const result = await musicCatalogService.search(name, { limit: 12 });
       return result.tracks.filter(t => matchesArtistSeed(t, name)).map(t => ({ ...t, recommendationReason: seeds.includes(name) ? `Потому что вы слушаете ${name}` : `Новые грани · ${name}` }));
     });
     // Several distinct listening seeds discover adjacent artists while avoiding
@@ -390,11 +390,45 @@ export class RecommendationService {
         if(recent.has(identity))score-=100;
         if(t.recommendationReason?.startsWith('Рядом'))score+=20;
         if(t.artworkUrl)score+=3;
-        if(t.source==='spotify'||t.source==='licensed')score+=5;
-        if(/\b(remix|slowed|sped up|nightcore|cover|karaoke|snippet|preview|live)\b|кавер|ремикс/i.test(t.title))score-=35;
+        if(t.source==='spotify')score+=30;
+        else if(t.source==='deezer'||t.source==='licensed')score+=20;
+        else if(t.source==='soundcloud')score-=12;
+        if(/\b(slowed|sped up|nightcore|cover|karaoke|snippet|preview|live)\b|кавер/i.test(t.title))score-=35;
         return { track: { ...t, recommendationReason: t.recommendationReason || 'Из вашей коллекции' }, score };
       }).sort((a,b) => b.score - a.score||a.track.id.localeCompare(b.track.id));
-    return balanceRecommendationSeeds(scored.map(t => t.track), limit);
+    const remixPattern=/\b(remix|remixed|rework|bootleg|edit|mix)\b|ремикс|ремастер/i;
+    const isRemix=(track:Track)=>remixPattern.test(`${track.title} ${track.release?.title||''}`);
+    const sorted=scored.map(t=>t.track);
+    const selected:Track[]=[];
+    const seenTracks=new Set<string>();
+    const artistReleases=new Map<string,Set<string>>();
+    const remixCounts=new Map<string,number>();
+    const selectedSources=new Map<string,number>();
+    const artistKeys=(track:Track)=>track.artist.name.normalize('NFKC').toLowerCase()
+      .split(/\s*,\s*|\s+(?:&|and|x|feat(?:uring)?|ft|with)\s+|\s*[|/]\s*/)
+      .map(normalizeMusicText).filter(Boolean);
+    const releaseKey=(track:Track)=>normalizeMusicText(track.release?.title||track.title);
+    const sourceKey=(track:Track)=>track.source==='spotify'||track.source==='deezer'||track.source==='licensed'?'catalog':track.source;
+    const addTrack=(track:Track)=>{
+      const identity=trackIdentity(track),artists=artistKeys(track),release=releaseKey(track),remix=isRemix(track);
+      if(!artists.length||seenTracks.has(identity)||seenTracks.has(track.id))return false;
+      const repeatedArtists=artists.filter(artist=>(artistReleases.get(artist)?.size||0)>0);
+      if(repeatedArtists.some(artist=>!remix||artistReleases.get(artist)?.has(release)||(remixCounts.get(artist)||0)>=1))return false;
+      const source=sourceKey(track),soundCloudCount=selectedSources.get('soundcloud')||0;
+      if(source==='soundcloud'&&soundCloudCount>=Math.max(1,Math.floor(limit/3)))return false;
+      selected.push(track);seenTracks.add(identity);seenTracks.add(track.id);
+      for(const artist of artists){
+        const releases=artistReleases.get(artist)||new Set<string>();
+        releases.add(release);artistReleases.set(artist,releases);
+        if(remix)remixCounts.set(artist,(remixCounts.get(artist)||0)+1);
+      }
+      selectedSources.set(source,(selectedSources.get(source)||0)+1);
+      return true;
+    };
+    const catalogTarget=Math.min(limit,Math.ceil(limit*2/3));
+    for(const track of sorted.filter(t=>sourceKey(t)==='catalog')){if((selectedSources.get('catalog')||0)>=catalogTarget)break;addTrack(track);}
+    for(const track of sorted){if(selected.length>=limit)break;addTrack(track);}
+    return selected;
   }
 }
 

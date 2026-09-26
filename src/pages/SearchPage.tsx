@@ -195,7 +195,7 @@ export const SearchPage: React.FC = () => {
               По умолчанию — каталог Spotify. Можно вставить ссылку на трек, альбом или плейлист.
             </p>
           </div>
-        </div><RecommendationShelf title="Подобрано для вас"/></>
+        </div><RecommendationShelf title="Собрано для вас"/></>
       ) : !results ||
         (results.tracks.length === 0 &&
           results.artists.length === 0 &&
