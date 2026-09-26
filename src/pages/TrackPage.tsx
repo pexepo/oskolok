@@ -12,6 +12,7 @@ import { TrackRow } from '../components/tracks/TrackRow.js';
 import { LyricsView } from '../components/lyrics/LyricsView.js';
 import { formatTime } from '../utils/formatters.js';
 import { formatDisplayTitle } from '../utils/formatTrack.js';
+import {LoadingState} from '../components/common/LoadingState.js';
 
 export const TrackPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,11 +51,7 @@ export const TrackPage: React.FC = () => {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="py-20 text-center text-[#7188a3] dark:text-slate-400 font-semibold">
-        Загрузка трека...
-      </div>
-    );
+    return <LoadingState className="route-loading" label="Загрузка трека…"/>;
   }
 
   if (!track) {

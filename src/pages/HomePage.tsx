@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Play, Pause, SlidersHorizontal, Sparkles, Loader2, Volume2 } from 'lucide-react';
+import { Play, Pause, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react';
 import { usePlayerStore } from '../stores/usePlayerStore.js';
 import { useThemeStore } from '../stores/useThemeStore.js';
 import { HomeTrackWidget } from '../components/player/HomeTrackWidget.js';
 import { Modal } from '../components/common/Modal.js';
 import {ShinyButton} from '../components/ui/shiny-button.js';
+import UniqueLoading from '../components/ui/morph-loading.js';
 
 const MOODS = [
   { id: 'energetic', label: 'Бодрое' },
@@ -172,7 +173,7 @@ export const HomePage: React.FC = () => {
           <span className="wave-caption">Моя волна</span>
           <ShinyButton onClick={handleWaveAction} disabled={isStartingWave} className="wave-play-button"
             aria-label={isWaveActive&&isPlaying?'Приостановить Мою волну':'Включить Мою волну'} aria-busy={isStartingWave}>
-            {isStartingWave?<Loader2 size={32} className="animate-spin"/>:isWaveActive&&isPlaying?<Pause size={34} fill="currentColor"/>:<Play size={34} fill="currentColor" style={{marginLeft:5}}/>}
+            {isStartingWave?<UniqueLoading size="md" label="Запускаем волну"/>:isWaveActive&&isPlaying?<Pause size={34} fill="currentColor"/>:<Play size={34} fill="currentColor" style={{marginLeft:5}}/>}
           </ShinyButton>
           <div className="wave-settings-slot"><AnimatePresence>
             {(waveStarted||isWaveActive)&&<motion.div key="settings" initial={{opacity:0,y:reducedMotion?0:-16,scale:reducedMotion?1:.92}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0}} transition={{type:'spring',stiffness:230,damping:23}}><ShinyButton onClick={()=>setIsSettingsOpen(true)} className="wave-settings-button" aria-haspopup="dialog"><SlidersHorizontal size={17}/>Настроить волну</ShinyButton></motion.div>}
@@ -268,7 +269,7 @@ export const HomePage: React.FC = () => {
             >
               {isStartingWave ? (
                 <>
-                  <Loader2 size={14} className="animate-spin" />
+                  <UniqueLoading size="sm" className="morph-loading-compact" label="Загрузка" />
                   <span>Загрузка...</span>
                 </>
               ) : (

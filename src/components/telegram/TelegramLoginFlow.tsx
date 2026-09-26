@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
-import {CheckCircle2, Loader2, MessageCircle, QrCode} from 'lucide-react';
+import {CheckCircle2, MessageCircle, QrCode} from 'lucide-react';
 import {apiClient} from '../../api/apiClient.js';
+import UniqueLoading from '../ui/morph-loading.js';
 
 type Method='bot'|'qr';
 type Login={state:string;method?:Method;configured:boolean;botUrl?:string;qr?:string;error?:string;passwordHint?:string};
@@ -55,7 +56,7 @@ export function TelegramLoginFlow(){
       {!current||['idle','error'].includes(current.state)?<button className="primary-button" disabled={busy||!login?.configured} onClick={()=>void start('bot')}><MessageCircle size={19}/> Продолжить в боте</button>:<>
         <div className="telegram-login-progress" role="status">
           {current.state==='bot_pending'?<span>Ожидаем открытия бота</span>:current.state==='bot_phone'?<span>Отправьте номер в боте</span>:current.state==='code'?<span>Введите код в боте</span>:current.state==='password'?<span>Введите облачный пароль в боте</span>:<span>Проверяем подключение…</span>}
-          <Loader2 size={17} className="animate-spin"/>
+          <UniqueLoading size="sm" className="morph-loading-compact" label="Проверяем подключение"/>
         </div>
         {current.botUrl&&<button className="secondary-button" onClick={()=>openBot(current.botUrl!)}>Открыть диалог с ботом</button>}
       </>}

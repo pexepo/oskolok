@@ -4,6 +4,7 @@ import {profileTrackWithArtwork} from '../services/profileArtwork.js';
 
 const FALLBACK_NAME = 'Слушатель';
 const spicyId = (id: string) => /^spicy:\d{5,30}$/.test(id);
+const normalizeUserId = (id: string) => /^\d{5,30}$/.test(id) ? `telegram:${id}` : id;
 const activeCreditDate = () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
 async function loadSpicyProfile(userId: string) {
@@ -31,7 +32,7 @@ export class PublicProfileController {
   public getPublicProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       res.setHeader('Cache-Control', 'no-store');
-      const userId = req.params.id;
+      const userId = normalizeUserId(req.params.id);
       if (spicyId(userId)) {
         const profile = await loadSpicyProfile(userId);
         if (!profile) { res.status(404).json({ error: { message: 'Автор Spicy Lyrics пока не найден в каталоге Осколка.' } }); return; }
@@ -73,7 +74,7 @@ export class PublicProfileController {
   public getSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       res.setHeader('Cache-Control', 'no-store');
-      const userId = req.params.id;
+      const userId = normalizeUserId(req.params.id);
       if (spicyId(userId)) {
         const profile = await loadSpicyProfile(userId);
         if (!profile) { res.status(404).json({ error: { message: 'Автор Spicy Lyrics пока не найден в каталоге Осколка.' } }); return; }

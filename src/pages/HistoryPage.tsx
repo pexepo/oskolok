@@ -3,6 +3,7 @@ import { History, Trash2, Clock } from 'lucide-react';
 import { useHistoryStore } from '../stores/useHistoryStore.js';
 import { TrackRow } from '../components/tracks/TrackRow.js';
 import { formatDateGroup } from '../utils/formatters.js';
+import { LoadingState } from '../components/common/LoadingState.js';
 
 export const HistoryPage: React.FC = () => {
   const { history, fetchHistory, clearHistory, isLoading } = useHistoryStore();
@@ -48,11 +49,7 @@ export const HistoryPage: React.FC = () => {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 bg-white/50 dark:bg-slate-900/40 border border-blue-100/60 dark:border-slate-800/80 rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <LoadingState label="Загружаем историю прослушиваний…"/>
       ) : history.length === 0 ? (
         <div className="py-20 text-center text-[#7188a3] dark:text-slate-400 space-y-2 bg-white/40 dark:bg-slate-900/40 border border-blue-100/50 dark:border-slate-800/80 rounded-2xl p-8">
           <Clock size={48} className="mx-auto text-blue-300 dark:text-sky-500/50 opacity-60 mb-2" />

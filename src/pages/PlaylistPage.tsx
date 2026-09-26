@@ -9,6 +9,7 @@ import { PlaylistTrackList } from '../components/playlist/PlaylistTrackList.js';
 import { Modal } from '../components/common/Modal.js';
 import { formatTime } from '../utils/formatters.js';
 import { apiClient } from '../api/apiClient.js';
+import { LoadingState } from '../components/common/LoadingState.js';
 import clsx from 'clsx';
 
 export const PlaylistPage: React.FC = () => {
@@ -61,11 +62,7 @@ export const PlaylistPage: React.FC = () => {
   }, [currentPlaylist]);
 
   if (isLoading || !currentPlaylist) {
-    return (
-      <div className="py-20 text-center text-zinc-500">
-        <p className="text-base font-semibold">Загрузка плейлиста...</p>
-      </div>
-    );
+    return <LoadingState className="route-loading" label="Загрузка плейлиста…"/>;
   }
 
   const isExternal = Boolean(

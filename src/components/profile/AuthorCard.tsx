@@ -5,6 +5,7 @@ import { FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../../api/apiClient.js';
 import type { LyricsAuthor } from '../../types/index.js';
+import UniqueLoading from '../ui/morph-loading.js';
 
 const OPEN_DELAY = 100;
 const CLOSE_DELAY = 160;
@@ -65,7 +66,7 @@ export function AuthorCard({author,label='Текст'}: {author: LyricsAuthor;la
     </button>
     {open && <div id={cardId} className="lyrics-author-popover frost-surface" role="group" aria-label={`Автор текста: ${name}`}>
       <div className="lyrics-author-card-head"><Avatar src={avatar} name={name} className="lyrics-author-card-avatar" /><div><strong>{name}</strong>{username && <span>@{username}</span>}</div></div>
-      {summary.isPending ? <p className="lyrics-author-status" role="status">Открываем профиль…</p> : summary.isError ?
+      {summary.isPending ? <p className="lyrics-author-status" role="status"><UniqueLoading size="sm" className="morph-loading-compact" label="Открываем профиль"/> Открываем профиль…</p> : summary.isError ?
         <div className="lyrics-author-status" role="alert"><span>Не удалось загрузить профиль.</span><button type="button" onClick={() => void summary.refetch()}>Повторить</button></div> :
         <>{profile?.bio && <p className="lyrics-author-bio">{profile.bio}</p>}<p className="lyrics-author-count"><FileText size={14} /> {profile?.textsCount ?? 0} текстов в Осколке</p></>}
       <div className="lyrics-author-links"><Link to={`/users/${encodeURIComponent(author.id)}`} onClick={()=>setOpen(false)}>Профиль в Осколке</Link>{(spicyUrl||profile?.externalUrl)&&<a href={spicyUrl||profile?.externalUrl} target="_blank" rel="noopener noreferrer">Spicy Lyrics ↗</a>}</div>

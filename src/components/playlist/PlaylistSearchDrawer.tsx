@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Search, Plus, X, Loader2 } from 'lucide-react';
+import { Search, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Track } from '../../types/index.js';
 import { apiClient } from '../../api/apiClient.js';
 import { usePlaylistStore } from '../../stores/usePlaylistStore.js';
 import { ArtworkImage } from '../common/ArtworkImage.js';
 import { formatTime } from '../../utils/formatters.js';
+import {LoadingState} from '../common/LoadingState.js';
 
 interface PlaylistSearchDrawerProps {
   playlistId: string;
@@ -72,9 +73,7 @@ export const PlaylistSearchDrawer: React.FC<PlaylistSearchDrawerProps> = ({
 
           <div className="flex-1 overflow-y-auto mt-4 space-y-2 custom-scrollbar">
             {loading ? (
-              <div className="flex items-center justify-center py-12 text-[#7188a3] dark:text-slate-400">
-                <Loader2 size={24} className="animate-spin text-blue-600 dark:text-sky-400" />
-              </div>
+              <LoadingState size="md" label="Ищем треки…"/>
             ) : results.length === 0 ? (
               <div className="text-center py-12 text-[#7188a3] dark:text-slate-400 text-xs">
                 Введите поисковый запрос выше

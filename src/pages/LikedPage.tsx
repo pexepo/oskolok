@@ -20,6 +20,7 @@ import { usePlayerStore } from '../stores/usePlayerStore.js';
 import { DndSortableTrackRow } from '../components/playlist/DndSortableTrackRow.js';
 import { formatTime } from '../utils/formatters.js';
 import { apiClient } from '../api/apiClient.js';
+import { LoadingState } from '../components/common/LoadingState.js';
 
 export const LikedPage: React.FC = () => {
   const { likedTracks, isLoading, reorderLikedTracks } = useLibraryStore();
@@ -138,11 +139,7 @@ export const LikedPage: React.FC = () => {
 
       {/* Tracks List with Drag and Drop */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 bg-white/50 dark:bg-slate-800/40 border border-blue-100/60 dark:border-slate-800 rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <LoadingState label="Загружаем понравившиеся треки…"/>
       ) : likedTracks.length === 0 ? (
         <div className="py-20 text-center text-[#7188a3] dark:text-slate-400 space-y-2 bg-white/40 dark:bg-slate-900/40 border border-blue-100/50 dark:border-slate-800 rounded-2xl p-8">
           <Music size={48} className="mx-auto text-blue-300 dark:text-sky-500 mb-2 opacity-60" />

@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, NavLink } from 'react-router-dom';
-import { Search, Loader2, Music, User, ListMusic, Play, X, Sparkles } from 'lucide-react';
+import { Search, Music, User, ListMusic, Play, X, Sparkles } from 'lucide-react';
 import { SearchResult, Track } from '../types/index.js';
 import { apiClient } from '../api/apiClient.js';
 import { TrackRow } from '../components/tracks/TrackRow.js';
 import { ArtworkImage } from '../components/common/ArtworkImage.js';
 import { RecommendationShelf } from '../components/discovery/RecommendationShelf.js';
+import { LoadingState } from '../components/common/LoadingState.js';
 import { SearchSuggestions } from '../components/discovery/SearchSuggestions.js';
 import { useLibraryStore } from '../stores/useLibraryStore.js';
 import { usePlaylistStore } from '../stores/usePlaylistStore.js';
@@ -173,10 +174,7 @@ export const SearchPage: React.FC = () => {
 
       {/* Loading State */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-[#7188a3] dark:text-slate-400">
-          <Loader2 size={36} className="animate-spin text-blue-600 dark:text-sky-400 mb-3" />
-          <p className="text-xs font-medium">Поиск среди осколков музыки...</p>
-        </div>
+        <LoadingState label="Поиск среди осколков музыки…"/>
       ) : errorMsg ? (
         <div className="py-10 text-center text-red-600 bg-red-50/70 border border-red-100 rounded-2xl p-6 max-w-lg mx-auto">
           {errorMsg}

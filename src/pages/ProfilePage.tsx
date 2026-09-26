@@ -20,6 +20,7 @@ import {useTelegramStore} from '../telegram/runtime.js';
 import {usePlaylistStore} from '../stores/usePlaylistStore.js';
 import {usePlayerStore} from '../stores/usePlayerStore.js';
 import {TelegramLoginFlow} from '../components/telegram/TelegramLoginFlow.js';
+import {LoadingState} from '../components/common/LoadingState.js';
 
 type Submission={id:string;trackId:string;trackTitle:string;artistName:string;credit:string;status:'pending'|'approved'|'rejected';reviewNote:string};
 type Profile={userId:string;username:string|null;displayName:string;avatarUrl:string;telegramAvatarUrl:string;bannerUrl:string;bio:string;telegramConnected:boolean;telegramFullIntegration:boolean;telegramSyncError:string|null;currentTrack:Track|null;music:Track[];playlists:Array<{id:string;playlistId:string;title:string;artworkUrl?:string;tracks:Track[]}>;submissions:Submission[];contributions:Array<{id:string;trackId:string;trackTitle:string;artistName:string;credit:string}>};
@@ -70,7 +71,7 @@ export function ProfilePage(){
     setNotice('Профиль сохранён');
     setEditing(false);
   };
-  if(!p)return <div className="frost-panel">{error||'Открываем профиль…'}</div>;
+  if(!p)return error?<div className="frost-panel lyrics-error" role="alert">{error}</div>:<LoadingState className="route-loading" label="Открываем профиль…"/>;
   return <div className="page-crystal profile-page">
     <header className="profile-cover frost-panel">
       <div className="profile-banner">{p.bannerUrl?<img src={p.bannerUrl} alt="" aria-hidden="true"/>:null}</div>
