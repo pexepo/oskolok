@@ -6,7 +6,7 @@ import {env} from '../config/env.js';
 import QRCode from 'qrcode';
 import {lyricSubmissionSchema} from '../validation/lyrics.js';
 import {trackController} from './trackController.js';
-import {requireTrustedMutation} from '../middleware/trustedOrigin.js';
+import {isTrustedLocalOrigin,requireTrustedMutation} from '../middleware/trustedOrigin.js';
 import {prisma} from '../database/client.js';
 import {sessionConfigured,beginLogin,beginPhoneLogin,beginBotLogin,cancelLogin,loginStatus,consumeLogin,submitPhoneCode,submitLoginPassword,hashToken,disconnectSession} from '../services/telegramSession.js';
 import {updateNowPlaying,refreshTelegramIntegration,clearNowPlayingOnExit} from '../services/telegramNowPlaying.js';
@@ -35,7 +35,7 @@ telegramLogin.post('/start-bot',route(async(req:any,res:any)=>{
   const appUrl=new URL(origin);
   if(!['http:','https:'].includes(appUrl.protocol))throw new Error('Неверный адрес приложения.');
   let tunnelUrl='';try{tunnelUrl=readFileSync('/tmp/oskolok-mobile-tunnel-url','utf8').trim();}catch{}
-  if(![`${req.protocol}://${req.get('host')}`,env.CORS_ORIGIN,tunnelUrl].includes(appUrl.origin)){
+  if(![`${req.protocol}://${req.get('host')}`,env.CORS_ORIGIN,tunnelUrl].includes(appUrl.origin)&&!isTrustedLocalOrigin(req,appUrl.origin)){
     res.status(403).json({error:{message:'Откройте Осколок через кнопку бота.'}});return;
   }
   const id=beginBotLogin(res.locals.userId||undefined,appUrl.origin);

@@ -1,6 +1,22 @@
 import type { Request, Response, NextFunction } from 'express';
+import { isIP } from 'node:net';
 import { env } from '../config/env.js';
 import { validateTelegramInitData } from '../services/telegramAuth.js';
+
+function isLoopbackHost(hostname:string){
+  return hostname==='localhost'||hostname==='::1'||(isIP(hostname)===4&&hostname.startsWith('127.'));
+}
+function isLoopbackAddress(address:string|undefined){
+  const normalized=(address||'').replace(/^::ffff:/i,'');
+  return normalized==='::1'||(isIP(normalized)===4&&normalized.startsWith('127.'));
+}
+export function isTrustedLocalOrigin(req:Request,origin:string){
+  try {
+    if(!isLoopbackAddress(req.ip||req.socket.remoteAddress))return false;
+    const parsed=new URL(origin),requestHost=new URL(`${req.protocol}://${req.get('host')||''}`).hostname;
+    return parsed.protocol==='http:'&&isLoopbackHost(parsed.hostname)&&isLoopbackHost(requestHost);
+  } catch { return false; }
+}
 
 // Cookie mutations require an exact origin. Telegram Mini Apps carry signed
 // initData, so they remain valid behind an HTTPS tunnel or reverse proxy whose
@@ -24,7 +40,12 @@ export function requireTrustedMutation(req: Request, res: Response, next: NextFu
       return parsed.host===host&&(parsed.protocol==='https:'||parsed.protocol==='http:'&&localHost);
     } catch { return false; }
   })();
-  if (origin && origin !== internalOrigin && origin !== publicOrigin && !sameHost && origin !== env.CORS_ORIGIN) {
+  // A local Vite page proxies writes to the production-mode API on another
+  // loopback port. Trust that pairing only when both the Origin and the API
+  // host are local and the TCP peer is loopback; never infer trust from Origin
+  // alone, since remote browsers can forge it.
+  const localDevOrigin = origin ? isTrustedLocalOrigin(req,origin) : false;
+  if (origin && origin !== internalOrigin && origin !== publicOrigin && !sameHost && !localDevOrigin && origin !== env.CORS_ORIGIN) {
     const authorization = req.get('Authorization');
     try {
       if (!authorization?.startsWith('tma ')) throw new Error('Missing Telegram signature');
