@@ -1,0 +1,48 @@
+.oskolok-app .route-back {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;
+  margin:8px 0 18px;padding:0 14px;border:1px solid color-mix(in srgb,var(--muted) 20%,transparent);
+  border-radius:999px;background:color-mix(in srgb,var(--ink) 4%,transparent);color:var(--muted);
+  font-size:13px;font-weight:550;line-height:1;cursor:pointer;
+  transition:color .18s ease,background-color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.oskolok-app .route-back:hover {color:var(--ink);border-color:color-mix(in srgb,var(--accent) 36%,transparent);background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.oskolok-app .route-back:active {transform:scale(.96)}
+.oskolok-app .route-back:focus-visible,.playlist-shuffle:focus-visible {outline:2px solid var(--accent);outline-offset:4px}
+.playlist-meta {font-variant-numeric:tabular-nums}
+.playlist-owner {max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.playlist-actions {gap:10px}
+.playlist-actions .playlist-play {min-height:48px;padding:0 23px;border-radius:16px;gap:9px;white-space:nowrap}
+.oskolok-app .playlist-shuffle {
+  position:relative;display:inline-grid;place-items:center;flex:none;width:48px;height:48px;border-radius:16px;
+  color:var(--muted);background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid color-mix(in srgb,var(--muted) 23%,transparent);cursor:pointer;
+  transition:color .18s ease,background-color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.playlist-shuffle:hover:not(:disabled) {color:var(--ink);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.playlist-shuffle:active:not(:disabled) {transform:scale(.94)}
+.oskolok-app .playlist-shuffle.is-active {color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.playlist-shuffle.is-active:after {content:'';position:absolute;width:4px;height:4px;border-radius:50%;background:currentColor;bottom:6px}
+.playlist-shuffle:disabled {opacity:.35;cursor:default}
+@media(min-width:640px) and (max-width:1279px){
+  .playlist-header {display:grid;grid-template-columns:176px minmax(0,1fr);gap:16px 24px;align-items:end}
+  .playlist-header>.artwork-image {grid-row:1 / span 2;width:176px;height:176px;align-self:center}
+  .playlist-header .playlist-actions {grid-column:2;flex-wrap:wrap}
+}
+.search-top.search-top--solo {grid-template-columns:minmax(0,1fr)}
+.search-hero:has(.search-tabs) .search-shell .search-suggestions {top:calc(100% + 80px)}
+.search-best-album {width:132px;aspect-ratio:1;object-fit:cover;border-radius:16px}
+.search-albums {display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px 18px}
+.search-album {display:flex;flex-direction:column;min-width:0;gap:7px;border-radius:16px;padding:6px;color:var(--ink);transition:background-color .18s ease,transform .18s ease}
+.search-album:hover {background:color-mix(in srgb,var(--ink) 5%,transparent);transform:translateY(-2px)}
+.search-album:focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+.search-album-cover {position:relative;aspect-ratio:1;margin-bottom:5px;border-radius:14px;overflow:hidden;box-shadow:0 8px 22px rgb(0 0 0 / .15);outline:1px solid rgb(127 127 127 / .16);outline-offset:-1px}
+.search-album-cover>.artwork-image {width:100%;height:100%;object-fit:cover}
+.search-album-cover>svg {position:absolute;right:10px;bottom:10px;color:white;filter:drop-shadow(0 2px 4px rgb(0 0 0 / .6));opacity:0;transition:opacity .18s ease}
+.search-album:hover .search-album-cover>svg,.search-album:focus-visible .search-album-cover>svg {opacity:1}
+.search-album strong {font-size:14px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty}
+.search-album small {font-size:12px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-more-albums {margin:22px auto 0;display:flex}
+.search-album-error {margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+@media(max-width:640px){.oskolok-app .route-back{margin:6px 0 16px;min-height:42px}.playlist-actions{width:100%;flex-wrap:wrap}.playlist-owner{max-width:180px}}
+@media(max-width:640px){.playlist-actions .playlist-profile{width:48px;height:48px;min-width:48px;padding:0;justify-content:center;border-radius:16px}.playlist-profile span{display:none}}
+@media(max-width:640px){.search-albums{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.search-best-album{width:72px;border-radius:12px}}
+@media(prefers-reduced-motion:reduce){.oskolok-app .route-back,.oskolok-app .playlist-shuffle,.search-album,.search-album-cover>svg{transition:none}.search-album:hover{transform:none}}

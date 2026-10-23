@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { usePerformance } from '../../utils/performance.js';
 import { DEFAULT_FLUTED_GLASS_PALETTE, paletteFromArtwork, type Rgb } from '../../utils/releasePalette.js';
 
 const VERTEX = `attribute vec2 a_position;
@@ -76,7 +77,10 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
     return () => { alive = false; };
   }, [artworkUrl]);
 
+  // Below «full» the backdrop is the static gradient of the cover's colours: no WebGL frame loop.
+  const animated = usePerformance(s => s.level) === 'full';
   useEffect(() => {
+    if (!animated) return undefined;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false });
@@ -110,7 +114,8 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
       const resolution = gl.getUniformLocation(program, 'u_resolution');
       const time = gl.getUniformLocation(program, 'u_time');
       const resize = () => {
-        const scale = Math.min(window.devicePixelRatio || 1, 1.5);
+        // This softly blurred backdrop does not need a retina-size framebuffer.
+        const scale = Math.min(window.devicePixelRatio || 1, 1)*.65;
         const width = Math.max(1, Math.round(canvas.clientWidth * scale));
         const height = Math.max(1, Math.round(canvas.clientHeight * scale));
         if (canvas.width !== width || canvas.height !== height) {
@@ -127,7 +132,7 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
       };
       const tick = (now: number) => {
         if (disposed || document.hidden || reduced.matches || !isPlayingRef.current) return;
-        if (now - last >= 33) {
+        if (now - last >= 50) {
           elapsed += last ? Math.min((now - last) / 1000, .1) : 0;
           last = now;
           draw();
@@ -165,12 +170,12 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
       if (fragment) gl.deleteShader(fragment);
       return undefined;
     }
-  }, [palette]);
+  }, [palette, animated]);
 
   useEffect(() => { restartRef.current(); }, [isPlaying]);
 
   return <div className="release-gradient-wave" style={{ backgroundImage: fallback, ...scrim }} aria-hidden="true">
-    <canvas ref={canvasRef} />
+    {animated && <canvas ref={canvasRef} />}
     <div className="release-gradient-scrim" />
   </div>;
 }

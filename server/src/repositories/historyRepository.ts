@@ -86,6 +86,8 @@ export class HistoryRepository {
     await prisma.historyItem.deleteMany({
       where: { userId },
     });
+    // Clearing the history also forgets what was listened to (listening summaries); likes and playlists stay.
+    await prisma.trackEvent.deleteMany({ where: { userId, type: { in: ['listen', 'play_request', 'play_start'] } } }).catch(() => {});
   }
 }
 

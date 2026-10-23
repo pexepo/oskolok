@@ -4,14 +4,17 @@ import { Heart, ListMusic, Plus, Play, ChevronRight } from 'lucide-react';
 import { useLibraryStore } from '../stores/useLibraryStore.js';
 import { usePlaylistStore } from '../stores/usePlaylistStore.js';
 import { usePlayerStore } from '../stores/usePlayerStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { ArtworkImage } from '../components/common/ArtworkImage.js';
 import { TrackRow } from '../components/tracks/TrackRow.js';
 import { Modal } from '../components/common/Modal.js';
 
+import { useTranslation } from '../stores/useLanguageStore.js';
 export const LibraryPage: React.FC = () => {
+  const t = useTranslation();
   const { likedTracks } = useLibraryStore();
   const { playlists, createPlaylist } = usePlaylistStore();
-  const { playCollection } = usePlayerStore();
+  const { playCollection } = usePlayerStore(useShallow(s => ({ playCollection: s.playCollection })));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -29,8 +32,8 @@ export const LibraryPage: React.FC = () => {
   return (
     <div className="space-y-10 pb-12 select-none">
       <div>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-[#162b50] dark:text-slate-100 tracking-tight">Коллекция</h1>
-        <p className="text-sm text-[#5a6e85] dark:text-slate-400 mt-1">Все ваши избранные треки и плейлисты</p>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-[#162b50] dark:text-slate-100 tracking-tight">{t('Коллекция', 'Collection')}</h1>
+        <p className="text-sm text-[#5a6e85] dark:text-slate-400 mt-1">{t('Все ваши избранные треки и плейлисты', 'All your favorite tracks and playlists')}</p>
       </div>
 
       {/* "Мне нравится" Section (Yandex Music Style) */}
@@ -43,7 +46,7 @@ export const LibraryPage: React.FC = () => {
               }
             }}
             className="group relative w-14 h-14 rounded-md bg-gradient-to-br from-rose-500 via-red-500 to-rose-700 flex items-center justify-center text-white shadow-lg shadow-rose-500/20 shrink-0 cursor-pointer overflow-hidden transition-transform hover:scale-105"
-            title={likedTracks.length > 0 ? 'Воспроизвести всё' : undefined}
+            title={likedTracks.length > 0 ? t('Воспроизвести всё', 'Play all') : undefined}
           >
             <Heart size={28} className="fill-white text-white drop-shadow-md transition-transform group-hover:scale-90" />
             {likedTracks.length > 0 && (
@@ -58,18 +61,18 @@ export const LibraryPage: React.FC = () => {
               to="/liked"
               className="group inline-flex items-center gap-1.5 font-black text-2xl md:text-3xl text-[#162b50] dark:text-slate-100 hover:text-blue-600 dark:hover:text-sky-400 transition-colors"
             >
-              <span>Мне нравится</span>
+              <span>{t('Мне нравится', 'Liked')}</span>
               <ChevronRight size={26} className="text-[#7188a3] dark:text-slate-400 group-hover:translate-x-1 group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-all stroke-[2.5]" />
             </NavLink>
             <div className="text-xs font-semibold text-[#5a6e85] dark:text-slate-400 mt-0.5">
-              {likedTracks.length} {likedTracks.length === 1 ? 'трек' : likedTracks.length > 1 && likedTracks.length < 5 ? 'трека' : 'треков'}
+              {likedTracks.length} {t(likedTracks.length === 1 ? 'трек' : likedTracks.length > 1 && likedTracks.length < 5 ? 'трека' : 'треков', likedTracks.length === 1 ? 'track' : 'tracks')}
             </div>
           </div>
         </div>
 
         {likedTracks.length === 0 ? (
           <div className="py-6 text-[#7188a3] text-xs">
-            Здесь появятся ваши любимые треки. Нажмите на сердечко у любого трека, чтобы добавить его в коллекцию.
+            {t('Здесь появятся ваши любимые треки. Нажмите на сердечко у любого трека, чтобы добавить его в коллекцию.', 'Your liked tracks will appear here. Tap the heart on any track to add it to your collection.')}
           </div>
         ) : (
           <div className="space-y-2">
@@ -90,7 +93,7 @@ export const LibraryPage: React.FC = () => {
                   to="/liked"
                   className="inline-flex items-center gap-1 text-xs font-bold text-zinc-400 hover:text-white transition-colors"
                 >
-                  <span>Показать все ({likedTracks.length})</span>
+                  <span>{t('Показать все', 'Show all')} ({likedTracks.length})</span>
                   <ChevronRight size={14} />
                 </NavLink>
               </div>
@@ -104,7 +107,7 @@ export const LibraryPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <ListMusic size={22} className="text-brand-purple" />
-            <h2 className="text-2xl font-extrabold text-white">Плейлисты ({playlists.length})</h2>
+            <h2 className="text-2xl font-extrabold text-white">{t('Плейлисты', 'Playlists')} ({playlists.length})</h2>
           </div>
         </div>
 
@@ -119,7 +122,7 @@ export const LibraryPage: React.FC = () => {
             </div>
             <div className="mt-2.5">
               <h4 className="font-bold text-sm text-white truncate group-hover:text-sky-400 transition-colors">
-                Новый плейлист
+                {t('Новый плейлист', 'New playlist')}
               </h4>
             </div>
           </button>
@@ -143,7 +146,7 @@ export const LibraryPage: React.FC = () => {
                 <h4 className="font-bold text-sm text-white truncate group-hover:text-sky-400 transition-colors">
                   {pl.title}
                 </h4>
-                <p className="text-xs text-zinc-500 mt-0.5">{pl.trackCount || 0} треков</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{t(`${pl.trackCount || 0} треков`, `${pl.trackCount || 0} tracks`)}</p>
               </div>
             </NavLink>
           ))}
@@ -151,25 +154,25 @@ export const LibraryPage: React.FC = () => {
       </section>
 
       {/* Create Playlist Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Создать плейлист">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('Создать плейлист', 'Create playlist')}>
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">Название *</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1">{t('Название *', 'Title *')}</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Мой плейлист"
+              placeholder={t('Мой плейлист', 'My playlist')}
               required
               className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">Описание</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1">{t('Описание', 'Description')}</label>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="Описание плейлиста..."
+              placeholder={t('Описание плейлиста...', 'Playlist description...')}
               rows={3}
               className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple resize-none"
             />
@@ -180,13 +183,13 @@ export const LibraryPage: React.FC = () => {
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white"
             >
-              Отмена
+              {t('Отмена', 'Cancel')}
             </button>
             <button
               type="submit"
               className="px-5 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-brand-purple to-brand-pink text-white"
             >
-              Создать
+              {t('Создать', 'Create')}
             </button>
           </div>
         </form>

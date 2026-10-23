@@ -13,6 +13,7 @@ import {AnimatePresence, motion, useReducedMotion} from 'framer-motion';
 import {X} from 'lucide-react';
 import {clsx} from 'clsx';
 
+import { useTranslation } from '../../stores/useLanguageStore.js';
 type SheetSide = 'right' | 'left' | 'top' | 'bottom' | 'center';
 type SheetVariant = 'default' | 'inset';
 
@@ -156,6 +157,7 @@ export function SheetPopup({
   portalProps,
   className,
 }: PopupProps) {
+  const t = useTranslation();
   const {open, setOpen, titleId, descriptionId} = useSheet();
   const reduceMotion = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -163,6 +165,10 @@ export function SheetPopup({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
+  // The parent re-renders on every keystroke and hands a fresh setOpen each time; depending on it re-ran this
+  // effect and moved focus to the close button after every typed letter.
+  const setOpenRef = useRef(setOpen);
+  setOpenRef.current = setOpen;
 
   useEffect(() => {
     if (!open) return;
@@ -176,7 +182,7 @@ export function SheetPopup({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        setOpen(false);
+        setOpenRef.current(false);
         return;
       }
       if (panel) trapFocus(panel, event);
@@ -190,7 +196,7 @@ export function SheetPopup({
       document.body.style.overflow = previousOverflow;
       previousFocus.current?.focus?.();
     };
-  }, [open, setOpen]);
+  }, [open]);
 
   if (!mounted && !portalProps?.keepMounted) return null;
   const host = portalProps?.container ?? (mounted ? document.body : null);
@@ -227,7 +233,7 @@ export function SheetPopup({
               <button
                 type="button"
                 className="oskolok-sheet-close"
-                aria-label="Закрыть"
+                aria-label={t('Закрыть', 'Close')}
                 {...closeProps}
                 onClick={event => {
                   closeProps?.onClick?.(event);

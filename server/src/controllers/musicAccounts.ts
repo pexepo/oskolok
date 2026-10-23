@@ -19,12 +19,14 @@ const providers = {
  spotify: { id:env.SPOTIFY_CLIENT_ID, secret:env.SPOTIFY_CLIENT_SECRET, auth:'https://accounts.spotify.com/authorize', token:'https://accounts.spotify.com/api/token', api:'https://api.spotify.com/v1', scope:'playlist-read-private playlist-read-collaborative user-library-read streaming user-read-playback-state user-modify-playback-state user-read-currently-playing' },
  soundcloud: { id:env.SOUNDCLOUD_CLIENT_ID, secret:env.SOUNDCLOUD_CLIENT_SECRET, auth:'https://secure.soundcloud.com/authorize', token:'https://secure.soundcloud.com/oauth/token', api:'https://api.soundcloud.com', scope:'' },
 };
-// Server-only, per-user credentials. Expire on restart; no tokens in browser storage.
+// Encrypted server-side credentials survive restarts; secrets never enter browser storage.
 type StoredToken={access:string;refresh?:string;expires:number;scope?:string};
 const locks=new Map<string,Promise<StoredToken>>();
 const tokenId=(p:string,user:string)=>`${user}:${p}`;
 async function stored(p:string,user:string){const row=await prisma.musicAccountToken.findUnique({where:{id:tokenId(p,user)}});return row?JSON.parse(decryptStoredSession(row.encryptedData)) as StoredToken:null;}
 async function save(p:string,user:string,data:StoredToken){await prisma.musicAccountToken.upsert({where:{id:tokenId(p,user)},create:{id:tokenId(p,user),userId:user,provider:p,encryptedData:encryptSession(JSON.stringify(data))},update:{encryptedData:encryptSession(JSON.stringify(data))}});}
+/** The listener's Yandex Music OAuth token, for «Моя волна» in Резонанс; null when not connected. */
+export async function yandexAccessToken(user:string):Promise<string|null>{if(!user)return null;try{return (await stored('yandex',user))?.access||null;}catch{return null;}}
 const yandexPending=new Map<string,{deviceCode:string;expires:number;nextPoll:number;interval:number}>();
 function yandex(input:Record<string,unknown>):Promise<any>{
  const base=path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +34,31 @@ function yandex(input:Record<string,unknown>):Promise<any>{
  if(!worker)throw new Error('Модуль Яндекс Музыки не найден');
  const python=process.env.PYTHON_PATH||[path.resolve('.venv/bin/python'),path.resolve('.venv/Scripts/python.exe')].find(existsSync)||'python3';
  return new Promise((resolve,reject)=>{const child=spawn(python,[worker],{stdio:['pipe','pipe','pipe']});let out='',err='';const timer=setTimeout(()=>{child.kill();reject(new Error('Яндекс Музыка не ответила вовремя'));},120000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',()=>{clearTimeout(timer);try{const result=JSON.parse(out);if(result.ok)resolve(result.data);else reject(new Error(result.error));}catch{reject(new Error(err.includes('No module named')?'Установите Python зависимость: pip install -r server/python-requirements.txt':'Не удалось прочитать ответ Яндекс Музыки'));}});child.stdin.end(JSON.stringify(input));});
+}
+// TIDAL (lossless): the listener's own account through the community tidalapi
+// package, same device-login pattern as Yandex. FLAC URLs are per user and
+// short-lived, so they are cached per user and never written to shared disk.
+function tidal(input:Record<string,unknown>):Promise<any>{
+ const base=path.dirname(fileURLToPath(import.meta.url));
+ const worker=[path.join(base,'../services/tidal_worker.py'),path.resolve('server/src/services/tidal_worker.py')].find(existsSync);
+ if(!worker)throw new Error('Модуль TIDAL не найден');
+ const python=process.env.PYTHON_PATH||[path.resolve('.venv/bin/python'),path.resolve('.venv/Scripts/python.exe')].find(existsSync)||'python3';
+ return new Promise((resolve,reject)=>{const child=spawn(python,[worker],{stdio:['pipe','pipe','pipe']});let out='',err='';const timer=setTimeout(()=>{child.kill();reject(new Error('TIDAL не ответил вовремя'));},30000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',()=>{clearTimeout(timer);try{const result=JSON.parse(out);if(result.ok)resolve(result.data);else reject(new Error(result.error));}catch{reject(new Error(err.includes('No module named')?'Установите Python зависимость: pip install -r server/python-requirements.txt':'Не удалось прочитать ответ TIDAL'));}});child.stdin.end(JSON.stringify(input));});
+}
+const tidalPending=new Map<string,{deviceCode:string;expires:number;nextPoll:number;interval:number}>();
+const tidalUrls=new Map<string,{url:string;quality:string;expires:number}>();
+/** FLAC stream for this listener, or null when TIDAL is not connected or has no match. */
+export async function resolveTidalStream(userId:string|undefined,track:Track):Promise<{url:string;quality:string}|null>{
+ if(!userId)return null;
+ const key=`${userId}:${track.id}`,hit=tidalUrls.get(key);
+ if(hit&&hit.expires>Date.now())return hit;
+ const account=await stored('tidal',userId);if(!account)return null;
+ const data=await tidal({action:'resolve',access:account.access,refresh:account.refresh,expires:account.expires,artist:track.artist?.name||'',title:track.title,duration:track.duration||0,isrc:(track as any).isrc});
+ if(data.access&&data.access!==account.access)await save('tidal',userId,{...account,access:data.access,expires:data.expires||Date.now()+3600000});
+ if(!data.found||!data.streamUrl)return null;
+ const value={url:data.streamUrl as string,quality:String(data.quality||'LOSSLESS'),expires:Date.now()+15*60*1000};
+ tidalUrls.set(key,value);if(tidalUrls.size>2000)tidalUrls.delete(tidalUrls.keys().next().value!);
+ return value;
 }
 type OAuthAttempt={user:string;provider:Provider;verifier:string;redirect:string;expires:number};
 const pendingProvider=(p:Provider)=>`oauth_pending_${p}`;
@@ -103,12 +130,17 @@ musicAccountCallback.get('/:provider/callback',async(req:any,res:any)=>{
  }
 });
 export const musicAccounts=Router();
-musicAccounts.get('/',route(async(_req:any,res:any)=>res.json({data:[...await Promise.all(Object.entries(providers).map(async([id,c])=>({id,configured:!!c.id&&(id!=='soundcloud'||!!c.secret),connected:!!await stored(id as Provider,res.locals.userId)}))),{id:'yandex',configured:true,connected:!!await stored('yandex',res.locals.userId)}]})));
+musicAccounts.get('/',route(async(_req:any,res:any)=>res.json({data:[...await Promise.all(Object.entries(providers).map(async([id,c])=>({id,configured:!!c.id&&(id!=='soundcloud'||!!c.secret),connected:!!await stored(id as Provider,res.locals.userId)}))),{id:'yandex',configured:true,connected:!!await stored('yandex',res.locals.userId)},{id:'tidal',configured:true,connected:!!await stored('tidal',res.locals.userId)}]})));
 musicAccounts.post('/yandex/connect',route(async(_req:any,res:any)=>{const data=await yandex({action:'code'}),userId=res.locals.userId;yandexPending.set(userId,{deviceCode:data.deviceCode,expires:Date.now()+data.expiresIn*1000,nextPoll:0,interval:Math.max(3000,data.interval*1000)});res.json({data:{userCode:data.userCode,verificationUrl:data.verificationUrl,expiresIn:data.expiresIn}});}));
 musicAccounts.get('/yandex/status',route(async(_req:any,res:any)=>{const userId=res.locals.userId,pending=yandexPending.get(userId);if(!pending){res.json({data:{state:await stored('yandex',userId)?'connected':'idle'}});return;}if(Date.now()>pending.expires){yandexPending.delete(userId);res.json({data:{state:'expired'}});return;}if(Date.now()<pending.nextPoll){res.json({data:{state:'pending'}});return;}pending.nextPoll=Date.now()+pending.interval;const token=await yandex({action:'poll',deviceCode:pending.deviceCode});if(token.pending){res.json({data:{state:'pending'}});return;}await save('yandex',userId,{access:token.access,refresh:token.refresh,expires:Date.now()+(token.expires||3600)*1000});yandexPending.delete(userId);res.json({data:{state:'connected'}});}));
 musicAccounts.get('/yandex/playlists',route(async(_req:any,res:any)=>{const account=await stored('yandex',res.locals.userId);if(!account)throw new Error('Подключите Яндекс Музыку');const lists=await yandex({action:'playlists',token:account.access});res.json({data:[{id:'liked',title:'Любимые треки'},...lists]});}));
 musicAccounts.get('/yandex/playlists/:id',route(async(req:any,res:any)=>{const account=await stored('yandex',res.locals.userId);if(!account)throw new Error('Подключите Яндекс Музыку');const rows:Array<{artist:string;title:string;artworkUrl?:string}>=await yandex({action:'tracks',token:account.access,id:req.params.id});const tracks:Track[]=[];let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<rows.length){const row=rows[cursor++],result=await musicCatalogService.search(`${row.artist} ${row.title}`,{limit:8}).catch(()=>null);const norm=(v:string)=>v.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();const match=result?.tracks.find(t=>norm(t.title)===norm(row.title)&&norm(t.artist.name)===norm(row.artist));if(match){tracks.push({...match,artworkUrl:match.artworkUrl||row.artworkUrl});}}}));await Promise.all(tracks.map(t=>trackCacheRepository.setCachedTrack(t)));res.json({data:{title:req.params.id==='liked'?'Любимые треки':'Плейлист',source:'yandex',tracks,total:rows.length,warning:tracks.length<rows.length?'Некоторые записи не найдены в каталоге Осколка.':''}});}));
 musicAccounts.delete('/yandex',route(async(_req:any,res:any)=>{await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:'yandex'}});yandexPending.delete(res.locals.userId);res.json({data:{ok:true}});}));
+musicAccounts.post('/tidal/connect',route(async(_req:any,res:any)=>{const data=await tidal({action:'code'}),userId=res.locals.userId;tidalPending.set(userId,{deviceCode:data.deviceCode,expires:Date.now()+data.expiresIn*1000,nextPoll:0,interval:Math.max(2000,data.interval*1000)});res.json({data:{userCode:data.userCode,verificationUrl:data.verificationUrl,expiresIn:data.expiresIn}});}));
+musicAccounts.get('/tidal/status',route(async(_req:any,res:any)=>{const userId=res.locals.userId,pending=tidalPending.get(userId);if(!pending){res.json({data:{state:await stored('tidal',userId)?'connected':'idle'}});return;}if(Date.now()>pending.expires){tidalPending.delete(userId);res.json({data:{state:'expired'}});return;}if(Date.now()<pending.nextPoll){res.json({data:{state:'pending'}});return;}pending.nextPoll=Date.now()+pending.interval;const token=await tidal({action:'poll',deviceCode:pending.deviceCode});if(token.pending){res.json({data:{state:'pending'}});return;}await save('tidal',userId,{access:token.access,refresh:token.refresh,expires:Date.now()+(token.expires||3600)*1000});tidalPending.delete(userId);res.json({data:{state:'connected'}});}));
+musicAccounts.delete('/tidal',route(async(_req:any,res:any)=>{tidalPending.delete(res.locals.userId);for(const key of tidalUrls.keys())if(key.startsWith(`${res.locals.userId}:`))tidalUrls.delete(key);await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:'tidal'}});res.json({data:{ok:true}});}));
+musicAccounts.post('/pending/cancel',route(async(req:any,res:any)=>{const p=String(req.body?.provider||'');if(p==='tidal'){tidalPending.delete(res.locals.userId);res.json({data:{ok:true}});return;}if(p==='yandex')yandexPending.delete(res.locals.userId);else await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:pendingProvider(provider(p))}});res.json({data:{ok:true}});}));
+musicAccounts.delete('/yandex',route(async(_req:any,res:any)=>{yandexPending.delete(res.locals.userId);await prisma.musicAccountToken.deleteMany({where:{userId:res.locals.userId,provider:'yandex'}});res.json({data:{ok:true}});}));
 musicAccounts.post('/:provider/connect',route(async(req:any,res:any)=>{
  const p=provider(req.params.provider),c=providers[p];if(!c.id||(p==='soundcloud'&&!c.secret))throw new Error('Для входа нужны ключи зарегистрированного приложения площадки.');
  await prisma.musicAccountToken.deleteMany({where:{provider:{in:[pendingProvider('spotify'),pendingProvider('soundcloud')]},updatedAt:{lt:new Date(Date.now()-60*60*1000)}}});
@@ -125,7 +157,7 @@ musicAccounts.post('/spotify/match',route(async(req:any,res:any)=>{
  if(track.id.startsWith('spotify:')){res.json({data:{id:track.sourceId,uri:`spotify:track:${track.sourceId}`}});return;}
  const norm=(v:string)=>v.toLocaleLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
  const response=await request('spotify',res.locals.userId,`search?type=track&limit=10&q=${encodeURIComponent(`track:${track.title} artist:${track.artist.name}`)}`);
- const found=(response.tracks?.items||[]).find((x:any)=>norm(x.name)===norm(track.title)&&x.artists?.some((a:any)=>norm(a.name)===norm(track.artist.name))&&Math.abs(x.duration_ms/1000-track.duration)<=3&&x.is_playable!==false);
+ const found=(response.tracks?.items||[]).find((x:any)=>norm(x.name)===norm(track.title)&&x.artists?.some((a:any)=>norm(a.name)===norm(track.artist.name))&&Math.abs(x.duration_ms/1000-track.duration)<=3&&x.is_playable!==false&&(track.explicit===undefined||x.explicit===undefined||x.explicit===track.explicit));
  res.json({data:found?{id:found.id,uri:found.uri}:null});
 }));
 musicAccounts.post('/spotify/player',route(async(req:any,res:any)=>{const {method,path,body}=req.body||{};if(!['PUT','POST','GET'].includes(method)||!['me/player/play','me/player/pause','me/player/seek','me/player/volume','me/player','me/player/devices'].includes(path))throw new Error('Недопустимая операция плеера');const token=await access('spotify',res.locals.userId);const url=new URL(path,providers.spotify.api+'/');if(req.body?.deviceId)url.searchParams.set('device_id',String(req.body.deviceId));if(req.body?.positionMs!==undefined)url.searchParams.set('position_ms',String(req.body.positionMs));if(req.body?.volumePercent!==undefined)url.searchParams.set('volume_percent',String(req.body.volumePercent));const result=await fetch(url,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});if(!result.ok)throw new Error(result.status===403?'Spotify Premium или разрешение воспроизведения недоступны':`Spotify вернул ${result.status}`);res.json({data:result.status===204?{ok:true}:await result.json()});}));

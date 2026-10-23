@@ -13,7 +13,9 @@ vi.mock('../server/src/database/client.js',()=>({prisma:{
 }}));
 vi.mock('../server/src/services/SoundCloudService.js',()=>({soundCloudService:{search:vi.fn(async()=>({tracks:[]})),getRelatedTracks:vi.fn(async()=>[recent,novel,remix])}}));
 vi.mock('../server/src/services/SpotifyService.js',()=>({spotifyService:{search:vi.fn(async()=>({tracks:[]}))}}));
-vi.mock('../server/src/utils/logger.js',()=>({logger:{warn:vi.fn()}}));
+// Deezer is the catalog of record now: keep it offline like the other catalogues.
+vi.mock('../server/src/services/OfficialCatalogService.js',()=>({officialCatalogService:{search:vi.fn(async()=>({tracks:[],artists:[],playlists:[],pagination:{page:1,limit:10,hasMore:false}})),getArtistTracks:vi.fn(async()=>[]),mapTrack:(t:unknown)=>t},splitFeaturing:(title:string)=>({title,featured:[]})}));
+vi.mock('../server/src/utils/logger.js',()=>({logger:{warn:vi.fn(),debug:vi.fn(),info:vi.fn(),error:vi.fn()}}));
 import {recommendationService} from '../server/src/services/RecommendationService.js';
 
 describe('personalized recommendations',()=>{

@@ -2,15 +2,18 @@ import { TelegramClient, Api } from 'teleproto';
 import { StringSession } from 'teleproto/sessions/index.js';
 import {CustomFile} from 'teleproto/client/uploads.js';
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import bigInt from 'big-integer';
 import { prisma } from '../database/client.js';
+import { logger } from '../utils/logger.js';
+import {signInWithQr} from './telegramQr.js';
+import {classifyTelegramError,clearHealth,floodWaitSeconds,getHealth,retry,setHealth,type SessionHealth} from './telegramReliability.js';
 
 const apiId=Number(process.env.TELEGRAM_API_ID||0),apiHash=process.env.TELEGRAM_API_HASH||'';
 export const sessionConfigured=!!apiId&&!!apiHash;
 const clients=new Map<string,TelegramClient>();
-type Login={client?:TelegramClient;method:'qr'|'phone'|'bot';expected?:string;state:string;url?:string;error?:string;userId?:string;passwordHint?:string;password?:(s:string)=>void;rejectPassword?:(e:Error)=>void;code?:(s:string)=>void;rejectCode?:(e:Error)=>void;codeViaApp?:boolean;attempts:number;expires:number;botChatId?:string;appUrl?:string};
+type Login={client?:TelegramClient;method:'qr'|'phone'|'bot';expected?:string;state:string;url?:string;error?:string;userId?:string;passwordHint?:string;password?:(s:string)=>void;rejectPassword?:(e:Error)=>void;code?:(s:string)=>void;rejectCode?:(e:Error)=>void;codeViaApp?:boolean;attempts:number;expires:number;botChatId?:string;appUrl?:string;phase?:string;abort?:AbortController;qrExpires?:number};
 const logins=new Map<string,Login>();
 const phoneRequests=new Map<string,number[]>();
 let botLoginNotifier:((login:Login)=>void)|undefined;
@@ -24,20 +27,34 @@ function key(){
 export function encryptSession(value:string){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',key(),iv);return Buffer.concat([iv,c.update(value,'utf8'),c.final(),c.getAuthTag()]).toString('base64');}
 function decryptSession(value:string){const b=Buffer.from(value,'base64'),d=createDecipheriv('aes-256-gcm',key(),b.subarray(0,12));d.setAuthTag(b.subarray(-16));return Buffer.concat([d.update(b.subarray(12,-16)),d.final()]).toString('utf8');}
 export const decryptStoredSession=decryptSession;
-function client(session=''){return new TelegramClient(new StringSession(session),apiId,apiHash,{connectionRetries:2,deviceModel:'Осколок',appVersion:'1.0',autoReconnect:true});}
+function client(session=''){return new TelegramClient(new StringSession(session),apiId,apiHash,{connectionRetries:3,retryDelay:1500,deviceModel:'Осколок',appVersion:'1.0',autoReconnect:true});}
+export function loginDiagnostic(error:unknown){
+  const value=error as {name?:string;message?:string;errorMessage?:string;code?:unknown};
+  const redact=(raw:string)=>raw.replace(/(?:tg:\/\/|https?:\/\/)\S+/g,'[url]').replace(/(?:[A-Za-z0-9+/_=-]{24,})/g,'[redacted]').replace(/\+?\d{7,}/g,'[number]');
+  return {name:String(value?.name||'Error').slice(0,60),rpc:typeof value?.errorMessage==='string'&&/^[A-Z0-9_]+$/.test(value.errorMessage)?value.errorMessage:undefined,detail:redact(String(value?.message||error).split('\n').find(line=>line.trim())||'Unknown error').slice(0,240)};
+}
 function loginError(error:unknown){
-  const message=error instanceof Error?error.message:String(error);
+  const message=`${(error as {errorMessage?:string})?.errorMessage||''} ${error instanceof Error?error.message:String(error)}`;
+  if(/API_ID_INVALID|API_ID_PUBLISHED_FLOOD/i.test(message))return 'Telegram отклонил настройки приложения. Проверьте TELEGRAM_API_ID и TELEGRAM_API_HASH на сервере.';
+  if(/AUTH_TOKEN_EXPIRED|AUTH_TOKEN_INVALID/i.test(message))return 'QR-код истёк. Покажите новый и отсканируйте его ещё раз.';
+  if(/TIMEOUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|Connection closed|Connection dropped/i.test(message))return 'Не удалось подключиться к Telegram. Проверьте интернет и попробуйте снова.';
   if(/PHONE_NUMBER_INVALID/i.test(message))return 'Проверьте номер в международном формате.';
   if(/PHONE_NUMBER_FLOOD|PHONE_PASSWORD_FLOOD|FLOOD_WAIT/i.test(message))return 'Telegram ограничил попытки входа. Попробуйте позже.';
   if(/PHONE_CODE_EXPIRED/i.test(message))return 'Срок действия кода истёк. Начните вход заново.';
-  if(/PHONE_CODE_INVALID|PHONE_CODE_EMPTY/i.test(message))return 'Неверный код. Проверьте сообщение Telegram и попробуйте снова.';
+  if(/PHONE_CODE_INVALID|PHONE_CODE_EMPTY|Code is empty/i.test(message))return 'Неверный код. Проверьте сообщение Telegram и попробуйте снова.';
   if(/PASSWORD_HASH_INVALID/i.test(message))return 'Неверный облачный пароль. Попробуйте снова.';
-  if(/Email verification|required.*email/i.test(message))return 'Telegram запросил подтверждение почты. Пока воспользуйтесь QR-входом с другого устройства.';
+  if(/PASSWORD_ALGO_UNSUPPORTED|Unsupported password algorithm|bad \/g in password|bad b in check|Undefined srp_b/i.test(message))return 'Telegram не смог проверить облачный пароль. Начните вход заново.';
+  if(/EMAIL_UNCONFIRMED|Email verification|login.*email|required.*email/i.test(message))return 'Telegram просит подтвердить почту двухэтапной проверки. Завершите подтверждение в официальном приложении Telegram и попробуйте снова.';
   if(/UPDATE_APP_TO_LOGIN|SEND_CODE_UNAVAILABLE/i.test(message))return 'Telegram не разрешил этот способ входа. Попробуйте QR-вход с другого устройства.';
-  return 'Telegram не подтвердил вход. Попробуйте снова.';
+  const code=loginDiagnostic(error).rpc||message.match(/\b(?:[A-Z][A-Z_]{3,})\b/)?.[0];
+  return code?`Telegram не подтвердил вход (${code}). Попробуйте снова.`:'Telegram не подтвердил вход. Попробуйте снова.';
+}
+/** Лог неудач входа в файл — точный код ошибки воспроизводится только у пользователя. */
+export function logLoginFailure(method:string,phase:string|undefined,error:unknown){
+  try{appendFileSync('/tmp/oskolok-login-diag.log',JSON.stringify({ts:new Date().toISOString(),method,phase,...loginDiagnostic(error)})+'\n');}catch{}
 }
 function expireLogin(id:string,l:Login){
-  const timer=setTimeout(()=>{if(logins.get(id)===l){logins.delete(id);if(l.state!=='connected'){l.rejectCode?.(new Error('AUTH_USER_CANCEL'));l.rejectPassword?.(new Error('AUTH_USER_CANCEL'));void l.client?.disconnect();}}},300000);
+  const timer=setTimeout(()=>{if(logins.get(id)===l){logins.delete(id);if(l.state!=='connected'){l.abort?.abort();l.rejectCode?.(new Error('AUTH_USER_CANCEL'));l.rejectPassword?.(new Error('AUTH_USER_CANCEL'));void l.client?.disconnect();}}},300000);
   timer.unref();
 }
 async function finishLogin(id:string,l:Login,u:Api.TypeUser){
@@ -47,28 +64,43 @@ async function finishLogin(id:string,l:Login,u:Api.TypeUser){
   const name=u instanceof Api.User?[u.firstName,u.lastName].filter(Boolean).join(' ')||'Слушатель':'Слушатель';
   const username=u instanceof Api.User?(u.username||u.usernames?.find(x=>x.active)?.username||null):null;
   const avatarUrl=await downloadAvatar(l.client).catch(()=>null);
-  await prisma.user.upsert({where:{id:userId},create:{id:userId,name,username,avatarUrl},update:{name,...(avatarUrl?{avatarUrl}:{})}});
+  await prisma.user.upsert({where:{id:userId},create:{id:userId,name,username,avatarUrl},update:{name,username,...(avatarUrl?{avatarUrl}:{})}});
   await prisma.creatorProfile.upsert({where:{userId},create:{userId,displayName:name},update:{}});
   await prisma.telegramConnection.upsert({where:{userId},create:{userId,encryptedSession:encryptSession(String(l.client.session.save()))},update:{encryptedSession:encryptSession(String(l.client.session.save()))}});
-  const old=clients.get(userId);if(old&&old!==l.client)await old.disconnect();clients.set(userId,l.client);l.userId=userId;setLoginState(l,'connected');
+  const old=clients.get(userId);if(old&&old!==l.client)await old.disconnect().catch(()=>{});clients.set(userId,l.client);setHealth(userId,'connected');l.userId=userId;setLoginState(l,'connected');
 }
 export async function beginLogin(expected?:string){
   if(!sessionConfigured)throw new Error('Добавьте TELEGRAM_API_ID и TELEGRAM_API_HASH в .env и перезапустите сервер.');
   if(logins.size>=20)throw new Error('Слишком много попыток входа. Попробуйте позже.');
-  const id=randomBytes(32).toString('hex'),c=client(),l:Login={client:c,method:'qr',expected,state:'connecting',attempts:0,expires:Date.now()+300000};logins.set(id,l);
+  const id=randomBytes(32).toString('hex'),c=client(),l:Login={client:c,method:'qr',expected,state:'connecting',attempts:0,expires:Date.now()+300000,abort:new AbortController()};logins.set(id,l);
   expireLogin(id,l);
   void (async()=>{
     try{
-      await c.connect();
-      const u=await c.signInUserWithQrCode({apiId,apiHash},{qrCode:async q=>{l.url=`tg://login?token=${q.token.toString('base64url')}`;l.state='qr';},password:async(hint)=>{l.passwordHint=hint||undefined;l.state='password';return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},onError:async()=>true});
-      await finishLogin(id,l,u);
-    }catch(e){l.state='error';l.error=e instanceof Error&&e.message.startsWith('Подтвердите')?e.message:'Telegram не подтвердил вход. Начните заново.';await c.disconnect();}
+      l.phase='connect';await c.connect();
+      l.phase='qr_handshake';
+      const u=await signInWithQr(c,{apiId,apiHash},{signal:l.abort!.signal,qrCode:async q=>{l.url=`tg://login?token=${q.token.toString('base64url')}`;l.qrExpires=q.expires*1000;l.state='qr';},password:async(hint)=>{l.passwordHint=hint||undefined;l.state='password';return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},onError:async(error)=>{
+        if(logins.get(id)!==l||Date.now()>l.expires)return true;
+        l.attempts++;l.error=loginError(error);
+        return l.attempts>=5||!/PASSWORD_HASH_INVALID|Password is empty/i.test(`${(error as {errorMessage?:string}).errorMessage||''} ${error.message}`);
+      }});
+      l.phase='save_session';await finishLogin(id,l,u);
+    }catch(e){
+      if(logins.get(id)===l){
+        const message=e instanceof Error?e.message:String(e);
+        const code=message.match(/\b(?:[A-Z][A-Z_]{3,}|P\d{4})\b/)?.[0]||'QR_LOGIN_FAILED';
+        logger.warn({method:'qr',code,phase:l.phase,...loginDiagnostic(e)},'Telegram login failed');
+        logLoginFailure('qr',l.phase,e);
+        setLoginState(l,'error',message.startsWith('Подтвердите')?message:l.error||loginError(e));
+      }
+      await c.disconnect();
+    }
   })();return id;
 }
 export function cancelLogin(id:string|undefined){
   if(!id)return;
   const l=logins.get(id);if(!l)return;
   logins.delete(id);
+  l.abort?.abort();
   l.rejectCode?.(new Error('AUTH_USER_CANCEL'));
   l.rejectPassword?.(new Error('AUTH_USER_CANCEL'));
   if(l.state!=='connected')void l.client?.disconnect();
@@ -91,17 +123,17 @@ function runPhoneLogin(id:string,l:Login,phone:string){
       await c.connect();
       const u=await c.signInUser({apiId,apiHash},{
         phoneNumber:phone,
-        phoneCode:async(isCodeViaApp)=>{l.codeViaApp=!!isCodeViaApp;setLoginState(l,'code');return new Promise<string>((resolve,reject)=>{l.code=resolve;l.rejectCode=reject;});},
-        password:async(hint)=>{l.passwordHint=hint||undefined;setLoginState(l,'password');return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},
+        phoneCode:async(isCodeViaApp)=>{l.codeViaApp=!!isCodeViaApp;setLoginState(l,'code',l.error);return new Promise<string>((resolve,reject)=>{l.code=resolve;l.rejectCode=reject;});},
+        password:async(hint)=>{l.passwordHint=hint||undefined;setLoginState(l,'password',l.error);return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},
         onError:async(error)=>{
           if(logins.get(id)!==l||Date.now()>l.expires)return true;
           l.attempts++;
           l.error=loginError(error);
-          return l.attempts>=5||/PHONE_CODE_EXPIRED/i.test(error.message);
+          return l.attempts>=5||!/PHONE_CODE_INVALID|PHONE_CODE_EMPTY|PASSWORD_HASH_INVALID|Password is empty|Code is empty/i.test(`${(error as {errorMessage?:string}).errorMessage||''} ${error.message}`);
         },
       });
       await finishLogin(id,l,u);
-    }catch(e){if(logins.get(id)===l)setLoginState(l,'error',e instanceof Error&&e.message.startsWith('Подтвердите')?e.message:l.error||loginError(e));await c.disconnect();}
+    }catch(e){if(logins.get(id)===l){logLoginFailure('phone',undefined,e);setLoginState(l,'error',e instanceof Error&&e.message.startsWith('Подтвердите')?e.message:l.error||loginError(e));}await c.disconnect();}
   })();
 }
 export async function beginPhoneLogin(expected:string|undefined,rawPhone:string){
@@ -122,7 +154,7 @@ export function beginBotLogin(expected:string|undefined,appUrl:string){
 export function attachBotLogin(id:string,senderId:string){
   const l=logins.get(id);
   if(!l||l.method!=='bot'||l.state!=='bot_pending'||Date.now()>l.expires||l.expected&&l.expected!==`telegram:${senderId}`)return false;
-  l.botChatId=senderId;setLoginState(l,'bot_phone');return true;
+  l.botChatId=senderId;l.expected=`telegram:${senderId}`;setLoginState(l,'bot_phone');return true;
 }
 export function botLoginForUser(senderId:string){
   for(const [id,l] of logins)if(l.method==='bot'&&l.botChatId===senderId&&Date.now()<l.expires&&l.state!=='connected'&&l.state!=='error')return {id,login:l};
@@ -136,8 +168,10 @@ export function startBotPhoneLogin(id:string,rawPhone:string){
 export function submitPhoneCode(id:string|undefined,code:string){
   const l=id?logins.get(id):undefined;
   if(!l||!['phone','bot'].includes(l.method)||l.state!=='code'||!l.code||Date.now()>l.expires)throw new Error('Запросите код заново.');
+  const normalized=code.replace(/[\s-]/g,'');
+  if(!/^\d{5,7}$/.test(normalized))throw new Error('Введите 5–7 цифр из сообщения Telegram.');
   l.state='verifying';l.error=undefined;
-  const resolve=l.code;l.code=undefined;l.rejectCode=undefined;resolve(code);
+  const resolve=l.code;l.code=undefined;l.rejectCode=undefined;resolve(normalized);
 }
 export function submitLoginPassword(id:string|undefined,password:string){
   const l=id?logins.get(id):undefined;
@@ -155,31 +189,106 @@ async function downloadAvatar(c:TelegramClient):Promise<string|null>{
 }
 /** Обновить имя/username/фото уже подключённого пользователя (например, при открытии профиля). */
 export async function refreshTelegramIdentity(userId:string){
+  const me=await withSession(userId,c=>c.getMe());
   const c=await connectedClient(userId);
-  const me=await c.getMe();
   if(!(me instanceof Api.User))return;
   const name=[me.firstName,me.lastName].filter(Boolean).join(' ')||'Слушатель';
   const username=me.username||me.usernames?.find(x=>x.active)?.username||null;
   const avatarUrl=await downloadAvatar(c).catch(()=>null);
   await prisma.user.update({where:{id:userId},data:{name,...(avatarUrl?{avatarUrl}:{})}});
 }
+export class SessionRevokedError extends Error{constructor(public reason:string){super(`SESSION_REVOKED: ${reason}`);this.name='SessionRevokedError';}}
+const connecting=new Map<string,Promise<TelegramClient>>();
+const withTimeout=async<T,>(p:Promise<T>,ms:number,label:string):Promise<T>=>{
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{return await Promise.race([p,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} TIMEOUT`)),ms);timer.unref?.();})]);}
+  finally{clearTimeout(timer);}
+};
+async function musicDeadline<T>(userId:string,operation:Promise<T>,ms:number,label:string):Promise<T>{
+  try{return await withTimeout(operation,ms,label);}
+  catch(error){if(error instanceof Error&&error.message.endsWith(' TIMEOUT'))dropClient(userId);throw error;}
+}
+/** Сбрасывает живой клиент (после обрыва): следующий вызов переподключится с нуля. */
+function dropClient(userId:string,c?:TelegramClient){
+  const current=clients.get(userId);if(c&&current!==c)return;
+  clients.delete(userId);if(current)void current.disconnect().catch(()=>{});
+}
+/** Сессия отозвана в Telegram (вышли из «Устройств», удалили аккаунт…): удаляем мёртвую запись и просим войти заново. */
+async function markSessionRevoked(userId:string,error:unknown){
+  const reason=loginDiagnostic(error).rpc||'SESSION_REVOKED';
+  dropClient(userId);
+  if(setHealth(userId,'needs_relogin',reason))logger.warn({userId,reason,event:'telegram.session.revoked'},'Telegram session revoked; re-login required');
+  await prisma.telegramConnection.deleteMany({where:{userId}}).catch(()=>{});
+  await prisma.creatorProfile.updateMany({where:{userId},data:{telegramSyncError:'Telegram завершил сессию Осколка. Подключите Telegram заново.'}}).catch(()=>{});
+  return new SessionRevokedError(reason);
+}
 export async function connectedClient(userId:string){
-  const existing=clients.get(userId);if(existing)return existing;
-  const row=await prisma.telegramConnection.findUnique({where:{userId}});if(!row||!sessionConfigured)throw new Error('Подключите сессию Telegram в профиле.');
-  const c=client(decryptSession(row.encryptedSession));await c.connect();clients.set(userId,c);return c;
+  const existing=clients.get(userId);
+  if(existing&&existing.connected!==false)return existing;
+  if(existing)dropClient(userId,existing);
+  const pending=connecting.get(userId);if(pending)return pending;
+  // Одно подключение на пользователя: параллельные вызовы ждут тот же промис, а не плодят клиентов с одной auth_key.
+  const attempt=(async()=>{
+    const row=await prisma.telegramConnection.findUnique({where:{userId}});
+    if(!row||!sessionConfigured){setHealth(userId,'disconnected');throw new Error('Подключите сессию Telegram в профиле.');}
+    if(getHealth(userId)?.state!=='connected')setHealth(userId,'reconnecting');
+    return retry(async()=>{
+      const c=client(decryptSession(row.encryptedSession));
+      try{
+        await withTimeout(c.connect(),15000,'CONNECT');
+        // Проверка ключа настоящим вызовом: AUTH_KEY_UNREGISTERED/SESSION_REVOKED классифицируются как отзыв, сетевые сбои — как повод переподключиться.
+        await withTimeout(c.invoke(new Api.updates.GetState()),15000,'AUTH_CHECK');
+      }catch(error){void c.disconnect().catch(()=>{});throw error;}
+      clients.set(userId,c);
+      if(setHealth(userId,'connected'))logger.info({userId,event:'telegram.session.connected'},'Telegram session connected');
+      return c;
+    },{attempts:3,base:1000,max:8000,onRetry:({attempt,delay,kind})=>{setHealth(userId,'reconnecting',kind,Date.now()+delay);logger.warn({userId,attempt,delay,kind,event:'telegram.session.reconnect'},'Telegram session reconnect scheduled');}});
+  })().catch(async error=>{
+    if(classifyTelegramError(error)==='revoked')throw await markSessionRevoked(userId,error);
+    if(!(error instanceof Error&&error.message.startsWith('Подключите')))setHealth(userId,'reconnecting',loginDiagnostic(error).rpc||'NETWORK');
+    throw error;
+  }).finally(()=>connecting.delete(userId));
+  connecting.set(userId,attempt);
+  return attempt;
+}
+/** Выполнить вызов MTProto с самовосстановлением: обрыв → переподключение с бэкоффом, отзыв сессии → needs_relogin, FLOOD_WAIT → rate_limited с точным временем. */
+export async function withSession<T>(userId:string,fn:(c:TelegramClient)=>Promise<T>):Promise<T>{
+  try{
+    return await retry(async()=>{
+      const c=await connectedClient(userId);
+      try{const result=await fn(c);if(getHealth(userId)?.state!=='connected')setHealth(userId,'connected');return result;}
+      catch(error){if(classifyTelegramError(error)==='network')dropClient(userId,c);throw error;}
+    },{attempts:3,base:800,max:6000,maxFloodWait:0,onRetry:({attempt,delay,kind})=>{logger.warn({userId,attempt,delay,kind,event:'telegram.session.retry'},'Telegram call retry');}});
+  }catch(error){
+    const kind=classifyTelegramError(error);
+    if(error instanceof SessionRevokedError)throw error;
+    if(kind==='revoked')throw await markSessionRevoked(userId,error);
+    if(kind==='flood'){const s=floodWaitSeconds(error)??30;setHealth(userId,'rate_limited',`FLOOD_WAIT_${s}`,Date.now()+s*1000);}
+    throw error;
+  }
+}
+/** Здоровье сессии для клиента: connected / reconnecting / needs_relogin / rate_limited / disconnected. */
+export async function sessionHealth(userId:string):Promise<SessionHealth>{
+  const h=getHealth(userId);
+  const row=await prisma.telegramConnection.findUnique({where:{userId},select:{userId:true}});
+  if(!row)return h?.state==='needs_relogin'?h:{state:'disconnected',updatedAt:Date.now()};
+  if(h?.state==='needs_relogin'){clearHealth(userId);return {state:'connected',updatedAt:Date.now()};}
+  if(h?.state==='rate_limited'&&h.retryAt&&h.retryAt<Date.now())return {state:'connected',updatedAt:Date.now()};
+  return h||{state:'connected',updatedAt:Date.now()};
 }
 export async function disconnectSession(userId:string){
-  const row=await prisma.telegramConnection.findUnique({where:{userId}});if(row){const c=await connectedClient(userId);await c.invoke(new Api.auth.LogOut());await c.disconnect();}
-  clients.delete(userId);await prisma.telegramConnection.deleteMany({where:{userId}});await prisma.webSession.deleteMany({where:{userId}});
+  const row=await prisma.telegramConnection.findUnique({where:{userId}});
+  if(row){try{const c=await connectedClient(userId);await c.invoke(new Api.auth.LogOut());await c.disconnect();}catch(error){logger.warn({userId,...loginDiagnostic(error),event:'telegram.session.logout_failed'},'Telegram logout failed; removing local session anyway');}}
+  dropClient(userId);clearHealth(userId);await prisma.telegramConnection.deleteMany({where:{userId}});await prisma.webSession.deleteMany({where:{userId}});
 }
 export const hashToken=(v:string)=>createHash('sha256').update(v).digest('hex');
 export type MusicDocument={id:string;accessHash:string;fileReference:string};
 function inputMusicDocument(document:MusicDocument){return new Api.InputDocument({id:bigInt(document.id),accessHash:bigInt(document.accessHash),fileReference:Buffer.from(document.fileReference,'base64')});}
 export async function removeProfileMusic(userId:string,document:MusicDocument){
-  const c=await connectedClient(userId);
-  try{await c.invoke(new Api.account.SaveMusic({id:inputMusicDocument(document),unsave:true}));}
+  try{await withSession(userId,c=>c.invoke(new Api.account.SaveMusic({id:inputMusicDocument(document),unsave:true})));}
   catch(error){
-    if(!/FILE_REFERENCE_EXPIRED|FILE_REFERENCE_INVALID/i.test(error instanceof Error?error.message:String(error)))throw error;
+    if(classifyTelegramError(error)!=='file_reference')throw error;
+    const c=await connectedClient(userId);
     const saved=await c.invoke(new Api.users.GetSavedMusic({id:'me',offset:0,limit:100,hash:bigInt(0)}));
     if(!(saved instanceof Api.users.SavedMusic))return;
     const fresh=saved.documents.find(d=>d instanceof Api.Document&&d.id.toString()===document.id);
@@ -188,7 +297,7 @@ export async function removeProfileMusic(userId:string,document:MusicDocument){
   }
 }
 export async function uploadProfileMusic(userId:string,file:string,title:string,artist:string,duration:number,thumbnail?:string):Promise<MusicDocument>{
-  return uploadAudioDocument(await connectedClient(userId),file,title,artist,duration,thumbnail);
+  return musicDeadline(userId,withSession(userId,c=>uploadAudioDocument(c,file,title,artist,duration,thumbnail)),90000,'MUSIC_UPLOAD');
 }
 export async function uploadAudioDocument(c:TelegramClient,file:string,title:string,artist:string,duration:number,thumbnail?:string):Promise<MusicDocument>{
   const audio=await c.uploadFile({file:new CustomFile(path.basename(file),statSync(file).size,file)});
@@ -200,9 +309,16 @@ export async function uploadAudioDocument(c:TelegramClient,file:string,title:str
   const d=media.document;
   return {id:d.id.toString(),accessHash:d.accessHash.toString(),fileReference:Buffer.from(d.fileReference).toString('base64')};
 }
-export async function saveProfileMusic(userId:string,document:MusicDocument){await (await connectedClient(userId)).invoke(new Api.account.SaveMusic({id:inputMusicDocument(document)}));}
+export async function saveProfileMusic(userId:string,document:MusicDocument){await musicDeadline(userId,withSession(userId,c=>c.invoke(new Api.account.SaveMusic({id:inputMusicDocument(document)}))),20000,'MUSIC_SAVE');}
 export async function addProfileMusic(userId:string,file:string,title:string,artist:string,duration:number,thumbnail?:string):Promise<MusicDocument>{
   const document=await uploadProfileMusic(userId,file,title,artist,duration,thumbnail);
   await saveProfileMusic(userId,document);
   return document;
+}
+
+/** Telegram ids of the user's own contacts (not bots, not self), read through their connected session. Nothing is stored. */
+export async function contactTelegramIds(userId:string):Promise<string[]>{
+  const result=await withSession(userId,c=>c.invoke(new Api.contacts.GetContacts({hash:bigInt(0)})));
+  if(!(result instanceof Api.contacts.Contacts))return [];
+  return result.users.filter((u):u is Api.User=>u instanceof Api.User&&!u.bot&&!u.self&&!u.deleted).map(u=>String(u.id));
 }

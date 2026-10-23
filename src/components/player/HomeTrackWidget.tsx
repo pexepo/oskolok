@@ -1,7 +1,10 @@
+import {useTranslation} from '../../stores/useLanguageStore.js';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
+import { PlayerIcon } from './PlayerIcon.js';
 import { usePlayerStore } from '../../stores/usePlayerStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore } from '../../stores/useThemeStore.js';
 import { ArtworkImage } from '../common/ArtworkImage.js';
 
@@ -18,12 +21,13 @@ export const HomeTrackWidget: React.FC = () => {
     toggleMute,
     setFullPlayerOpen,
     startMyWave,
-  } = usePlayerStore();
+  } = usePlayerStore(useShallow(s => ({ currentTrack: s.currentTrack, isPlaying: s.isPlaying, togglePlay: s.togglePlay, next: s.next, previous: s.previous, volume: s.volume, setVolume: s.setVolume, isMuted: s.isMuted, toggleMute: s.toggleMute, setFullPlayerOpen: s.setFullPlayerOpen, startMyWave: s.startMyWave })));
   const { isDark } = useThemeStore();
 
   const [isHovered, setIsHovered] = useState(false);
 
-  const displayTitle = currentTrack ? currentTrack.title : 'Моя волна';
+  const t=useTranslation();
+  const displayTitle = currentTrack ? currentTrack.title : t('Сейчас ничего не играет','Nothing is playing');
 
   const handlePlayClick = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -51,7 +55,7 @@ export const HomeTrackWidget: React.FC = () => {
           <div
             onClick={handlePlayClick}
             className="flex items-center gap-[3px] h-6 px-1 shrink-0 cursor-pointer"
-            title={isPlaying ? 'Пауза' : 'Воспроизвести'}
+            title={isPlaying ? t('Пауза', 'Pause') : t('Воспроизвести', 'Play')}
           >
             {[0.4, 0.9, 0.6, 0.75].map((scale, i) => (
               <motion.span
@@ -91,10 +95,10 @@ export const HomeTrackWidget: React.FC = () => {
           <div
             onClick={() => (currentTrack ? setFullPlayerOpen(true) : startMyWave())}
             className="min-w-0 pr-1 cursor-pointer group/info"
-            title={currentTrack ? 'Открыть Интерференцию' : 'Включить Мою волну'}
+            title={currentTrack ? t('Открыть Интерференцию', 'Open Interference') : t('Включить Резонанс', 'Play Resonance')}
           >
             <div className="text-[11px] font-normal tracking-wide text-[#7188a3] dark:text-[#7e92ad] select-none">
-              Сейчас играет
+              {currentTrack?t("Сейчас играет","Now playing"):t("Плеер","Player")}
             </div>
             <div className="text-xs sm:text-[13px] font-normal text-[#162b50] dark:text-[#c8d6e8] group-hover/info:text-blue-600 dark:group-hover/info:text-[#38bdf8] transition-colors truncate max-w-[200px] sm:max-w-[260px]">
               {displayTitle}
@@ -109,36 +113,32 @@ export const HomeTrackWidget: React.FC = () => {
             <button
               onClick={() => previous()}
               className="p-1 rounded-full text-[#7188a3] dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#38bdf8] transition-colors cursor-pointer"
-              title="Предыдущий трек"
+              title={t('Предыдущий трек', 'Previous track')}
             >
-              <SkipBack size={13} className="fill-current" />
+              <PlayerIcon name="prev" size={15} />
             </button>
 
             <button
               onClick={handlePlayClick}
-              className="w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-500 dark:bg-[#38bdf8] dark:hover:bg-[#60a5fa] text-white dark:text-slate-950 flex items-center justify-center shadow-xs dark:shadow-[0_0_12px_rgba(56,189,248,0.6)] transition-transform hover:scale-105 active:scale-95 cursor-pointer"
-              title={isPlaying ? 'Пауза' : 'Воспроизвести'}
+              className="w-7 h-7 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+              title={isPlaying ? t('Пауза', 'Pause') : t('Воспроизвести', 'Play')}
             >
-              {isPlaying ? (
-                <Pause size={11} className="fill-white dark:fill-slate-950" />
-              ) : (
-                <Play size={11} className="fill-white dark:fill-slate-950 ml-0.5" />
-              )}
+              <PlayerIcon name={isPlaying ? 'pause' : 'play'} size={28} />
             </button>
 
             <button
               onClick={() => next()}
               className="p-1 rounded-full text-[#7188a3] dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#38bdf8] transition-colors cursor-pointer"
-              title="Следующий трек"
+              title={t('Следующий трек', 'Next track')}
             >
-              <SkipForward size={13} className="fill-current" />
+              <PlayerIcon name="next" size={15} />
             </button>
 
             {currentTrack && (
               <button
                 onClick={() => setFullPlayerOpen(true)}
                 className="p-1 rounded-full text-[#7188a3] dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#38bdf8] transition-colors cursor-pointer"
-                title="Открыть Интерференцию"
+                title={t('Открыть Интерференцию', 'Open Interference')}
               >
                 <Maximize2 size={12} />
               </button>

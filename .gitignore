@@ -7,6 +7,7 @@ dist/
 dist-server/
 build/
 release/
+build-desktop-*/
 developer-panel/dist/
 developer-panel/node_modules/
 media-output/
@@ -51,3 +52,14 @@ coverage/
 
 # Local Python runtime
 .venv/
+
+# Personal uploads and archives
+data/user-content/
+.dev-session.local
+.spotify-cooldown.local
+
+# Temporary Android build output and signing material
+android/local.properties
+*.jks
+*.keystore
+scripts/__pycache__/

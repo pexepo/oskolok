@@ -1,3 +1,4 @@
+import {artworkSource} from './artworkSource.js';
 export type Rgb = readonly [number, number, number];
 
 export const DEFAULT_FLUTED_GLASS_PALETTE: readonly Rgb[] = [
@@ -69,7 +70,7 @@ export function paletteFromArtwork(url?: string): Promise<Rgb[]> {
       }
     };
     image.onerror = () => resolve([...DEFAULT_FLUTED_GLASS_PALETTE]);
-    image.src = url;
+    image.src = artworkSource(url);
   });
   paletteCache.set(url, request);
   return request;

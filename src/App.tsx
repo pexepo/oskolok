@@ -1,26 +1,46 @@
-import React,{useEffect} from 'react';
+import {AppUpdates} from './components/common/AppUpdates.js';
+import React,{useEffect,lazy,Suspense} from 'react';
+import {LoadingState} from './components/common/LoadingState.js';
 import {audioManager} from './audio/AudioManager.js';
 import {LoginPage} from './pages/LoginPage.js';
+import {initDesktopBridge} from './desktop/desktopBridge.js';
+import {DesktopUpdateBanner} from './desktop/DesktopUpdateBanner.js';
 import {useTelegramStore} from './telegram/runtime.js';
+import {useConsentStore} from './telemetry/consent.js';
+import './telemetry/wire.js';
 import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout.js';
 import { HomePage } from './pages/HomePage.js';
-import { SearchPage } from './pages/SearchPage.js';
-import { LikedPage } from './pages/LikedPage.js';
-import { CollectionPage } from './pages/CollectionPage.js';
-import { PlaylistsPage } from './pages/PlaylistsPage.js';
-import { PlaylistPage } from './pages/PlaylistPage.js';
-import { HistoryPage } from './pages/HistoryPage.js';
-import { QueuePage } from './pages/QueuePage.js';
-import { TrackPage } from './pages/TrackPage.js';
-import { ArtistPage } from './pages/ArtistPage.js';
-import { ReleasePage } from './pages/ReleasePage.js';
-import { ImportPage } from './pages/ImportPage.js';
-import {ProfilePage} from './pages/ProfilePage.js';
-import {PublicProfilePage} from './pages/PublicProfilePage.js';
 import { NotFoundPage } from './pages/NotFoundPage.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
+import { LeaveWarning } from './components/common/LeaveWarning.js';
+
+
+import { useTranslation } from './stores/useLanguageStore.js';
+import { APP_BASE } from './routing.js';
+// Rarely opened screens load on demand so the first paint ships less JavaScript.
+const SearchPage = lazy(() => import('./pages/SearchPage.js').then(m => ({ default: m.SearchPage })));
+const LikedPage = lazy(() => import('./pages/LikedPage.js').then(m => ({ default: m.LikedPage })));
+const CollectionPage = lazy(() => import('./pages/CollectionPage.js').then(m => ({ default: m.CollectionPage })));
+const PlaylistsPage = lazy(() => import('./pages/PlaylistsPage.js').then(m => ({ default: m.PlaylistsPage })));
+const PlaylistImportPage = lazy(() => import('./pages/PlaylistImportPage.js').then(m => ({ default: m.PlaylistImportPage })));
+const MixPage = lazy(() => import('./pages/MixPage.js').then(m => ({ default: m.MixPage })));
+const PlaylistPage = lazy(() => import('./pages/PlaylistPage.js').then(m => ({ default: m.PlaylistPage })));
+const HistoryPage = lazy(() => import('./pages/HistoryPage.js').then(m => ({ default: m.HistoryPage })));
+const StatsPage = lazy(() => import('./pages/StatsPage.js').then(m => ({ default: m.StatsPage })));
+const OfflinePage = lazy(() => import('./pages/OfflinePage.js').then(m => ({ default: m.OfflinePage })));
+const QueuePage = lazy(() => import('./pages/QueuePage.js').then(m => ({ default: m.QueuePage })));
+const AdminPage = lazy(() => import('./pages/AdminPage.js').then(m => ({ default: m.AdminPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.js').then(m => ({ default: m.ProfilePage })));
+const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage.js').then(m => ({ default: m.PublicProfilePage })));
+const FriendsPage = lazy(() => import('./pages/FriendsPage.js').then(m => ({ default: m.FriendsPage })));
+const JamJoinRoute = lazy(() => import('./components/connect/JamLayer.js').then(m => ({ default: m.JamJoinRoute })));
+const ArtistPage = lazy(() => import('./pages/ArtistPage.js').then(m => ({ default: m.ArtistPage })));
+const ReleasePage = lazy(() => import('./pages/ReleasePage.js').then(m => ({ default: m.ReleasePage })));
+const TrackPage = lazy(() => import('./pages/TrackPage.js').then(m => ({ default: m.TrackPage })));
+const ImportPage = lazy(() => import('./pages/ImportPage.js').then(m => ({ default: m.ImportPage })));
+const UnreleasedPage = lazy(() => import('./pages/UnreleasedPage.js').then(m => ({ default: m.UnreleasedPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,18 +52,20 @@ const queryClient = new QueryClient({
 });
 
 export const App: React.FC = () => {
+  const t = useTranslation();
   const user = useTelegramStore(s=>s.user);
-  useEffect(()=>{if(!user)audioManager.pause();},[user]);
-  const RouterComponent =
-    typeof window !== 'undefined' && window.location.protocol === 'file:'
-      ? HashRouter
-      : BrowserRouter;
-
-  return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <RouterComponent>
-          {user ? <Routes>
+  const betaAllowed = useTelegramStore(s=>s.betaAllowed);
+  useEffect(()=>{if(!user||betaAllowed===false)audioManager.pause();},[user,betaAllowed]);
+  // Consent decides whether listening events are collected at all; it is read again for every signed-in account.
+  useEffect(()=>{if(user&&betaAllowed!==false)void useConsentStore.getState().load();},[user,betaAllowed]);
+  // Desktop client: mini-player above other windows and Discord status follow what plays here.
+  useEffect(()=>{if(user&&betaAllowed!==false)initDesktopBridge();},[user,betaAllowed]);
+  const fileMode = typeof window !== 'undefined' && window.location.protocol === 'file:';
+  const body = (<>
+        <AppUpdates />
+        <DesktopUpdateBanner />
+          <Suspense fallback={<LoadingState className="route-loading" label={t('Загружаем…', 'Loading…')}/>}>
+          {user && betaAllowed !== false ? <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<HomePage />} />
               <Route path="search" element={<SearchPage />} />
@@ -51,19 +73,35 @@ export const App: React.FC = () => {
               <Route path="library" element={<CollectionPage />} />
               <Route path="liked" element={<LikedPage />} />
               <Route path="playlists" element={<PlaylistsPage />} />
+              <Route path="playlists/import" element={<PlaylistImportPage />} />
+              <Route path="mix/:id" element={<MixPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
               <Route path="history" element={<HistoryPage />} />
+              <Route path="stats" element={<StatsPage />} />
+              <Route path="offline" element={<OfflinePage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="track/:id" element={<TrackPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="release/:id" element={<ReleasePage />} />
               <Route path="import" element={<ImportPage />} />
+              <Route path="unreleased" element={<UnreleasedPage />} />
+              <Route path="admin" element={<AdminPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="users/:id" element={<PublicProfilePage />} />
+              <Route path="friends" element={<FriendsPage />} />
+              <Route path="jam/:id" element={<JamJoinRoute />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes> : <Routes><Route path="/users/:id" element={<PublicProfilePage />} /><Route path="*" element={<LoginPage />} /></Routes>}
-        </RouterComponent>
+        </Suspense>
+        <LeaveWarning />
+  </>);
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        {/* The player lives under /app; the public site owns «/». File builds keep hash routing. */}
+        {fileMode ? <HashRouter>{body}</HashRouter> : <BrowserRouter basename={APP_BASE}>{body}</BrowserRouter>}
       </QueryClientProvider>
     </ErrorBoundary>
   );

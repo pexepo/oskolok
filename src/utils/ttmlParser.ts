@@ -1,15 +1,34 @@
 import type { LyricLine, LyricWord } from '../types/index.js';
 
+import { tr } from '../stores/useLanguageStore.js';
 const attr = (el: Element, name: string): string | undefined => {
   for (const a of Array.from(el.attributes)) if (a.localName === name || a.name === name) return a.value;
   return undefined;
 };
 const children = (el: Element) => Array.from(el.childNodes).filter(n => n.nodeType === 1) as Element[];
 const descendants = (el: Element): Element[] => children(el).flatMap(c => [c, ...descendants(c)]);
+const timingJitterTolerance = .25;
+
+/**
+ * Word-timed TTML exported by lyric editors often contains a few milliseconds
+ * of overlap (or even a tiny negative segment) after rounding. Preserve the
+ * document order and repair only small discrepancies; larger mistakes are
+ * intentionally left untouched so the shared validator can reject them.
+ */
+const smoothTimingJitter = (words: LyricWord[], lineTime: number) => words.map((word,index)=>{
+  let start=word.start;
+  const floor=index ? words[index-1].start : lineTime;
+  if(start<floor && floor-start<=timingJitterTolerance)start=floor;
+  let end=word.end;
+  if(end<start && start-end<=timingJitterTolerance)end=start;
+  const normalized={...word,start,end};
+  words[index]=normalized;
+  return normalized;
+});
 
 /** Apple-style TTML agents, background lanes and timed syllables. Styling is owned by the player. */
 export function parseTtmlDocument(xml: Document): LyricLine[] {
-  if (xml.getElementsByTagName('parsererror').length) throw new Error('Не удалось прочитать TTML.');
+  if (xml.getElementsByTagName('parsererror').length) throw new Error(tr('Не удалось прочитать TTML.', 'Could not read TTML.'));
   const root = xml.documentElement;
   const frameRate = Number(attr(root, 'frameRate') || 30);
   const tickRate = Number(attr(root, 'tickRate') || frameRate);
@@ -54,7 +73,8 @@ export function parseTtmlDocument(xml: Document): LyricLine[] {
       let cursor=0;
       for (const word of words) { const at=text.indexOf(word.text,cursor); cursor=Math.max(cursor,at)+word.text.length; const spaces=text.slice(cursor).match(/^\s+/)?.[0]; if(spaces){word.text+=spaces;cursor+=spaces.length;} }
     }
-    return {time,end,text:text.replace(/\s+/g,' ').trim(),...(words.length?{words}:{}),...(agent?{agent,agentName:agents.get(agent)||agent}:{}),...(backgrounds.length?{background:backgrounds}:{}),...(translation?{translation}:{}),...(romanization?{romanization}:{})};
+    const normalizedWords=smoothTimingJitter(words,time);
+    return {time,end,text:text.replace(/\s+/g,' ').trim(),...(normalizedWords.length?{words:normalizedWords}:{}),...(agent?{agent,agentName:agents.get(agent)||agent}:{}),...(backgrounds.length?{background:backgrounds}:{}),...(translation?{translation}:{}),...(romanization?{romanization}:{})};
   };
   return descendants(root).filter(e=>e.localName==='p').map(p=>{
     let parent=p.parentNode as Element|null, agent=attr(p,'agent');

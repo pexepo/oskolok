@@ -54,6 +54,9 @@ export function requireTrustedMutation(req: Request, res: Response, next: NextFu
       res.status(403).json({error:{message:'Запрос из неизвестного приложения.'}}); return;
     }
   }
-  if (!req.is('application/json')) { res.status(415).json({error:{message:'Ожидается JSON.'}}); return; }
+  const isUpload = req.method === 'POST' && req.path === '/content/files' && req.is('application/octet-stream');
+  const hasBody = Boolean(req.get('Transfer-Encoding')) || Number(req.get('Content-Length') || 0) > 0;
+  const emptyDelete = req.method === 'DELETE' && !hasBody;
+  if (!isUpload && !emptyDelete && !req.is('application/json')) { res.status(415).json({error:{message:'Ожидается JSON.'}}); return; }
   next();
 }

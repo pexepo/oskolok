@@ -1,0 +1,94 @@
+/* ───────────── Liquid glass controls ─────────────
+ * Switches, check boxes and segmented pickers share the nav's glass: a frosted, refracting track with
+ * specular rims, and a thumb that turns into a clear lens and stretches while it is held (iOS 26 style).
+ * Loaded last, so it settles the older solid styles in starglow.css / index.css. */
+
+:root {
+  --lc-track: linear-gradient(180deg, rgb(255 255 255 / .12), rgb(255 255 255 / .04));
+  --lc-rim: inset 0 1px 0 rgb(255 255 255 / .32), inset 0 -1px 1px rgb(255 255 255 / .08), inset 0 0 0 .5px rgb(255 255 255 / .2), inset 0 2px 7px rgb(0 0 0 / .28);
+  --lc-thumb: radial-gradient(130% 100% at 32% 18%, #fff 0%, #f6f9ff 46%, #dbe5f3 100%);
+  --lc-thumb-shadow: 0 3px 8px rgb(0 0 0 / .32), 0 .5px 1px rgb(0 0 0 / .25), inset 0 -1px 1px rgb(0 0 0 / .08);
+  --lc-on: var(--sg-accent, #3d8bff);
+  --lc-spring: cubic-bezier(.3, 1.45, .5, 1);
+}
+:root:not(.dark) {
+  --lc-track: linear-gradient(180deg, rgb(30 60 110 / .14), rgb(30 60 110 / .07));
+  --lc-rim: inset 0 1px 1px rgb(30 60 110 / .18), inset 0 0 0 .5px rgb(30 60 110 / .14), inset 0 -1px 0 rgb(255 255 255 / .7);
+}
+
+/* Switches */
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox],
+input[type=checkbox][role=switch] {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none; cursor: pointer;
+  width: 46px; height: 28px; margin: 0; border-radius: 999px;
+  background: var(--lc-track); box-shadow: var(--lc-rim);
+  -webkit-backdrop-filter: blur(10px) saturate(170%); backdrop-filter: blur(10px) saturate(170%);
+  transition: background .35s ease, box-shadow .35s ease;
+}
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]::after,
+input[type=checkbox][role=switch]::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 999px;
+  background: var(--lc-thumb); box-shadow: var(--lc-thumb-shadow);
+  transition: transform .5s var(--lc-spring), width .28s var(--lc-spring), background .25s ease, box-shadow .25s ease, -webkit-backdrop-filter .25s ease, backdrop-filter .25s ease;
+}
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:checked,
+input[type=checkbox][role=switch]:checked {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lc-on) 78%, white), var(--lc-on));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), inset 0 0 0 .5px rgb(255 255 255 / .25), 0 0 14px -4px var(--lc-on);
+}
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:checked::after,
+input[type=checkbox][role=switch]:checked::after { transform: translateX(18px); }
+/* Held: the thumb becomes a clear lens and stretches toward where it will go. */
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:active:not(:disabled)::after,
+input[type=checkbox][role=switch]:active:not(:disabled)::after {
+  width: 30px;
+  background: linear-gradient(180deg, rgb(255 255 255 / .55), rgb(255 255 255 / .18) 60%, rgb(255 255 255 / .38));
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 1px rgb(255 255 255 / .6), inset 0 0 0 .5px rgb(255 255 255 / .7), 0 4px 12px rgb(0 0 0 / .3);
+  -webkit-backdrop-filter: blur(1.5px) saturate(220%) brightness(1.15); backdrop-filter: blur(1.5px) saturate(220%) brightness(1.15);
+}
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:checked:active:not(:disabled)::after,
+input[type=checkbox][role=switch]:checked:active:not(:disabled)::after { transform: translateX(10px); }
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:disabled,
+input[type=checkbox][role=switch]:disabled { opacity: .45; cursor: default; }
+:is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]:focus-visible,
+input[type=checkbox][role=switch]:focus-visible { outline: 2px solid var(--lc-on); outline-offset: 2px; }
+/* The compact profile toggles stay compact. */
+.set-switch-inline input[type=checkbox] { width: 38px; height: 23px; }
+.set-switch-inline input[type=checkbox]::after { width: 17px; height: 17px; }
+.set-switch-inline input[type=checkbox]:checked::after { transform: translateX(15px); }
+.set-switch-inline input[type=checkbox]:active:not(:disabled)::after { width: 23px; }
+.set-switch-inline input[type=checkbox]:checked:active:not(:disabled)::after { transform: translateX(9px); }
+
+/* Check boxes */
+.set-check-box {
+  background: var(--lc-track); box-shadow: var(--lc-rim);
+  -webkit-backdrop-filter: blur(8px) saturate(170%); backdrop-filter: blur(8px) saturate(170%);
+  transition: background .3s ease, box-shadow .3s ease, transform .4s var(--lc-spring);
+}
+.set-check.is-on .set-check-box {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lc-on) 75%, white), var(--lc-on));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), inset 0 0 0 .5px rgb(255 255 255 / .3), 0 4px 14px -4px var(--lc-on);
+}
+.set-check:active .set-check-box { transform: scale(.9); }
+
+/* Segmented pickers: the selected segment is a raised lens on a frosted track. */
+.set-segmented {
+  background: var(--lc-track); box-shadow: var(--lc-rim);
+  -webkit-backdrop-filter: blur(12px) saturate(170%); backdrop-filter: blur(12px) saturate(170%);
+}
+.set-segmented button { transition: color .2s ease, background .3s ease, box-shadow .3s ease, transform .4s var(--lc-spring); }
+.set-segmented button.is-active {
+  background: linear-gradient(180deg, rgb(255 255 255 / .3), rgb(255 255 255 / .08) 60%, rgb(255 255 255 / .2));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .75), inset 0 -1px 1px rgb(255 255 255 / .2), inset 0 0 0 .5px rgb(255 255 255 / .35), 0 6px 14px -6px rgb(0 0 0 / .55);
+  -webkit-backdrop-filter: blur(2px) saturate(200%) brightness(1.1); backdrop-filter: blur(2px) saturate(200%) brightness(1.1);
+}
+:root:not(.dark) .set-segmented button.is-active { background: linear-gradient(180deg, #fff, #f3f7fdcc); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 .5px rgb(30 60 110 / .12), 0 4px 12px -5px rgb(30 60 110 / .35); }
+.set-segmented button:active { transform: scale(.95); }
+
+@media (prefers-reduced-transparency: reduce) {
+  :is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox], input[type=checkbox][role=switch], .set-check-box, .set-segmented,
+  .set-segmented button.is-active, :is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]::after { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.set-switch, .set-switch-inline, .adm-check) input[type=checkbox]::after, input[type=checkbox][role=switch]::after, .set-check-box, .set-segmented button { transition: none; }
+}

@@ -1,0 +1,331 @@
+/* ───────────────────────── Interference lyrics, final layer ─────────────────────────
+ * Loaded after index.css / crystal.css and scoped to .lyrics-v3, so it settles the
+ * older stacked rules in one place.
+ *
+ * Colour model: unfilled text stays at the resting alpha, the fill follows audio
+ * timing in every state, and completed lines fade to the same resting brightness.
+ */
+
+html body .interference-lyrics.lyrics-v3 {
+  --lyric-rest-alpha: 38%;
+  --lyric-rest: color-mix(in srgb, var(--lyric-lit) var(--lyric-rest-alpha), transparent);
+  --lyric-ease: cubic-bezier(.22, 1, .36, 1);
+  --lyric-holo: linear-gradient(100deg, #9fd8ff 0%, #c7adff 25%, #ffb8dc 50%, #a5f3da 75%, #9fd8ff 100%);
+}
+html:not(.dark) body .interference-lyrics.lyrics-v3:not(.np-v2 *) {
+  --lyric-lit: #18314e;
+  --ink: #18314e;
+  --muted: #60758d;
+  color: var(--lyric-lit);
+  background: linear-gradient(135deg, #ffffff55, #e4edfa24);
+  --lyric-holo: linear-gradient(100deg, #5b8def 0%, #9a6cf0 25%, #e06aa8 50%, #3fbf9f 75%, #5b8def 100%);
+}
+
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll { scroll-behavior: auto !important; overflow-anchor: none; }
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot { content-visibility: visible !important; contain: none !important; }
+
+/* Future lines already carry the dim unfilled gradient. Completed lines fade
+ * to the same brightness without switching their fill at the timing boundary. */
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line {
+  color: var(--lyric-lit) !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+  transform: scale(.965) !important;
+  transform-origin: left center;
+  transition: opacity 1s var(--lyric-ease), transform 1s var(--lyric-ease) !important;
+}
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line[dir=rtl] { transform-origin: right center; }
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line.sung { opacity: .38 !important; }
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line.sung:hover { opacity: .7 !important; }
+
+/* Starting a line keeps its unfilled ink unchanged; scale and the exit from a
+ * completed line ease smoothly while the fill follows the audio clock. */
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line.active {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: opacity 1s var(--lyric-ease), transform 1s var(--lyric-ease) !important;
+}
+
+/* Completed segments are solid; unfilled segments always keep their gradient. */
+html body .interference-lyrics.lyrics-v3 .interference-line :is(.lyric-line-fill, .lyric-segment) {
+  color: var(--lyric-lit) !important;
+  -webkit-text-fill-color: var(--lyric-lit) !important;
+  background: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+html body .interference-lyrics.lyrics-v3 .interference-line .lyric-line-fill { padding-inline: 0 !important; }
+html body .interference-lyrics.lyrics-v3 .interference-line.word-timed .lyric-segment:not([data-played=true]) {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background-image: linear-gradient(90deg, var(--lyric-lit) var(--karaoke-start, -20%), var(--lyric-rest) var(--karaoke-end, 0%)) !important;
+  background-repeat: no-repeat !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+html body .interference-lyrics.lyrics-v3 .interference-line.word-timed[dir=rtl] .lyric-segment:not([data-played=true]) {
+  background-image: linear-gradient(270deg, var(--lyric-lit) var(--karaoke-start, -20%), var(--lyric-rest) var(--karaoke-end, 0%)) !important;
+}
+html body .interference-lyrics.lyrics-v3 .interference-line .lyric-pull-segment[data-current=true] { text-shadow: none !important; }
+
+/* Holographic underlay — the closing word (all its syllables) of every other
+ * line. A blurred iridescent copy sits behind the white letters and fades in
+ * when that word is reached (word-timed lines only).
+ *
+ * The copy gets a generous box (inset + matching padding keeps it in place)
+ * so the blur fades out inside its own area instead of ending in a hard edge,
+ * and lines keep clear of the scroller's clipped right edge. */
+html body .interference-lyrics.lyrics-v3 .lyric-text { position: relative; display: block; isolation: isolate; padding-inline-end: 1.1em; }
+html body .interference-lyrics.lyrics-v3 .lyrics-scroll { padding-inline-end: 44px !important; }
+html body .interference-lyrics.lyrics-v3 .lyric-last-word { position: relative; }
+html body .interference-lyrics.lyrics-v3 .lyric-last-word::before {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .9s var(--lyric-ease);
+}
+html body .interference-lyrics.lyrics-v3 .lyric-last-word::before {
+  content: attr(data-text);
+  inset: -.35em -.5em;
+  padding: .35em .5em;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: var(--lyric-holo);
+  background-size: 240% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* Wide, soft and only moderately saturated: a halo, not a sticker. */
+  filter: blur(10px) saturate(1.3) brightness(1.08);
+  animation: lyric-holo-drift 7s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+/* --holo-alpha ramps with the word's own timing (paintTimedLine), so the halo grows in as it is sung. */
+html body .interference-lyrics.lyrics-v3 .interference-line.active .lyric-last-word[data-lit=true]::before { opacity: calc(var(--holo-alpha, 1) * .72); animation-play-state: running; transition: opacity .12s linear; }
+html:not(.dark) .interference-lyrics.lyrics-v3:not(.np-v2 *) .interference-line.active .lyric-last-word[data-lit=true]::before { opacity: calc(var(--holo-alpha, 1) * .5); }
+/* Room for the halo on both sides of the scroller, so a closing word at either edge is never cut off. */
+html body .interference-modal.np-v2 .interference-lyrics.lyrics-v3 .lyrics-scroll { padding-inline: 30px 48px !important; margin-inline-start: -24px; }
+@keyframes lyric-holo-drift { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+
+/* Line timing uses one continuous top-to-bottom wipe across wrapped text. */
+html body .interference-lyrics.lyrics-v3 .interference-line.line-timed .lyric-line-fill {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background-image: linear-gradient(180deg, var(--lyric-lit) var(--karaoke-start, -20%), var(--lyric-rest) var(--karaoke-end, 0%)) !important;
+  background-repeat: no-repeat !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line,
+  html body .interference-lyrics.lyrics-v3 .lyrics-scroll .lyric-slot .interference-line.active { transform: none !important; transition: none !important; }
+  html body .interference-lyrics.lyrics-v3 .lyric-last-word::before { animation: none; transition: none; }
+}
+
+/* ───────────── Cooldown — intro and long instrumental breaks ─────────────
+ * The indicator opens where the next line will appear (the scroller follows
+ * it), grows with the remaining wait and fades out as the line starts.
+ * --gap-progress / --gap-alpha come from the audio clock (paintLyricGap). */
+html body .interference-lyrics.lyrics-v3 .lyric-gap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 0;
+  padding-inline: .2em;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: height .5s var(--lyric-ease), opacity .4s var(--lyric-ease);
+}
+html body .interference-lyrics.lyrics-v3 .lyric-gap[data-open=true] { height: 76px; opacity: var(--gap-alpha, 1); transition: height .5s var(--lyric-ease), opacity .2s linear; }
+html body .interference-lyrics.lyrics-v3 .lyric-gap-loader {
+  --morph-color: var(--lyric-lit);
+  color: var(--lyric-lit);
+  opacity: .72;
+  transform: scale(calc(.8 + var(--gap-progress, 0) * .25));
+  transform-origin: left center;
+}
+html body .interference-lyrics.lyrics-v3 .lyric-gap-loader .morph-loading-shape { filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor 45%, transparent)); }
+html body .interference-lyrics.lyrics-v3 .lyric-gap:not([data-open=true]) .morph-loading-shape { animation-play-state: paused; }
+html body .interference-lyrics.lyrics-v3 .lyric-gap-progress {
+  position: relative;
+  width: 56px;
+  height: 2px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--lyric-lit) 16%, transparent);
+}
+html body .interference-lyrics.lyrics-v3 .lyric-gap-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--lyric-lit);
+  opacity: .65;
+  transform-origin: left center;
+  transform: scaleX(var(--gap-progress, 0));
+}
+
+/* ───────────── Genius annotations ───────────── */
+/* A fragment is framed rather than tinted: the Genius mark sits where it starts and a small
+ * corner (⌟) where it ends. The words themselves keep the lyric colour (Spicy Lyrics community
+ * texts included), so karaoke fill and glow are never covered by a highlight. */
+html body .interference-lyrics.lyrics-v3 .lyric-annot { cursor: default; }
+html body .interference-lyrics.lyrics-v3 :is(.lyric-genius-start, .lyric-genius-badge) {
+  display: inline-grid;
+  position: relative;
+  place-items: center;
+  width: .42em;
+  height: .42em;
+  min-width: 12px;
+  min-height: 12px;
+  color: var(--lyric-lit, currentColor);
+  -webkit-text-fill-color: currentColor;
+  background: none !important;
+  /* The marks are the only cue that a fragment has a note, so they stay findable on every line. */
+  opacity: .5;
+  cursor: pointer;
+  transition: opacity 1.2s var(--lyric-ease), transform 1.2s var(--lyric-ease), filter 1s var(--lyric-ease), color .3s ease;
+}
+html body .interference-lyrics.lyrics-v3 .lyric-genius-start { vertical-align: .62em; margin-inline-end: .12em; transform: translateY(2px); }
+html body .interference-lyrics.lyrics-v3 .lyric-genius-badge { vertical-align: -.04em; margin-inline-start: .06em; transform: translateY(-1px); }
+html body .interference-lyrics.lyrics-v3 :is(.lyric-genius-start, .lyric-genius-badge)::after { content: ''; position: absolute; inset: -8px; }
+html body .interference-lyrics.lyrics-v3 :is(.lyric-genius-start, .lyric-genius-badge) svg { width: 100%; height: 100%; }
+html body .interference-lyrics.lyrics-v3 .lyric-slot[data-active=true] :is(.lyric-genius-start, .lyric-genius-badge) { opacity: .95; transform: none; }
+html body .interference-lyrics.lyrics-v3 .plain-lyrics-line :is(.lyric-genius-start, .lyric-genius-badge) { opacity: .7; filter: none; }
+html body .interference-lyrics.lyrics-v3 :is(.lyric-genius-start, .lyric-genius-badge):hover { opacity: 1; filter: none; transform: scale(1.12); }
+html body .interference-lyrics.lyrics-v3 .lyric-slot :is(.lyric-genius-start, .lyric-genius-badge)[data-selected=true],
+html body .interference-lyrics.lyrics-v3 .plain-lyrics-line :is(.lyric-genius-start, .lyric-genius-badge)[data-selected=true] { opacity: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor 70%, transparent)); transform: scale(1.18); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer .genius-glyph { color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-translated { display: block; margin-top: 6px; font-size: .9em; color: var(--genius-muted); font-style: normal; }
+html body .interference-lyrics.lyrics-v3 .genius-translating { display: flex; justify-content: center; padding: 8px 0; }
+/* Translation toggle sits next to the settings button; translated lines read as a quiet subtitle. */
+html body .interference-lyrics.lyrics-v3 .lyrics-toolbar-actions { display: flex; align-items: center; gap: 6px; }
+html body .interference-lyrics.lyrics-v3 .lyrics-translate-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; transition: background-color .2s, color .2s; }
+html body .interference-lyrics.lyrics-v3 .lyrics-translate-toggle.is-on { background: color-mix(in srgb, var(--lyric-lit, currentColor) 14%, transparent); color: var(--lyric-lit, currentColor); }
+html body .interference-lyrics.lyrics-v3 .lyric-translation.is-machine { margin: -6px 4px 6px; font-size: clamp(14px, 1.35vw, 19px); font-weight: 500; letter-spacing: -.01em; line-height: 1.35; color: var(--lyric-rest, currentColor); opacity: .62; transition: opacity .4s var(--lyric-ease); }
+html body .interference-lyrics.lyrics-v3 .lyric-slot[data-active=true] .lyric-translation.is-machine { opacity: .9; }
+
+/* The note panel floats over the right edge: the lyrics never reflow or move when it opens. Only transform and
+ * opacity animate, so it slides on the compositor; the surface is nearly opaque so white lyrics under it don't haze the text. */
+html body .interference-lyrics.lyrics-v3 .genius-drawer {
+  --genius-ink: #eef3f8;
+  --genius-muted: #a8b4c2;
+  --genius-accent: #d9e2ee;
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-end: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: clamp(272px, 40%, 372px);
+  border: 1px solid #ffffff1c;
+  border-radius: 22px;
+  color: var(--genius-ink);
+  background: linear-gradient(160deg, var(--genius-surface-a, #1b2736e8), var(--genius-surface-b, #0d1621ef) 60%, var(--genius-surface-c, #111b27ea));
+  box-shadow: inset 0 1px 0 #ffffff2e, 0 26px 56px -22px #000c, 0 2px 12px #0006;
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+  contain: layout paint;
+  transform: translate3d(calc(100% + 24px), 0, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform .34s cubic-bezier(.4, 0, .7, .2), opacity .22s ease, visibility 0s linear .34s;
+}
+html body .interference-lyrics.lyrics-v3 .genius-drawer[data-open=true] { transform: none; opacity: 1; visibility: visible; pointer-events: auto; transition: transform .56s var(--lyric-ease), opacity .3s ease, visibility 0s; }
+html:not(.dark) .interference-lyrics.lyrics-v3:not(.np-v2 *) .genius-drawer { --genius-ink: #18314e; --genius-muted: #5f7189; --genius-accent: #3d5b80; background: linear-gradient(150deg, #ffffffee, #eaf2ffe8 55%, #f7fbffee); border-color: #ffffffb0; box-shadow: inset 0 1px 0 #ffffffd9, 0 24px 52px -22px #18314e66, 0 2px 10px #18314e22; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 12px 10px 16px; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-title > span { display: grid; min-width: 0; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-title b { font-size: 14px; font-weight: 600; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-title small { font-size: 11px; color: var(--genius-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-close { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border: 0; border-radius: 10px; color: inherit; background: color-mix(in srgb, var(--genius-ink) 8%, transparent); cursor: pointer; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-close:hover { background: color-mix(in srgb, var(--genius-ink) 16%, transparent); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-close:focus-visible { outline: 2px solid var(--genius-accent); outline-offset: 1px; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-line { margin: 0 16px 6px; font-size: 12px; color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 16px 24px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--genius-ink) 28%, transparent) transparent; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 22px), transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 22px), transparent 100%); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-content { animation: genius-swap .42s var(--lyric-ease) both; }
+@keyframes genius-swap { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+html body .interference-lyrics.lyrics-v3 .genius-referent + .genius-referent { margin-top: 18px; padding-top: 14px; border-top: 1px solid color-mix(in srgb, var(--genius-ink) 10%, transparent); }
+html body .interference-lyrics.lyrics-v3 .genius-fragment { margin: 8px 0 10px; padding-inline-start: 10px; border-inline-start: 3px solid var(--genius-accent); font-size: 13px; font-weight: 600; line-height: 1.5; white-space: pre-line; }
+html body .interference-lyrics.lyrics-v3 .genius-annotation + .genius-annotation { margin-top: 14px; }
+html body .interference-lyrics.lyrics-v3 .genius-annotation-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-state, html body .interference-lyrics.lyrics-v3 .genius-votes { display: inline-flex; align-items: center; gap: 5px; }
+html body .interference-lyrics.lyrics-v3 .genius-state.is-verified { color: #8fe3a8; }
+html body .interference-lyrics.lyrics-v3 .genius-state.is-pending { color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-note-text { margin-top: 6px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+html body .interference-lyrics.lyrics-v3 .genius-note-text p { margin: .55em 0; }
+html body .interference-lyrics.lyrics-v3 .genius-note-text a { color: var(--genius-accent); text-decoration: underline; text-underline-offset: 2px; }
+html:not(.dark) .interference-lyrics.lyrics-v3:not(.np-v2 *) .genius-note-text a { color: #7a6400; }
+html body .interference-lyrics.lyrics-v3 .genius-note-text img { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: 10px; }
+html body .interference-lyrics.lyrics-v3 .genius-note-text blockquote { margin: .6em 0; padding-inline-start: 10px; border-inline-start: 2px solid color-mix(in srgb, var(--genius-ink) 25%, transparent); color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-note-text :is(ul, ol) { margin: .5em 0; padding-inline-start: 1.3em; }
+html body .interference-lyrics.lyrics-v3 .genius-authors { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0 0; padding: 0; list-style: none; }
+html body .interference-lyrics.lyrics-v3 .genius-authors :is(a, div) { display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+html body .interference-lyrics.lyrics-v3 .genius-authors a:hover b { text-decoration: underline; }
+html body .interference-lyrics.lyrics-v3 .genius-authors img, html body .interference-lyrics.lyrics-v3 .genius-avatar-fallback { width: 26px; height: 26px; flex: none; border-radius: 50%; object-fit: cover; }
+html body .interference-lyrics.lyrics-v3 .genius-avatar-fallback { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #111; background: var(--genius-accent); }
+html body .interference-lyrics.lyrics-v3 .genius-authors span { display: grid; line-height: 1.25; }
+html body .interference-lyrics.lyrics-v3 .genius-authors b { font-size: 12px; font-weight: 600; }
+html body .interference-lyrics.lyrics-v3 .genius-authors small { font-size: 10px; color: var(--genius-muted); }
+html body .interference-lyrics.lyrics-v3 .genius-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 12px; color: var(--genius-muted); text-decoration: none; }
+html body .interference-lyrics.lyrics-v3 .genius-open:hover { color: var(--genius-ink); }
+@media (max-width: 700px) {
+  html body .interference-lyrics.lyrics-v3 .genius-drawer { inset-block: auto 0; inset-inline: 0; width: auto; max-height: 72%; border-radius: 22px 22px 0 0; border-bottom: 0; transform: translate3d(0, calc(100% + 24px), 0); }
+  html body .interference-lyrics.lyrics-v3 .genius-drawer[data-open=true] { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .interference-lyrics.lyrics-v3 .lyric-gap, html body .interference-lyrics.lyrics-v3 .lyric-gap[data-open=true] { transition: none; }
+  html body .interference-lyrics.lyrics-v3 .lyric-gap-loader { transform: none; }
+  html body .interference-lyrics.lyrics-v3 .lyric-genius-badge, html body .interference-lyrics.lyrics-v3 .genius-drawer, html body .interference-lyrics.lyrics-v3 .genius-drawer[data-open=true] { transition: opacity .2s linear, visibility 0s; transform: none; }
+  html body .interference-lyrics.lyrics-v3 .genius-drawer-content { animation: none; }
+}
+
+/* Shown instead of the lyrics if drawing them ever fails; the rest of the player keeps working. */
+.lyrics-crashed { display: grid; place-content: center; justify-items: center; gap: 10px; height: 100%; min-height: 160px; padding: 24px; text-align: center; font-size: 14px; color: rgba(255, 255, 255, .72); }
+.lyrics-crashed p { margin: 0; }
+.lyrics-crashed .text-button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: rgba(255, 255, 255, .1); color: inherit; font-size: 13px; font-weight: 600; }
+@media (max-width: 700px) {
+  html .interference-modal:is(.np-v2, #np-v2) .interference-lyrics.lyrics-v3 .lyrics-scroll { padding-inline: 16px 26px !important; margin-inline-start: 0; }
+}
+
+/* Drawer: translate toggle next to close. */
+html body .interference-lyrics.lyrics-v3 .genius-drawer-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-translate { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border-radius: 10px; font-size: 12px; font-weight: 600; color: var(--genius-muted); background: color-mix(in srgb, var(--genius-ink) 8%, transparent); transition: background .2s ease, color .2s ease; }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-translate.is-on { color: var(--genius-ink); background: color-mix(in srgb, var(--genius-accent) 26%, transparent); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-translate:hover { background: color-mix(in srgb, var(--genius-ink) 16%, transparent); }
+html body .interference-lyrics.lyrics-v3 .genius-drawer-translate:focus-visible { outline: 2px solid var(--genius-accent); outline-offset: 1px; }
+html body .interference-lyrics.lyrics-v3 .genius-machine { display: block; margin-top: 6px; font-size: 11px; color: var(--genius-muted); }
+
+/* Unsynced (Genius) lyrics keep their annotation marks. */
+html body .interference-lyrics.lyrics-v3 .plain-lyrics.plain-lyrics--lines { white-space: normal; }
+html body .interference-lyrics.lyrics-v3 .plain-lyrics-line { margin: 0; min-height: 1.4em; }
+html body .interference-lyrics.lyrics-v3 .plain-lyrics-gap { height: .9em; }
+
+/* Who worked on the track, after the last line. */
+html body .interference-lyrics.lyrics-v3 .lyrics-credits { margin: 48px 0 0; padding: 20px 0 0; border-top: 1px solid color-mix(in srgb, var(--lyric-lit, currentColor) 16%, transparent); color: var(--lyric-lit, currentColor); font-size: 14px; letter-spacing: 0; }
+html body .interference-lyrics.lyrics-v3 .lyrics-credits h3 { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; opacity: .6; margin-bottom: 14px; }
+html body .interference-lyrics.lyrics-v3 .lyrics-credits .credits-row dt { color: color-mix(in srgb, currentColor 60%, transparent); }
+html body .interference-lyrics.lyrics-v3 .lyrics-credits .credits-genius-link { margin-top: 14px; color: color-mix(in srgb, currentColor 60%, transparent); }
+
+/* Genius notes open: the cover column steps aside, the notes take its place and the lyrics stay fully visible. */
+@media (min-width: 701px) {
+  html body .interference-modal.np-v2 .np-layout { transition: grid-template-columns .56s cubic-bezier(.2, .8, .2, 1), column-gap .56s cubic-bezier(.2, .8, .2, 1); }
+  html body .interference-modal.np-v2 .np-panel { transition: opacity .3s ease, transform .5s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+  html body .interference-modal.np-v2 .np-layout:has(.interference-lyrics[data-notes-open=true]) { grid-template-columns: minmax(0, 1fr) 0px !important; column-gap: 0 !important; }
+  html body .interference-modal.np-v2 .np-layout:has(.interference-lyrics[data-notes-open=true]) .np-panel { opacity: 0; transform: translateX(40px) scale(.96); visibility: hidden; pointer-events: none; transition: opacity .22s ease, transform .4s ease, visibility 0s linear .4s; }
+  html body .interference-modal.np-v2 .interference-lyrics.lyrics-v3 .lyrics-scroll { transition: padding-inline-end .56s cubic-bezier(.2, .8, .2, 1); }
+  html body .interference-modal.np-v2 .interference-lyrics.lyrics-v3[data-notes-open=true] .lyrics-scroll { padding-inline-end: calc(clamp(300px, 34%, 420px) + 40px) !important; }
+  html body .interference-modal.np-v2 .interference-lyrics.lyrics-v3[data-notes-open=true] .genius-drawer { width: clamp(300px, 34%, 420px); }
+  html body .interference-lyrics.lyrics-v3[data-notes-open=true] .lyrics-scroll { padding-inline-end: calc(clamp(272px, 40%, 372px) + 34px) !important; }
+}
+@media (max-width: 700px) {
+  html body .interference-lyrics.lyrics-v3 .genius-drawer { max-height: 56%; }
+}
+@media (prefers-reduced-motion: reduce) { html body .interference-modal.np-v2 :is(.np-layout, .np-panel), html body .interference-lyrics.lyrics-v3 .lyrics-scroll { transition: none !important; } }

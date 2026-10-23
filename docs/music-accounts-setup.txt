@@ -1,0 +1,158 @@
+ОСКОЛОК — НАСТРОЙКА МУЗЫКАЛЬНЫХ АККАУНТОВ
+Проверено: 29 сентября 2026 года.
+
+1. Адреса текущего проекта
+
+В этой рабочей копии PORT=5001. API и Electron используют этот порт;
+Vite на 3000 проксирует /api на PORT. Не регистрируйте callback на порту Vite.
+В Dashboard площадок зарегистрируйте ТОЧНО:
+Spotify:    http://127.0.0.1:5001/api/music-accounts/spotify/callback
+SoundCloud: http://127.0.0.1:5001/api/music-accounts/soundcloud/callback
+
+Для публичного сервиса задайте MUSIC_OAUTH_ORIGIN=https://music.example.org
+и зарегистрируйте:
+https://music.example.org/api/music-accounts/spotify/callback
+https://music.example.org/api/music-accounts/soundcloud/callback
+
+Код callback: server/src/controllers/musicAccounts.ts. Без MUSIC_OAUTH_ORIGIN
+он вычисляется из PORT. При смене PORT исправьте зарегистрированные адреса.
+Схема, домен, путь и завершающий slash должны совпадать. Spotify запрещает
+localhost в redirect URI; HTTP допускается только для loopback IP, публичный
+адрес должен быть HTTPS. Туннель меняет домен — зарегистрируйте новый callback
+и перезапустите сервер с новым MUSIC_OAUTH_ORIGIN. Постоянный домен удобнее.
+Источник: https://developer.spotify.com/documentation/web-api/concepts/redirect_uri
+
+2. Spotify: регистрация и доступ
+
+Откройте https://developer.spotify.com/dashboard , создайте приложение с Web API
+и Web Playback SDK, укажите название и назначение Осколка. В Settings запишите
+redirect URI выше. Client ID и Client Secret перенесите в серверный .env.
+Не вставляйте секреты в исходники, VITE_* или панель браузера.
+
+Development Mode: до пяти авторизованных пользователей, владелец приложения
+должен иметь Premium. В Settings → Users Management добавьте имена и Spotify
+email тестировщиков. Успешный OAuth ещё не означает разрешение API: без allowlist
+запросы возвращают 403. Осколок не вводит дополнительного лимита подключений.
+
+Extended Quota: Spotify принимает заявки организаций, а не физических лиц.
+Требования: зарегистрированная организация, работающий запущенный сервис,
+минимум 250 000 MAU, ключевые рынки Spotify, коммерческая жизнеспособность
+и соблюдение правил. Подайте заявку с корпоративной почты:
+https://docs.google.com/forms/d/1O87xdPP1zWUDyHnduwbEFpcjA57JOaefCgBShKjAqlo
+Это ссылка из официальной документации; содержимое формы в данной проверке
+не удалось получить. Актуальную ссылку всегда сверяйте со страницей ниже.
+После принятия партнёрской заявки: Dashboard → Settings → Quota extension Request.
+Подготовьте сведения об организации, подтверждение MAU, рынки, бизнес-модель,
+описание интеграции, доступную демонстрацию и инструкции для проверки.
+Расширенный режим снимает пользовательский allowlist и повышает квоты;
+одобрение не гарантировано. Код не увеличивает этот лимит, дополнительные
+приложения для его обхода не являются решением.
+Источник: https://developer.spotify.com/documentation/web-api/concepts/quota-modes
+
+3. SoundCloud: регистрация
+
+https://developers.soundcloud.com/docs/api/register-app
+По текущим правилам для регистрации API-приложения требуется Artist Pro.
+Войдите в SoundCloud, откройте Your Apps/Create application, заполните название,
+описание и сайт, примите условия. Полученные Client ID/Secret сохраните в .env.
+На странице приложения задайте SoundCloud callback из раздела 1.
+Регистрация сейчас описана как доступная через браузер и официальный CLI;
+выдача ключей и требования аккаунта контролируются SoundCloud.
+OAuth использует authorization code с PKCE, обмен токена выполняется сервером.
+Источники:
+https://developers.soundcloud.com/docs/api/register-app
+https://developers.soundcloud.com/docs/api/guide
+https://soundcloud.com/you/apps
+
+4. Переменные и запуск именно этой версии
+
+Серверный .env в корне:
+PORT=5001
+DATABASE_URL=file:./dev.db
+CORS_ORIGIN=http://localhost:3000
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+SOUNDCLOUD_CLIENT_ID=...
+SOUNDCLOUD_CLIENT_SECRET=...
+# Для публичного сервиса:
+MUSIC_OAUTH_ORIGIN=https://music.example.org
+# Telegram-вход:
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_BOT_USERNAME=...
+TELEGRAM_API_ID=...
+TELEGRAM_API_HASH=...
+TELEGRAM_BETA_USERNAMES=pexepo
+# Отдельная авторизация админки:
+ADMIN_API_KEY=<длинный случайный ключ>
+# Необязательно, описание из Genius:
+GENIUS_ACCESS_TOKEN=...
+
+Никогда не переименовывайте эти секреты в VITE_*. Клиенту достаточно
+VITE_API_URL=/api. Аккаунты сохраняются в MusicAccountToken в зашифрованном виде;
+сохраняйте вместе базу и server/data/private/session.key (или OSKOLOK_PRIVATE_DIR).
+Без этого ключа старые токены/Telegram-сессии не расшифровать.
+
+После изменения .env перезапустите сервер. Для исходников: npm run dev:web.
+Для готовой сборки: npm run build; npm run start:server.
+Electron: npm run desktop. Mini App: npm run mobile:test.
+Публичный URL тестового запуска записывается в /tmp/oskolok-mobile-tunnel-url.
+
+Яндекс Музыка использует server/src/services/yandex_worker.py: установите
+server/python-requirements.txt в .venv, при необходимости задайте PYTHON_PATH.
+Пользователь открывает показанную ссылку, копирует код устройства; приложение
+проверяет подтверждение автоматически. Это отдельный вход, не Spotify OAuth.
+
+5. Проверка подключения
+
+Войдите в Telegram аккаунтом с бета-доступом. Откройте «Перенести музыку».
+Нажмите Spotify/SoundCloud → подтвердите OAuth на сайте → вернитесь в Осколок.
+Кнопка должна стать «Открыть плейлисты». Откройте окно, найдите свой плейлист,
+проверьте предпросмотр и только затем сохраните. После перезапуска подключение
+должно сохраниться. Когда access token истечёт, следующий запрос обновит его
+через refresh token; параллельные запросы используют один обмен. Если refresh
+отозван, отключите аккаунт и войдите снова. Не публикуйте токены из диагностики.
+
+Типовые ошибки:
+- redirect_uri mismatch: сравните Settings и MUSIC_OAUTH_ORIGIN/PORT.
+- 401: истёк или отозван токен; повторите вход.
+- 403 Spotify: проверьте allowlist, Premium и разрешения конкретной операции.
+- 429: квота площадки; повторите позднее, переподключение не обходит квоту.
+- Чужой плейлист отображается, но импорт закрыт: проверьте ограничения текущего
+  API Spotify для владельца/соавтора; интерфейс помечает такой плейлист.
+- Вкладка входа не открылась: нажмите «Продолжить вход» в приложении.
+- SoundCloud кнопка недоступна: отсутствуют ключи сервера.
+- Telegram code invalid: вводите код в Осколке, не отправляйте его сообщением боту.
+
+6. Каталог и воспроизведение — разные подключения
+
+Spotify Web API даёт метаданные/библиотеки и управление, а не MP3 или URL
+расшифрованного аудиофайла. Web Playback SDK создаёт устройство в браузере;
+для прослушивания нужен Premium. Защищённый медиастек браузера, пользовательский
+жест и доступ SDK обязательны. Обычный Electron не гарантирует DRM Spotify,
+поэтому Осколок использует Spotify Connect на доступном устройстве.
+В поддерживаемых Chrome, Firefox, Safari и Edge SDK может играть локально;
+Telegram WebView нужно проверять отдельно. На iOS после переноса воспроизведения
+нужно взаимодействие пользователя. В iframe требуются encrypted-media/autoplay.
+Осколок проверяет подтверждение запуска и при отказе пробует другие источники.
+Эквалайзер влияет на локальный HTML audio; Spotify SDK/Connect обрабатывают звук
+отдельно. Экспорт Spotify не поддерживается; личный загруженный файл может
+экспортироваться как личный файл. Обход DRM и получение Spotify MP3 не реализованы.
+Коммерческое использование SDK требует предварительного письменного одобрения.
+Источники:
+https://developer.spotify.com/documentation/web-playback-sdk
+https://developer.spotify.com/documentation/web-playback-sdk/tutorials/getting-started
+https://developer.spotify.com/documentation/web-playback-sdk/concepts/spotify-connect
+
+7. Администрирование и сохранность
+
+Встроенная панель: /admin, вход по ADMIN_API_KEY. Отдельная developer-panel:
+.env содержит PANEL_PASSWORD, ADMIN_API_KEY, OSKOLOK_API_URL=http://127.0.0.1:5001/api,
+PANEL_ORIGIN=http://127.0.0.1:4100, PORT=4100. Ключ должен совпадать с основным сервером.
+cd developer-panel; npm run build; npm start.
+
+Бета-доступ выдаётся по username и навсегда закрепляется при подтверждённом входе
+за ID. Отзыв не освобождает username для другого владельца автоматически.
+Обращения и предложения проверяются в обеих панелях; публикация текста/тайминга/
+источника происходит только после одобрения. Личные файлы сохраняются независимо.
+Обновление схемы при запуске добавляет таблицы/поля без удаления библиотек.
+Перед переносом храните резервную копию БД, ключа сессий и data/user-content.

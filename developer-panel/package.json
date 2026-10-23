@@ -3,7 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "engines": {"node": ">=22"},
-  "scripts": {"build": "vite build", "start": "node --env-file-if-exists=.env server.mjs", "test": "node --test panel-check.mjs"},
-  "devDependencies": {"vite": "^5.4.1", "typescript": "^5.5.4"}
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run typecheck && vite build",
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test panel-check.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "vite": "^5.4.1",
+    "typescript": "^5.5.4"
+  }
 }

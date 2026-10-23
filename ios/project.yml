@@ -1,0 +1,69 @@
+# XcodeGen spec: `xcodegen generate` writes Oskolok.xcodeproj (not committed; CI generates it).
+name: Oskolok
+options:
+  bundleIdPrefix: lol.oskolok
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "2"
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Oskolok:
+    type: application
+    platform: iOS
+    sources:
+      - path: Oskolok
+    info:
+      path: Oskolok/Info.plist
+      properties:
+        CFBundleDisplayName: Осколок
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UIBackgroundModes: [audio]
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchLogo
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: true
+        ITSAppUsesNonExemptEncryption: false
+        # Shown only if the listener picks «Take photo» for an avatar in the profile editor.
+        NSCameraUsageDescription: Осколок использует камеру, только если ты решишь сфотографировать аватар профиля.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lol.oskolok.app
+        PRODUCT_NAME: Oskolok
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: NO
+  OskolokUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [OskolokUITests]
+    dependencies:
+      - target: Oskolok
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lol.oskolok.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Oskolok:
+    build:
+      targets:
+        Oskolok: all
+    test:
+      targets: [OskolokUITests]

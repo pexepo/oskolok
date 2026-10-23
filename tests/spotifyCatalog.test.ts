@@ -11,6 +11,22 @@ import { officialCatalogService } from '../server/src/services/OfficialCatalogSe
 afterEach(() => vi.restoreAllMocks());
 
 describe('Spotify primary catalog', () => {
+  it('waits out a 429 Retry-After instead of calling Spotify again', async () => {
+    const service = new SpotifyService();
+    vi.spyOn(service as any, 'getAccessToken').mockResolvedValue('test-token');
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 429, headers: new Headers({ 'retry-after': '120' }), json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(service.search('first', { limit: 10 })).rejects.toMatchObject({ reason: 'rate_limited' });
+      const calls = fetchMock.mock.calls.length;
+      await expect(service.search('second', { limit: 10 })).rejects.toMatchObject({ reason: 'rate_limited' });
+      expect(fetchMock.mock.calls.length).toBe(calls);
+      expect(service.rateLimitedUntil()).toBeGreaterThan(Date.now() + 100_000);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('splits a 25-result search into requests within Spotify’s 10-item limit', async () => {
     const service = new SpotifyService();
     vi.spyOn(service as any, 'getAccessToken').mockResolvedValue('test-token');

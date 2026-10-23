@@ -1,0 +1,97 @@
+/* Login: night sky, one quiet card, Kekera crouching on the horizon. Always dark. */
+main.login-stage{
+ --login-ink:#eef4ff;--login-muted:#8fa6c2;--login-accent:#79baff;--login-line:#ffffff17;
+ position:relative;min-height:100dvh;overflow:hidden;isolation:isolate;
+ display:grid;grid-template-rows:auto 1fr;place-items:initial;padding:0;
+ color:var(--login-ink);font-family:var(--sg-sans);
+ background:
+  radial-gradient(1px 1px at 12% 18%,#fffc,transparent),radial-gradient(1px 1px at 27% 64%,#fff9,transparent),
+  radial-gradient(1.5px 1.5px at 41% 12%,#fffd,transparent),radial-gradient(1px 1px at 58% 31%,#fff8,transparent),
+  radial-gradient(1px 1px at 69% 9%,#fffb,transparent),radial-gradient(1.5px 1.5px at 83% 22%,#cfe6ffe6,transparent),
+  radial-gradient(1px 1px at 91% 47%,#fff9,transparent),radial-gradient(1px 1px at 7% 81%,#fff8,transparent),
+  radial-gradient(1px 1px at 35% 88%,#fff7,transparent),radial-gradient(1.5px 1.5px at 18% 41%,#d8ecffd9,transparent),
+  radial-gradient(1px 1px at 75% 58%,#fff7,transparent),radial-gradient(1px 1px at 52% 76%,#fff6,transparent),
+  radial-gradient(ellipse 70% 55% at 50% -10%,#264c7b 0,transparent 70%),
+  linear-gradient(180deg,#071321,#0a1626 70%,#0b1830);
+}
+
+/* ── decor ── */
+.login-sky{position:absolute;inset:0;z-index:-1;pointer-events:none}
+.login-glow{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55}
+.login-glow.g1{width:520px;height:520px;left:50%;top:18%;translate:-50% 0;background:radial-gradient(#2f6fd655,transparent 70%)}
+.login-glow.g2{width:640px;height:380px;right:-120px;bottom:-60px;background:radial-gradient(#4d8dff40,transparent 70%)}
+.login-shard{position:absolute;aspect-ratio:1;opacity:.5;animation:login-drift 14s ease-in-out infinite alternate;
+ background:linear-gradient(150deg,#bfe0ff66,#4d8dff22 45%,#79baff08 70%,#cfe8ff40);
+ -webkit-mask:var(--shard) center/contain no-repeat;mask:var(--shard) center/contain no-repeat}
+.login-shard.s1{width:230px;left:6%;top:14%;rotate:-14deg}
+.login-shard.s2{width:70px;left:30%;top:9%;rotate:22deg;animation-delay:-3s;opacity:.75}
+.login-shard.s3{width:56px;left:14%;top:58%;rotate:-30deg;animation-delay:-6s;opacity:.7}
+.login-shard.s4{width:200px;left:2%;bottom:6%;rotate:8deg;animation-delay:-2s;opacity:.35}
+.login-shard.s5{width:48px;left:62%;top:16%;rotate:40deg;animation-delay:-8s;opacity:.8}
+.login-shard.s6{width:84px;right:10%;top:12%;rotate:-18deg;animation-delay:-5s;opacity:.6}
+.login-shard.s7{width:60px;right:30%;top:46%;rotate:12deg;animation-delay:-10s;opacity:.65}
+@keyframes login-drift{to{transform:translateY(-14px) rotate(4deg)}}
+/* The floor line Kekera crouches on. */
+.login-horizon{position:absolute;left:0;right:0;bottom:64px;height:1px;background:linear-gradient(90deg,transparent,#79baff30 25%,#9fd0ff70 75%,#79baff25);box-shadow:0 0 18px #79baff40}
+.login-horizon::after{content:'';position:absolute;inset:1px 0 auto;height:64px;background:linear-gradient(180deg,#0e2340aa,transparent)}
+
+/* ── top bar ── */
+.login-top{display:flex;align-items:center;gap:10px;padding:22px 32px}
+.login-logo{width:30px;height:30px;filter:drop-shadow(0 4px 12px #2f6fd666)}
+.login-name{font:500 21px/1 var(--sg-serif);letter-spacing:.01em}
+.login-beta{padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--login-accent);background:#79baff1a;box-shadow:inset 0 0 0 1px #79baff33}
+
+/* ── card ── */
+main.login-stage .login-card{
+ align-self:center;justify-self:center;width:min(100% - 40px,420px);margin:0 0 120px;
+ display:flex;flex-direction:column;align-items:stretch;gap:18px;padding:34px 32px 30px;text-align:center;
+ border-radius:28px;background:linear-gradient(160deg,#13233acc,#0d1a2cdd);border:1px solid var(--login-line);
+ box-shadow:inset 0 1px 0 #ffffff14,0 30px 80px -30px #000c;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
+}
+main.login-stage .login-wordmark{
+ margin:0;font:500 clamp(48px,6vw,64px)/.95 var(--sg-serif);letter-spacing:.005em;color:#f6f9ff;
+ text-shadow:0 0 1px #fff,0 0 14px #c3e4ffaa,0 0 38px #5aa0ff70
+}
+main.login-stage .login-lead{margin:0 auto 4px;max-width:32ch;font-size:13.5px;line-height:1.6;color:var(--login-muted)}
+main.login-stage .login-card .telegram-login-flow{color:var(--login-ink)}
+main.login-stage .login-card .telegram-login-methods{border-color:var(--login-line);background:#06101d}
+main.login-stage .login-card .telegram-login-methods button{color:#8ea9c4}
+main.login-stage .login-card .telegram-login-methods button[aria-selected=true]{background:#22384f;color:#fff;box-shadow:none}
+main.login-stage .login-card .telegram-login-flow label{color:var(--login-muted)}
+main.login-stage .login-card .telegram-login-flow input{background:#06101d!important;color:var(--login-ink)!important;border:1px solid #ffffff1f!important;box-shadow:none!important;background-image:none!important}
+main.login-stage .login-card .telegram-login-flow input::placeholder{color:#5d7590}
+main.login-stage .login-card .telegram-login-flow input:focus{border-color:#79baff88!important;outline:none}
+.login-denied{display:grid;gap:10px}.login-denied p{color:var(--login-muted);font-size:13px;line-height:1.6}
+
+/* ── mascot ── */
+.login-mascot{position:absolute;right:clamp(16px,6vw,110px);bottom:56px;z-index:1;margin:0;height:min(52vh,460px);aspect-ratio:1327/2061;pointer-events:none}
+.login-mascot img{position:relative;z-index:1;display:block;width:100%;height:100%;filter:drop-shadow(0 0 22px #79baff1f)}
+.login-mascot-shadow{position:absolute;left:-6%;right:-10%;bottom:2px;height:28px;border-radius:50%;background:radial-gradient(closest-side,#000a,#0005 55%,transparent);filter:blur(4px)}
+.login-bubble{
+ position:absolute;z-index:2;right:50%;bottom:calc(100% - 6px);width:max-content;max-width:250px;padding:12px 15px;
+ border-radius:18px 18px 4px 18px;font-size:13px;line-height:1.45;text-align:left;color:#0d1a2c;
+ background:#eef5ff;box-shadow:0 14px 34px -12px #000b,0 0 0 1px #ffffff80 inset;animation:login-bob 4s ease-in-out infinite alternate
+}
+.login-bubble::after{content:'';position:absolute;right:-7px;bottom:0;width:16px;height:14px;background:#eef5ff;clip-path:polygon(0 0,0 100%,100% 100%)}
+@keyframes login-bob{to{transform:translateY(-5px)}}
+
+@media (max-width:1180px){
+ .login-mascot{height:min(42vh,340px);right:8px}
+ .login-bubble{right:10%;max-width:200px}
+}
+@media (max-width:900px){
+ main.login-stage{height:100dvh;overflow-y:auto;grid-template-rows:auto auto auto}
+ .login-top{padding:18px 20px}
+ main.login-stage .login-card{margin:6px 0 0}
+ .login-mascot{position:relative;right:auto;bottom:auto;justify-self:center;height:320px;margin:110px 0 24px;translate:0}
+ .login-bubble{right:auto;left:54%;bottom:88%;max-width:min(150px,calc(100vw - 230px));border-radius:18px 18px 18px 4px;font-size:12px}
+ .login-bubble::after{right:auto;left:-7px;clip-path:polygon(100% 0,0 100%,100% 100%)}
+ .login-horizon,.login-glow.g2{display:none}
+ .login-shard.s1{width:140px}.login-shard.s4{display:none}
+}
+@media (prefers-reduced-motion:reduce){.login-shard,.login-bubble{animation:none}}
+/* Links back to the public site: the beta form, the landing page and downloads. */
+main.login-stage .login-beta-link{display:inline-flex;justify-content:center;text-decoration:none}
+main.login-stage .login-site-links{display:flex;justify-content:center;gap:18px;margin:2px 0 0;font-size:12.5px}
+main.login-stage .login-site-links a{color:var(--login-muted);text-decoration:none;transition:color .2s}
+main.login-stage .login-site-links a:hover,main.login-stage .login-site-links a:focus-visible{color:var(--login-accent)}

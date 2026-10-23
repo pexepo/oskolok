@@ -1,0 +1,66 @@
+.jam-button{position:relative}
+.jam-button.is-active{color:var(--accent)!important}
+.jam-button__badge{position:absolute;top:2px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;line-height:15px;text-align:center;pointer-events:none}
+.jam-button__dot{position:absolute;top:5px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--glass,#fff);pointer-events:none}
+
+.jam-avatar{flex:none;border-radius:50%;object-fit:cover;background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.jam-avatar--letter{display:inline-grid;place-items:center;color:var(--accent);font-size:13px;font-weight:700}
+
+.jam-panel{display:grid;gap:14px}
+.jam-panel .sg-btn{min-height:38px;padding:0 14px;font-size:13px}
+.jam-head{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:color-mix(in srgb,var(--accent) 9%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+.jam-head>div{display:grid;gap:2px;min-width:0}
+.jam-head small{font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.jam-head strong{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jam-head span{font-size:12.5px;color:var(--muted)}
+.jam-head__art{flex:none;width:52px;height:52px;border-radius:12px;object-fit:cover}
+.jam-head__art--empty{display:grid;place-items:center;background:var(--accent);color:#fff}
+
+.jam-members{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.jam-members li{display:inline-flex;align-items:center;gap:7px;padding:3px 10px 3px 3px;border-radius:999px;border:1px solid var(--edge);font-size:13px;font-weight:500}
+.jam-members li svg{color:#e0a526}
+.jam-members li.is-away{opacity:.5}
+.jam-actions{display:flex;flex-wrap:wrap;gap:8px}
+.jam-actions .sg-btn.is-on{box-shadow:inset 0 0 0 1.5px var(--accent)}
+
+.jam-invite-list,.jam-friends,.jam-queue{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.jam-invite-list li,.jam-friend{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;border:1px solid var(--edge)}
+.jam-invite-list li>span{flex:1;min-width:0;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jam-friend>div{display:grid;gap:2px;flex:1;min-width:0}
+.jam-friend strong{font-size:14px;font-weight:600}
+.jam-friend small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.jam-queue{max-height:min(44vh,380px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
+.jam-queue li{display:flex;align-items:center;gap:4px;border-radius:14px}
+.jam-queue li.is-current{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.jam-queue li.is-played{opacity:.5}
+.jam-queue__main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:6px 8px;border:0;border-radius:14px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.jam-queue__main:disabled{cursor:default}
+.jam-queue__main:hover:not(:disabled){background:color-mix(in srgb,currentColor 6%,transparent)}
+.jam-queue__main>span{display:grid;gap:1px;flex:1;min-width:0}
+.jam-queue__main b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jam-queue__main small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jam-queue__art{flex:none;width:40px;height:40px;border-radius:9px;object-fit:cover}
+.jam-queue__live{flex:none;color:var(--accent)}
+.jam-queue__play{flex:none;color:var(--muted);opacity:0;transition:opacity .15s}
+.jam-queue__main:hover .jam-queue__play,.jam-queue__main:focus-visible .jam-queue__play{opacity:1}
+.jam-queue__remove{flex:none;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer}
+.jam-queue__remove:hover{background:color-mix(in srgb,currentColor 9%,transparent);color:var(--ink)}
+.jam-empty{margin:0;padding:14px;border-radius:14px;border:1px dashed var(--edge);font-size:13px;line-height:1.5;color:var(--muted)}
+.jam-leave{justify-self:start}
+
+.jam-intro,.jam-callout{display:grid;gap:12px;justify-items:start;padding:14px;border-radius:18px;border:1px solid var(--edge)}
+.jam-callout{grid-template-columns:auto 1fr;align-items:center;border-color:color-mix(in srgb,var(--accent) 38%,var(--edge));background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.jam-callout .sg-btn{grid-column:1/-1}
+.jam-intro p,.jam-callout p{margin:0;font-size:13.5px;line-height:1.5;color:var(--muted)}
+.jam-intro b,.jam-callout b{color:var(--ink)}
+.jam-intro__icon{display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:var(--accent);color:#fff}
+.jam-section{display:grid;gap:8px}
+.jam-section h3{margin:0;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.jam-bar .jam-avatar{width:34px;height:34px}
+:is(.jam-queue__main,.jam-queue__remove):focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media(prefers-reduced-motion:reduce){.jam-queue__play{transition:none}}
+
+/* «Волна на двоих» and «Слушать вместе» on a friend's profile */
+.profile-together{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 6px}

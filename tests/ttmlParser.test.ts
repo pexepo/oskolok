@@ -26,4 +26,14 @@ describe('TTML voices',()=>{
  it('rejects invalid timestamps instead of silently marking a line at zero',()=>{
   expect(()=>parseLyricsFile('<tt><body><p begin="garbage">Hello</p></body></tt>','x.ttml')).toThrow();
  });
+ it('smooths small timing jitter produced by lyric editors',()=>{
+  const lines=parseLyricsFile('<tt><body><div><p begin="10s" end="12s"><span begin="10s" end="10.5s">one</span><span begin="10.49s" end="10.48s">two</span></p></div></body></tt>','x.ttml');
+  expect(lines[0].words).toEqual([
+   expect.objectContaining({text:'one',start:10,end:10.5}),
+   expect.objectContaining({text:'two',start:10.49,end:10.49}),
+  ]);
+ });
+ it('still rejects materially broken word timing',()=>{
+  expect(()=>parseLyricsFile('<tt><body><div><p begin="10s"><span begin="8s" end="9s">broken</span></p></div></body></tt>','x.ttml')).toThrow('Некорректное время слова');
+ });
 });

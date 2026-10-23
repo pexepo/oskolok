@@ -2,15 +2,17 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Home, Search, Library } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from '../../stores/useLanguageStore.js';
 export const Sidebar: React.FC = () => {
-  const displayName = 'Слушатель Oskolok';
+  const t = useTranslation();
+  const displayName = t('Слушатель Oskolok', 'Oskolok listener');
   const avatarUrl: string | null = null;
   const initials = 'OS';
 
   const navItems = [
-    { label: 'Главная', path: '/', icon: Home },
-    { label: 'Поиск', path: '/search', icon: Search },
-    { label: 'Коллекция', path: '/library', icon: Library },
+    { label: t('Главная', 'Home'), path: '/', icon: Home },
+    { label: t('Поиск', 'Search'), path: '/search', icon: Search },
+    { label: t('Коллекция', 'Collection'), path: '/library', icon: Library },
   ];
 
   return (
@@ -27,7 +29,7 @@ export const Sidebar: React.FC = () => {
       <div className="h-14 px-6 flex items-center justify-between shrink-0">
         <NavLink to="/" className="flex items-center gap-3 group translate-y-1">
           <img
-            src="/logo.png"
+            src="/logo-128.png"
             alt="Oskolok Logo"
             className="w-8 h-8 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.6)] group-hover:scale-105 transition-transform shrink-0"
           />
@@ -84,7 +86,7 @@ export const Sidebar: React.FC = () => {
               {displayName}
             </div>
             <div className="text-xs text-zinc-500 truncate">
-              Локальная коллекция
+              {t('Локальная коллекция', 'Local collection')}
             </div>
           </div>
         </div>

@@ -3,7 +3,9 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { spotifyService } from './SpotifyService.js';
+import {recordingMetadata} from './recordingCandidates.js';
 import { prisma } from '../database/client.js';
+import { latinFold } from './trackRanking.js';
 
 const SPOTIFY_ID = /^[A-Za-z0-9]{22}$/;
 const clean = (value: string) => value.normalize('NFKC').toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -102,7 +104,30 @@ export class SpicyLyricsService {
     return selectMatchingSpotifyId(this.localTracks, title, artist, duration);
   }
 
-  public async resolveSpotifyId(trackId: string, title: string, artist: string, duration?: number): Promise<string | null> {
+  private idRequests=new Map<string,Promise<string|null>>();
+  private resolvedIds=new Map<string,{id:string;at:number}>();
+  private warmQueue:Track[]=[];
+  private warming=new Set<string>();
+  private warmWorkers=0;
+
+  /** Resolve imported uploads before playback, two catalogue lookups at a time. */
+  public warmSpotifyIds(tracks:Track[]):void{
+    if(!this.isConfigured()||!spotifyService.isConfigured())return;
+    for(const track of tracks){if(track.source==='spotify'||this.warming.has(track.id))continue;this.warming.add(track.id);this.warmQueue.push(track);}
+    while(this.warmWorkers<2&&this.warmQueue.length){this.warmWorkers++;void this.consumeWarmQueue();}
+  }
+  private async consumeWarmQueue(){
+    try{while(this.warmQueue.length){const track=this.warmQueue.shift()!;const metadata=recordingMetadata(track);await this.resolveSpotifyId(track.id,metadata.title,metadata.artist,track.duration).catch(()=>null);this.warming.delete(track.id);}}
+    finally{this.warmWorkers--;}
+  }
+  public resolveSpotifyId(trackId:string,title:string,artist:string,duration?:number):Promise<string|null>{
+    const key=JSON.stringify([trackId,title,artist,duration]),cached=this.resolvedIds.get(key);
+    if(cached&&Date.now()-cached.at<24*3600000)return Promise.resolve(cached.id);
+    const pending=this.idRequests.get(key);if(pending)return pending;
+    const request=this.lookupSpotifyId(trackId,title,artist,duration).then(id=>{if(id){this.resolvedIds.set(key,{id,at:Date.now()});if(this.resolvedIds.size>5000)this.resolvedIds.delete(this.resolvedIds.keys().next().value!);}return id;}).finally(()=>this.idRequests.delete(key));
+    this.idRequests.set(key,request);return request;
+  }
+  private async lookupSpotifyId(trackId: string, title: string, artist: string, duration?: number): Promise<string | null> {
     const direct = trackId.match(/^spotify:(?:track:)?([A-Za-z0-9]{22})$/)?.[1] || (SPOTIFY_ID.test(trackId) ? trackId : '');
     if (direct) return direct;
     const cached = await trackCacheRepository.getCachedTrack(trackId).catch(() => null);
@@ -112,9 +137,14 @@ export class SpicyLyricsService {
     if (!spotifyService.isConfigured() || !title || !artist) return null;
     const result = await spotifyService.search(`${artist} ${title}`, { page: 1, limit: 8 }).catch(() => null);
     if (!result) return null;
+    // Same song, same speed: the title and one of the artists must agree (any script, any order of features),
+    // and the length within 3 s — a slowed or sped-up edit has its own timing and would desync every line.
+    const artists = (name: string) => name.split(/,|&| x | feat\.? /i).map(a => latinFold(a)).filter(Boolean);
+    const wanted = artists(artist);
     const exact = result.tracks.find((track: Track) => track.source === 'spotify' && SPOTIFY_ID.test(track.sourceId)
-      && clean(track.title) === clean(title) && clean(track.artist.name) === clean(artist)
-      && (!duration || !track.duration || Math.abs(track.duration - duration) <= 5));
+      && clean(track.title) === clean(title) && artists(track.artist.name).some(a => wanted.includes(a))
+      && (!duration || !track.duration || Math.abs(track.duration - duration) <= 3));
+    if(exact)await trackCacheRepository.setCachedTrack(exact).catch(()=>{});
     return exact?.sourceId || null;
   }
 

@@ -1,0 +1,72 @@
+/* ───────────────────────── Artist page: one card (banner + info + audience) ───────────────────────── */
+
+.oskolok-app .artist-card { display: flex; flex-direction: column; padding: 0 !important; border-radius: 30px !important; }
+.artist-card-banner { position: relative; height: clamp(200px, 26vw, 320px); border-radius: 30px 30px 0 0; overflow: hidden; background: #b9cde3; isolation: isolate; }
+:root.dark .artist-card-banner { background: #102037; }
+.artist-card-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+/* The photo melts into the glass below instead of ending on a hard edge. */
+.artist-card-fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(8, 18, 34, .08) 0%, transparent 35%, color-mix(in srgb, var(--sg-ink, #14284a) 10%, transparent) 70%, var(--artist-card-melt, rgba(236, 243, 252, .92)) 100%); }
+:root.dark .artist-card-fade { --artist-card-melt: rgba(14, 22, 38, .94); }
+.artist-card-banner .artist-banner-credit { bottom: auto; top: 14px; right: 16px; }
+
+.artist-card-body { position: relative; z-index: 1; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 28px; align-items: end; padding: 0 30px; margin-top: -92px; }
+.artist-card-portrait { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.artist-card-portrait .shard-artwork { width: 150px; }
+.artist-card-portrait small { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--sg-muted, var(--muted)); }
+.artist-card-main { min-width: 0; padding-bottom: 4px; }
+.artist-card-main h1 { font-size: clamp(34px, 4.6vw, 58px); font-weight: 650; letter-spacing: -.045em; line-height: 1.02; color: var(--ink); margin: 6px 0 8px; overflow-wrap: anywhere; }
+.artist-card-aka { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.artist-card-aka span { margin-right: 2px; }
+.artist-card-aka b { font-weight: 550; font-size: 11.5px; padding: 3px 9px; border-radius: 999px; color: var(--ink); background: var(--chip-face); box-shadow: inset 0 0 0 1px var(--chip-edge); }
+.artist-card-meta { font-size: 12px; color: var(--muted); }
+.artist-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.artist-card-actions .profile-btn { height: 46px; border-radius: 999px; padding: 0 20px; }
+
+/* Audience: one horizontal row, one chip per platform. */
+.artist-card-stats { display: flex; gap: 10px; padding: 22px 30px 26px; overflow-x: auto; scrollbar-width: none; }
+.artist-card-stats::-webkit-scrollbar { display: none; }
+.artist-card-stats li { flex: 1 1 0; min-width: 170px; }
+.artist-card-stats a { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 11px; height: 100%; padding: 10px 14px 10px 10px; border-radius: 16px; background: var(--chip-face); box-shadow: inset 0 0 0 1px var(--chip-edge); transition: transform .2s, box-shadow .2s; }
+.artist-card-stats a:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--platform) 45%, transparent); }
+.artist-card-stats .artist-metric-copy strong { font-size: 18px; }
+
+/* «Об исполнителе» */
+.oskolok-app .genius-panel--about { margin: 0; padding: clamp(18px, 2.4vw, 28px) clamp(20px, 2.6vw, 30px); }
+.genius-about-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.genius-about-head h2 { font-size: 22px; font-weight: 600; letter-spacing: -.03em; color: var(--ink); margin-right: auto; }
+.genius-panel--about .genius-about p { max-width: 78ch; }
+.genius-credit { margin-top: 12px; font-size: 11px !important; color: var(--sg-muted, var(--muted)) !important; opacity: .85; }
+
+/* Track list with a popularity column. */
+.artist-track-line { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: 6px; }
+.artist-pop { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; cursor: default; }
+.artist-pop i { position: relative; height: 4px; border-radius: 999px; background: var(--chip-edge, rgba(120, 140, 170, .2)); overflow: hidden; }
+.artist-pop i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--pop); border-radius: inherit; background: linear-gradient(90deg, #8cc8ff, #2f7cf0); }
+.artist-pop b { font-weight: 550; min-width: 2.2em; text-align: right; }
+.artist-pop.is-empty { display: block; text-align: right; padding-right: 4px; opacity: .6; }
+.artist-toolbar > .artist-pop-legend { order: 9; margin-left: auto; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+
+@media (max-width: 900px) {
+  .artist-card-body { grid-template-columns: 120px minmax(0, 1fr); gap: 20px; padding: 0 22px; margin-top: -70px; }
+  .artist-card-portrait .shard-artwork { width: 120px; }
+  .artist-card-stats { padding: 18px 22px 22px; }
+}
+@media (max-width: 700px) {
+  .oskolok-app .artist-card { border-radius: 24px !important; }
+  .artist-card-banner { height: 190px; border-radius: 24px 24px 0 0; }
+  .artist-card-body { grid-template-columns: 1fr; gap: 12px; padding: 0 18px; margin-top: -64px; align-items: start; }
+  .artist-card-portrait { flex-direction: row; align-items: flex-end; gap: 12px; }
+  .artist-card-portrait .shard-artwork { width: 104px; }
+  .artist-card-stats { padding: 16px 18px 20px; }
+  .artist-card-stats li { min-width: 150px; }
+  .artist-track-line { grid-template-columns: minmax(0, 1fr) 44px; }
+  .artist-pop i { display: none; }
+  .artist-pop { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .artist-card-stats a { transition: none; } }
+
+/* A lesser artist under a famous name: say so, and point to the artist people usually mean. */
+.artist-homonym { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 0; font-size: 13px; color: var(--muted, #8fa2b8); }
+.artist-homonym button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; font-weight: 600; color: inherit; background: color-mix(in srgb, currentColor 12%, transparent); }
+.artist-homonym button:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+.artist-homonym img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }

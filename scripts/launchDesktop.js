@@ -71,7 +71,7 @@ async function main() {
     'Oskolok-Desktop-App'
   );
 
-  const targetAppUrl = ready ? 'http://localhost:3000' : 'http://127.0.0.1:5000';
+  const targetAppUrl = ready ? 'http://localhost:3000' : `http://127.0.0.1:${process.env.PORT || '5000'}`;
   console.log(`[Desktop] Launching dedicated app window via ${path.basename(appBinary)} on ${targetAppUrl}...`);
   const args = [
     `--app=${targetAppUrl}`,

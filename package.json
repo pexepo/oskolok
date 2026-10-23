@@ -1,7 +1,7 @@
 {
   "name": "oskolok",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Oskolok Desktop Music Player",
   "author": "Oskolok",
   "type": "module",
@@ -20,13 +20,13 @@
     "dev:electron": "wait-on http://localhost:3000 && electron .",
     "desktop": "node scripts/launchDesktop.js",
     "build": "npm run build:server && npm run build:client",
-    "build:client": "tsc -b --force && vite build",
-    "build:server": "prisma generate && tsc -p server/tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist-server/services', {recursive:true}); for(const name of ['ytdlp_worker.py','yandex_worker.py']) fs.copyFileSync('server/src/services/'+name, 'dist-server/services/'+name); fs.copyFileSync('server/python-requirements.txt','dist-server/services/python-requirements.txt');\"",
-    "build:win": "npm run build:server && npm run build:client && electron-packager . Oskolok --platform=win32 --arch=x64 --out=release --overwrite --asar.unpack=\"{dist-server/**,prisma/**,node_modules/.prisma/**,node_modules/@prisma/client/**}\" --icon=electron/icon.ico",
+    "build:client": "tsc -b --force && vite build && node scripts/sitePages.mjs && node scripts/compressDist.mjs",
+    "build:server": "prisma generate && tsc -p server/tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist-server/services', {recursive:true}); for(const name of ['ytdlp_worker.py','yandex_worker.py','tidal_worker.py']) fs.copyFileSync('server/src/services/'+name, 'dist-server/services/'+name); fs.copyFileSync('server/python-requirements.txt','dist-server/services/python-requirements.txt');\"",
+    "build:win": "node scripts/buildDist.js",
     "dist": "node scripts/buildDist.js",
     "dist:portable": "node scripts/buildDist.js --portable",
     "dist:installer": "node scripts/buildDist.js --installer",
-    "electron:build": "electron-builder --win portable --prepackaged release/win-unpacked",
+    "electron:build": "node scripts/buildDist.js --portable",
     "build:installer": "node scripts/buildDist.js --installer",
     "build:portable": "node scripts/buildDist.js --portable",
     "db:push": "prisma db push",
@@ -36,8 +36,11 @@
     "db:studio": "prisma studio",
     "typecheck": "tsc -b --force && tsc -p server/tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --maxWorkers=4 --minWorkers=1",
+    "test:watch": "vitest",
+    "build:dmg": "node scripts/buildDist.js --mac",
+    "build:apk": "python3 scripts/buildApk.py",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -59,7 +62,7 @@
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.1",
+    "react-router-dom": "^7.18.4",
     "tailwind-merge": "^2.5.2",
     "teleproto": "^1.229.0",
     "zod": "^3.23.8",
@@ -77,7 +80,7 @@
     "@xmldom/xmldom": "^0.9.12",
     "autoprefixer": "^10.4.20",
     "concurrently": "^8.2.2",
-    "electron": "^32.3.3",
+    "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.9.0",
     "postcss": "^8.4.41",
@@ -96,17 +99,20 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
-      "dist-server/**/*",
-      "electron/**/*",
-      "prisma/**/*",
+      "electron/distributed.cjs",
+      "electron/distributed-preload.cjs",
+      "electron/offline.html",
+      "electron/offline.js",
+      "electron/desktop-extras.cjs",
+      "electron/discord-rpc.cjs",
+      "electron/mini.html",
+      "electron/mini.js",
+      "electron/mini-preload.cjs",
+      "electron/updater.cjs",
+      "electron/app-url.json",
+      "electron/icon.png",
+      "electron/icon.ico",
       "package.json"
-    ],
-    "asarUnpack": [
-      "dist-server/**/*",
-      "prisma/**/*",
-      "**/node_modules/.prisma/**/*",
-      "**/node_modules/@prisma/client/**/*"
     ],
     "win": {
       "target": [
@@ -126,6 +132,9 @@
     },
     "portable": {
       "artifactName": "${productName}-Portable.${ext}"
+    },
+    "extraMetadata": {
+      "main": "electron/distributed.cjs"
     }
   }
 }

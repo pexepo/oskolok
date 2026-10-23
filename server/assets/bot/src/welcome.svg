@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640"><defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1630"/><stop offset="1" stop-color="#050a16"/></linearGradient>
+ <radialGradient id="glow" cx=".78" cy=".35" r=".6"><stop offset="0" stop-color="#4f86e8" stop-opacity=".55"/><stop offset="1" stop-color="#4f86e8" stop-opacity="0"/></radialGradient>
+ <linearGradient id="ice" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".85"/><stop offset=".45" stop-color="#9cbeff" stop-opacity=".55"/><stop offset="1" stop-color="#9cbeff" stop-opacity=".05"/></linearGradient>
+ <linearGradient id="ice2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cbeff" stop-opacity=".5"/><stop offset="1" stop-color="#ffffff" stop-opacity=".04"/></linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="1280" height="640" fill="url(#bg)"/>
+<rect width="1280" height="640" fill="url(#glow)"/><g transform="translate(860 120)">
+ <polygon points="140,0 260,170 170,400 40,250" fill="url(#ice)" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.5"/>
+ <polygon points="40,250 170,400 60,430 -40,330" fill="url(#ice2)" stroke="#ffffff" stroke-opacity=".25" stroke-width="1.2"/>
+ <polygon points="260,170 330,260 230,360 170,400" fill="url(#ice2)" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.2"/>
+ <polygon points="140,0 175,60 120,140 100,70" fill="#ffffff" fill-opacity=".18"/>
+</g>
+<g fill="#ffffff" fill-opacity=".5"><circle cx="820" cy="110" r="2"/><circle cx="1190" cy="90" r="1.6"/><circle cx="1130" cy="560" r="2.2"/><circle cx="780" cy="520" r="1.4"/><circle cx="1220" cy="380" r="1.8"/></g>
+<text x="96" y="250" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="34" letter-spacing="8" fill="#9cbeff" fill-opacity=".9">МУЗЫКА · TELEGRAM</text>
+<text x="92" y="370" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="132" font-weight="700" letter-spacing="-3" fill="#eef4ff">Осколок</text>
+<text x="96" y="440" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="36" fill="#c9d8f5" fill-opacity=".85">Слушайте в фоне, делитесь треком в профиле</text>
+<rect x="96" y="490" width="120" height="4" rx="2" fill="#9cbeff"/></svg>

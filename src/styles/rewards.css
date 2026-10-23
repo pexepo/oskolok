@@ -1,0 +1,49 @@
+/* Rewards: medal chips next to names, achievement cards, medal list, unlock summary. */
+.medal-row{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin-left:6px;font-size:0}
+.medal-chip{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;color:var(--medal);background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--medal) 30%,transparent),color-mix(in srgb,var(--medal) 12%,transparent) 70%);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--medal) 55%,transparent),0 1px 6px color-mix(in srgb,var(--medal) 22%,transparent);cursor:default;transition:transform .2s cubic-bezier(.34,1.4,.5,1)}
+.medal-chip:hover,.medal-chip:focus-visible{transform:translateY(-1px) scale(1.08);outline:none}
+.medal-chip:focus-visible{box-shadow:inset 0 0 0 1.5px var(--medal),0 0 0 2px color-mix(in srgb,var(--medal) 40%,transparent)}
+.medal-row--sm .medal-chip{width:18px;height:18px}
+.medal-chip--more{--medal:var(--muted);font-size:10px;font-weight:700}
+:root:not(.dark) .medal-chip{color:color-mix(in srgb,var(--medal) 78%,#000)}
+
+.ach-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:0;list-style:none}
+.ach-strip li{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:600;color:var(--ink);background:color-mix(in srgb,var(--tier) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tier) 38%,transparent)}
+.ach-strip li svg{color:var(--tier)}
+
+.rewards-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0}
+.rewards-summary div{display:flex;flex-direction:column-reverse;gap:4px}
+.rewards-summary dt{font-size:11.5px;color:var(--muted)}
+.rewards-summary dd{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
+.rewards-summary dd small{font-size:13px;font-weight:500;color:var(--muted)}
+
+.medal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:0;margin:0;list-style:none}
+.medal-grid li{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:16px;background:color-mix(in srgb,var(--medal) 7%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--medal) 22%,transparent)}
+.medal-grid li>span:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.medal-grid b{font-size:13.5px;color:var(--ink)}
+.medal-grid small{font-size:11.5px;line-height:1.45;color:var(--muted)}
+.medal-grid .medal-meta{opacity:.85}
+.medal-big{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;color:var(--medal);background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--medal) 34%,transparent),color-mix(in srgb,var(--medal) 10%,transparent) 72%);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--medal) 55%,transparent)}
+.medal-grid li.is-locked{background:transparent;box-shadow:inset 0 0 0 1px var(--edge)}
+.medal-grid li.is-locked .medal-big{color:var(--muted);background:color-mix(in srgb,var(--muted) 10%,transparent);box-shadow:inset 0 0 0 1px var(--edge)}
+
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ach-card{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;background:color-mix(in srgb,var(--tier) 8%,var(--glass));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tier) 30%,transparent)}
+.ach-card header{display:flex;gap:11px;align-items:flex-start}
+.ach-icon{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:12px;color:var(--tier);background:color-mix(in srgb,var(--tier) 16%,transparent)}
+.ach-titles{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ach-titles b{font-size:13.5px;color:var(--ink)}
+.ach-titles small{font-size:11.5px;line-height:1.4;color:var(--muted)}
+.ach-pips{display:flex;gap:4px}
+.ach-pips i{width:16px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--pip) 22%,transparent)}
+.ach-pips i.is-on{background:var(--pip)}
+.ach-bar{height:6px;border-radius:3px;overflow:hidden;background:color-mix(in srgb,var(--muted) 16%,transparent)}
+.ach-bar span{display:block;height:100%;width:calc(var(--p) * 100%);border-radius:inherit;background:var(--tier);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.ach-card.is-locked .ach-bar span{background:var(--accent)}
+.ach-card footer{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ach-card footer em{font-style:normal;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:10px;color:var(--tier)}
+.ach-card.is-locked{background:transparent;box-shadow:inset 0 0 0 1px var(--edge)}
+.ach-card.is-locked .ach-icon{color:var(--muted);background:color-mix(in srgb,var(--muted) 10%,transparent)}
+.ach-card.tier-gold .ach-icon{box-shadow:0 0 14px color-mix(in srgb,var(--tier) 35%,transparent)}
+@media(max-width:640px){.rewards-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ach-grid,.medal-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.medal-chip,.ach-bar span{transition:none}}

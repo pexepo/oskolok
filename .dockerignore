@@ -16,3 +16,10 @@ coverage
 prisma/*.db
 prisma/*.db-journal
 server/data/audio_cache
+
+data
+server/data
+*.tar.gz
+receipts
+review-receipts
+prisma/*.db-*

@@ -12,7 +12,8 @@ const createPlaylistSchema = z.object({
 });
 
 const updatePlaylistSchema = z.object({
-  title: z.string().optional(),
+  isPublic: z.boolean().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   description: z.string().optional(),
   artworkUrl: z.string().optional(),
 });
@@ -21,7 +22,44 @@ const reorderSchema = z.object({
   trackIds: z.array(z.string()),
 });
 
+// Covers follow the existing playlist convention: an image data URL (≤1 MB, checked type) or an https link the
+// client loads itself. The server never fetches a user-supplied cover address.
+const coverSchema = z.string().max(1_400_000).refine(v => /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v) || (/^https:\/\/[^\s]+$/.test(v) && v.length <= 2000), 'Обложка: изображение PNG/JPEG/WebP до 1 МБ или https-ссылка.');
+const trackSchema = z.object({ id: z.string().min(1).max(200), title: z.string().max(500), artist: z.object({ name: z.string().max(500) }).passthrough(), duration: z.number().finite().min(0).max(36000) }).passthrough();
+const importSchema = z.object({
+  requestId: z.string().uuid(),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  isPublic: z.boolean(),
+  artworkUrl: coverSchema.optional(),
+  tracks: z.array(trackSchema).max(300),
+});
+const chunkSchema = z.object({ index: z.number().int().min(1).max(200), tracks: z.array(trackSchema).min(1).max(300) });
+
 export class PlaylistController {
+  /** Create the imported playlist once per confirmed request (repeats return the same playlist). */
+  public importPlaylist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const body = importSchema.parse(req.body);
+      const result = await playlistRepository.importPlaylist(res.locals.userId || 'local-user', body as never);
+      res.status(result.created ? 201 : 200).json({ data: result });
+    } catch (err) {
+      if ((err as { status?: number }).status) { res.status((err as { status: number }).status).json({ error: { message: (err as Error).message } }); return; }
+      next(err);
+    }
+  };
+
+  public importChunk = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const requestId = z.string().uuid().parse(req.params.requestId);
+      const body = chunkSchema.parse(req.body);
+      res.json({ data: await playlistRepository.importChunk(res.locals.userId || 'local-user', requestId, body.index, body.tracks as never) });
+    } catch (err) {
+      if ((err as { status?: number }).status) { res.status((err as { status: number }).status).json({ error: { message: (err as Error).message } }); return; }
+      next(err);
+    }
+  };
+
   public getPlaylists = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = res.locals.userId || 'local-user';
@@ -137,6 +175,16 @@ export class PlaylistController {
   public addTrack = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id;
+      // Imports send their tracks in parts of up to 500 (a single JSON body is capped at 2 MB).
+      if (Array.isArray(req.body?.tracks)) {
+        const tracks = req.body.tracks.filter((t: any) => t && typeof t.id === 'string');
+        if (!tracks.length || tracks.length > 500) {
+          res.status(400).json({ error: { code: 'INVALID_TRACK_DATA', message: 'Send 1–500 tracks per request' } });
+          return;
+        }
+        res.json({ data: await playlistRepository.addTracksToPlaylist(id, tracks) });
+        return;
+      }
       const track = req.body.track;
       if (!track || !track.id) {
         res.status(400).json({

@@ -108,11 +108,14 @@ export class SoundCloudMapper {
       artworkUrl: this.mapArtworkUrl(dto.artwork_url || dto.user?.avatar_url),
       duration: durationInSeconds > 0 ? durationInSeconds : 180,
       trackUrl: dto.permalink_url,
+      uploader: dto.user ? { name: this.cleanArtistName(dto.user.username || ''), followers: dto.user.followers_count, verified: (dto.user as { verified?: boolean }).verified } : undefined,
       access,
       waveformUrl: dto.waveform_url,
       genre: dto.genre,
       createdAt: dto.created_at,
       downloadable: dto.downloadable ?? false,
+      // Plays on a log scale, damped so uploads never outrank the official catalogue on reach alone: 1M plays ≈ 60.
+      popularity: dto.playback_count ? Math.min(80, Math.round(Math.log10(dto.playback_count + 1) * 10)) : undefined,
     };
   }
 
@@ -129,6 +132,11 @@ export class SoundCloudMapper {
     return {
       id: `soundcloud:${dto.id}`,
       userId: dto.user ? `soundcloud:${dto.user.id}` : 'soundcloud',
+      owner: dto.user?.username?.trim() ? {
+        id: `soundcloud:${dto.user.id}`,
+        name: dto.user.username.trim(),
+        source: 'soundcloud',
+      } : undefined,
       title: dto.title || 'SoundCloud Playlist',
       description: dto.description,
       artworkUrl: this.mapArtworkUrl(dto.artwork_url),

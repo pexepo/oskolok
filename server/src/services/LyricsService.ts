@@ -4,10 +4,25 @@ import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { logger } from '../utils/logger.js';
 import { env } from '../config/env.js';
 import { spicyLyricsService } from './SpicyLyricsService.js';
+import { geniusLyrics } from './GeniusLyricsService.js';
 
 const SPICY_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const GENIUS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Unsynced text (Genius, plain LRCLIB) is a stopgap for fresh releases: synced lyrics usually appear on
+ * Spicy Lyrics or LRCLIB within days, so such entries are re-checked this often instead of being trusted. */
+const PLAIN_RECHECK_MS = 15 * 60 * 1000;
 
 export class LyricsService {
+  private requests = new Map<string, Promise<LyricsData | null>>();
+
+  public getLyrics(trackId: string, trackName?: string, artistName?: string, duration?: number): Promise<LyricsData | null> {
+    const key = JSON.stringify([trackId, trackName, artistName, duration]);
+    const pending = this.requests.get(key);
+    if (pending) return pending;
+    const task = this.loadLyrics(trackId, trackName, artistName, duration).finally(() => this.requests.delete(key));
+    this.requests.set(key, task);
+    return task;
+  }
   private normalize(str: string): string {
     return (str || '')
       .toLowerCase()
@@ -74,7 +89,7 @@ export class LyricsService {
     return true;
   }
 
-  public async getLyrics(
+  private async loadLyrics(
     trackId: string,
     trackName?: string,
     artistName?: string,
@@ -83,7 +98,7 @@ export class LyricsService {
     try {
       // 1. If trackName or artistName is missing, look up from trackCacheRepository
       if (!trackName || !artistName) {
-        const cachedTrack = await trackCacheRepository.getCachedTrack(trackId);
+        const cachedTrack = await trackCacheRepository.getCachedTrack(trackId).catch(() => null);
         if (cachedTrack) {
           trackName = trackName || cachedTrack.title;
           artistName = artistName || cachedTrack.artist?.name;
@@ -116,16 +131,18 @@ export class LyricsService {
       // Check local cache
       const cached = await prisma.lyricsCache.findUnique({
         where: { id: trackId },
-      });
+      }).catch(err => { logger.debug({ err, trackId }, 'Lyrics cache unavailable'); return null; });
 
-      let cachedLyrics: LyricsData | null = null;
+      let cachedLyrics: LyricsData | null = null, cacheAge = 0;
       if (cached) {
+        cacheAge = Date.now() - cached.cachedAt.getTime();
         try {
           const parsed = JSON.parse(cached.lyricsData) as LyricsData;
           if ((parsed.isSynced && parsed.syncedLyrics?.length) || parsed.plainLyrics) {
             // If duration info is present in both, ensure cached lyrics don't have large mismatch
             if (!duration || !parsed.duration || Math.abs(parsed.duration - duration) <= 12) {
-              if (parsed.apiSource !== 'spicy_lyrics' || Date.now() - cached.cachedAt.getTime() < SPICY_CACHE_MAX_AGE_MS) cachedLyrics = parsed;
+              const age = Date.now() - cached.cachedAt.getTime();
+              if ((parsed.apiSource !== 'spicy_lyrics' || age < SPICY_CACHE_MAX_AGE_MS) && (parsed.provider !== 'Genius' || age < GENIUS_CACHE_MAX_AGE_MS)) cachedLyrics = parsed;
             }
           }
         } catch {
@@ -133,7 +150,10 @@ export class LyricsService {
         }
       }
 
-      if (cachedLyrics?.apiSource === 'spicy_lyrics' || (cachedLyrics && !spicyLyricsService.isConfigured())) return cachedLyrics;
+      // Synced lyrics are final; unsynced ones wait for a timed version (see PLAIN_RECHECK_MS).
+      const recheckPlain = Boolean(cachedLyrics && !cachedLyrics.isSynced && cacheAge > PLAIN_RECHECK_MS);
+      if (cachedLyrics?.isSynced && (cachedLyrics.apiSource === 'spicy_lyrics' || !spicyLyricsService.isConfigured())) return cachedLyrics;
+      if (cachedLyrics && !cachedLyrics.isSynced && !recheckPlain && !spicyLyricsService.isConfigured()) return cachedLyrics;
 
       // Prepare search candidates that ALWAYS include both artist AND title
       const candidates: Array<{ track: string; artist: string }> = [];
@@ -147,7 +167,7 @@ export class LyricsService {
         candidates.push({ track: altTitle, artist: altArtist });
       }
 
-      let data: any = null;
+      let data: any = null, spicyPlain: LyricsData | null = null;
 
       // A first-party/community catalogue can be enabled without changing the
       // client. This keeps the visual player independent from LRCLIB while
@@ -177,16 +197,17 @@ export class LyricsService {
       }
 
       if (!data && spicyLyricsService.isConfigured()) {
-        const spicy = await spicyLyricsService.getLyrics(trackId, trackName, artistName || '', duration);
+        const spicy = await spicyLyricsService.getLyrics(trackId, altTitle || cleanTitle, altArtist || cleanArtist, duration);
         if (spicy?.isSynced) {
           await this.setLyrics(trackId, spicy);
           await this.replaceSpicyCredits(spicy, trackName, artistName || '');
           return spicy;
         }
-        if (spicy?.plainLyrics && !cachedLyrics?.isSynced) data = { ...spicy };
+        // Plain Spicy text still lets LRCLIB offer a synced version first.
+        if (spicy?.plainLyrics && !cachedLyrics?.isSynced) spicyPlain = { ...spicy };
       }
 
-      if (!data && cachedLyrics) return cachedLyrics;
+      if (!data && cachedLyrics && (cachedLyrics.isSynced || !recheckPlain)) return cachedLyrics;
 
       // 1. Direct LRCLIB /api/get lookup with exact artist and track
       for (const candidate of candidates) {
@@ -300,6 +321,8 @@ export class LyricsService {
         }
       }
 
+      if (!data?.syncedLyrics && spicyPlain) data = spicyPlain;
+
       // If a genuine match was found
       if (data && (data.syncedLyrics || data.plainLyrics)) {
         const lyricsData: LyricsData = {
@@ -318,7 +341,14 @@ export class LyricsService {
         return lyricsData;
       }
 
-      // NO genuine match found -> return null so mismatched text is NEVER shown
+      // Nothing timed yet: keep the unsynced text we already have and look again after PLAIN_RECHECK_MS.
+      if (cachedLyrics) { await this.setLyrics(trackId, cachedLyrics); return cachedLyrics; }
+
+      // Genius provides plain text only: never invent timing for scraped lyrics.
+      for (const candidate of candidates) {
+        const fallback = await geniusLyrics(trackId, candidate.artist, candidate.track);
+        if (fallback) { await this.setLyrics(trackId, fallback); return fallback; }
+      }
       return null;
     } catch (err) {
       logger.error({ err, trackId }, 'Error retrieving lyrics');

@@ -1,0 +1,48 @@
+/* Final mobile layout: size by viewport, with explicit roles instead of child indexes. */
+.artist-release-cover > .artwork-image { position: absolute; inset: 0; width: 100%; height: 100%; }
+@media (min-width:701px) {
+  html body .interference-modal.np-v2 .np-layout { grid-template-rows: minmax(0,1fr) !important; align-items: stretch !important; }
+  html body .interference-modal.np-v2 .np-panel { min-height: 0; max-height: 100%; overflow-y: auto; }
+  html body .interference-modal.np-v2 .np-panel > * { flex-shrink: 0; }
+  html body .interference-modal.np-v2 .np-panel > .np-art { width: min(100%,max(140px,calc(var(--app-viewport-height,100dvh) - 480px - var(--tg-content-top,0px) - var(--tg-content-bottom,0px)))) !important; position: relative; }
+  html body .interference-modal.np-v2 .np-panel > .np-art > .artwork-image { position: absolute; inset: 0; }
+  html body .interference-modal.np-v2 .np-lyrics { max-height: 100%; min-height: 0; }
+}
+@media (max-width:700px) {
+  html body .oskolok-app { height: var(--app-viewport-height, 100dvh); min-height: 0; padding-top: max(env(safe-area-inset-top,0px),var(--tg-content-top,0px)); padding-bottom: 0; }
+  html body .visible-header { height: auto; min-height: 100px; padding: 10px 16px 12px; gap: 10px; }
+  html body .visible-header .visible-brand { min-width: 0; }
+  html body .oskolok-app main[data-scroll-root] { padding-inline: 16px; padding-bottom: calc(114px + max(env(safe-area-inset-bottom, 0px), var(--tg-content-bottom, 0px))); }
+  html body .oskolok-app main.original-home-main { padding-inline: 0; }
+  html body .oskolok-app .collection-heading { margin: 12px 0 24px; }
+  html body .oskolok-app .collection-heading h1 { font-size: clamp(32px, 9vw, 42px); line-height: 1.12; }
+  html body .oskolok-app .collection-heading .eyebrow { font-size: 10px; letter-spacing: .14em; }
+  html body .oskolok-app .collection-page > section, html body .oskolok-app .collection-lower > section { padding: 18px 16px; border-radius: 24px; }
+  html body .oskolok-app .collection-section { gap: 12px; flex-wrap: wrap; }
+  html body .oskolok-app .collection-section h2 { font-size: 23px; }
+  html body .oskolok-app .collection-section .text-button { font-size: 12px; }
+  html body .oskolok-app .collection-playlists { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px 12px; margin-bottom: 0; }
+  html body .oskolok-app .collection-tile h3 { margin: 10px 0 4px; font-size: 12px; }
+  html body .oskolok-app .collection-tile p { margin: 0; font-size: 11px; line-height: 1.4; }
+  html body .oskolok-app .collection-tile .shard-artwork { width: 100%; }
+  html body .oskolok-app .glass-player { position: absolute; left: 10px; right: 10px; bottom: calc(10px + max(env(safe-area-inset-bottom,0px),var(--tg-content-bottom,0px))); min-height: 70px; padding: 11px 12px; }
+  html body .oskolok-app .dock-track > div { width: 42px; height: 42px; }
+  html body .oskolok-app .dock-track strong { font-size: 12px; }
+  html body .oskolok-app .dock-track small { font-size: 10px; }
+  html body .oskolok-app .dock-transport .dock-play { width: 42px; height: 42px; }
+  html body .interference-modal.np-v2 { height: var(--app-viewport-height,100dvh); padding: calc(12px + max(env(safe-area-inset-top,0px),var(--tg-content-top,0px))) 18px calc(18px + max(env(safe-area-inset-bottom,0px),var(--tg-content-bottom,0px))) !important; overflow-y: auto !important; }
+  html body .interference-modal.np-v2 .mobile-player-tabs { flex: none; margin: 6px auto 16px; min-height: 46px; }
+  html body .interference-modal.np-v2 .np-layout { display: block !important; max-width: 440px; height: auto !important; min-height: 0; flex: none !important; overflow: visible !important; }
+  html body .interference-modal.np-v2 .np-top-actions { width: 100% !important; height: auto !important; min-height: 40px; max-height: none !important; aspect-ratio: auto !important; background: none !important; box-shadow: none !important; border-radius: 0 !important; flex: none; }
+  html body .interference-modal.np-v2 .np-panel { width: 100%; max-width: 360px !important; gap: 12px !important; }
+  html .interference-modal:is(.np-v2,#np-v2) .np-panel > .np-art { width: clamp(160px,calc(var(--app-viewport-height,100dvh) - 500px - var(--tg-content-top,0px) - var(--tg-content-bottom,0px)),min(74vw,320px)) !important; min-width: 0; height: auto !important; aspect-ratio: 1; max-height: none; flex: none; }
+  html .interference-modal:is(.np-v2,#np-v2) .np-panel > .np-art > .artwork-image { position: absolute; inset: 0; }
+  html .interference-modal:is(.np-v2,#np-v2) .np-panel > .np-art { position: relative; }
+  html body .interference-modal.np-v2 .np-heading h2 { font-size: 22px !important; line-height: 1.25; }
+  html body .interference-modal.np-v2 .np-heading .np-artists { font-size: 15px; }
+  html body .interference-modal.np-v2 .np-tip-button { min-width: 38px; min-height: 38px; }
+  html .interference-modal:is(.np-v2,#np-v2) .np-lyrics { height: max(280px,calc(var(--app-viewport-height,100dvh) - 160px - var(--tg-content-top,0px) - var(--tg-content-bottom,0px))) !important; min-height: 280px !important; }
+}
+
+.app-update-notice {position:fixed;top:calc(12px + max(env(safe-area-inset-top,0px),var(--tg-content-top,0px)));left:50%;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:16px;max-width:calc(100% - 24px);padding:12px 16px;border:1px solid #ffffff30;border-radius:18px;background:#152338;color:#f1f6ff;box-shadow:0 8px 32px #0005;font-size:13px;white-space:nowrap}
+.app-update-notice button {padding:7px 12px;border-radius:10px;background:#a6c7ff;color:#102038;font-weight:650}

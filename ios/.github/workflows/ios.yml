@@ -1,0 +1,49 @@
+name: iOS build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Generate project
+        run: brew install xcodegen && xcodegen generate
+      - name: Build unsigned IPA (device, Release)
+        run: |
+          set -euo pipefail
+          xcodebuild -project Oskolok.xcodeproj -scheme Oskolok -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -n 30
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Oskolok.app Payload/
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Payload/Oskolok.app/Info.plist)
+          zip -qry "Oskolok-${VERSION}-unsigned.ipa" Payload
+          shasum -a 256 Oskolok-*-unsigned.ipa | tee SHA256SUMS.txt
+          /usr/libexec/PlistBuddy -c 'Print' Payload/Oskolok.app/Info.plist | grep -E 'UIBackgroundModes|audio|CFBundle(ShortVersion|Version|Identifier|DisplayName)' || true
+      - name: Launch test in the iOS Simulator
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+( Pro)?' )
+          echo "Simulator: $DEVICE"
+          xcodebuild test -project Oskolok.xcodeproj -scheme Oskolok -destination "platform=iOS Simulator,name=$DEVICE" \
+            -resultBundlePath TestResults.xcresult | tail -n 40
+      - name: Export simulator screenshots
+        if: always()
+        run: |
+          mkdir -p simulator-screens
+          xcrun xcresulttool export attachments --path TestResults.xcresult --output-path simulator-screens || true
+          ls -la simulator-screens || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oskolok-ios
+          path: |
+            Oskolok-*-unsigned.ipa
+            SHA256SUMS.txt
+            simulator-screens
+          retention-days: 30

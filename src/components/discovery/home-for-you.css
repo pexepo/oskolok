@@ -1,0 +1,42 @@
+.home-for-you .sg-section{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.hfy-moment{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px 24px;padding:20px 22px;border-radius:24px}
+.hfy-moment__copy{display:grid;gap:4px;min-width:220px;flex:1}
+.hfy-moment__copy b{font-size:16px;font-weight:600}
+.hfy-moment__copy span{font-size:13px;color:var(--muted)}
+.hfy-activities{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 320px;min-width:0}
+.hfy-activities button{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px;border:1px solid var(--edge);border-radius:999px;background:color-mix(in srgb,currentColor 4%,transparent);color:var(--ink);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
+.hfy-activities button svg{color:var(--accent)}
+.hfy-activities button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);transform:translateY(-1px)}
+.hfy-activities button.is-suggested{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.hfy-activities button small{padding:1px 7px;border-radius:999px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700}
+.hfy-activities button:disabled{opacity:.55;cursor:progress}
+.hfy-activities button:focus-visible,.hfy-card:focus-visible,.hfy-recent__item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.hfy-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.hfy-card{position:relative;display:grid;align-content:start;gap:6px;min-height:132px;padding:18px 20px;border-radius:24px;border:0;color:var(--ink);font:inherit;text-align:left;text-decoration:none;cursor:pointer;transition:transform .2s}
+.hfy-card:hover{transform:translateY(-2px)}
+.hfy-card__label{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.hfy-stats b{font-size:38px;font-weight:250;letter-spacing:-.03em;line-height:1.05;font-variant-numeric:tabular-nums}
+.hfy-stats b small{font-size:16px;font-weight:500;color:var(--muted)}
+.hfy-stats__empty{font-size:20px!important;font-weight:500!important}
+.hfy-stats__line{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hfy-stats__line svg{color:#f08a3c;flex:none}
+.hfy-card__more{display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:12.5px;font-weight:600;color:var(--accent)}
+.hfy-devices>svg{color:var(--accent)}
+.hfy-devices__line{font-size:13.5px;line-height:1.45;color:var(--muted)}
+
+.hfy-subhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+.hfy-subhead h3{margin:0;font-size:17px;font-weight:600}
+.hfy-subhead .text-button{display:inline-flex;align-items:center;gap:4px}
+.hfy-recent__list{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(112px,140px);gap:14px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;scrollbar-width:none}
+.hfy-recent__list::-webkit-scrollbar{display:none}
+.hfy-recent__item{display:grid;gap:4px;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer;scroll-snap-align:start;min-width:0}
+.hfy-recent__art{position:relative;display:block;width:100%;aspect-ratio:1}
+.hfy-recent__art>:first-child{width:100%;height:100%}
+.hfy-recent__play{position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;opacity:0;transform:translateY(4px);transition:opacity .2s,transform .2s;box-shadow:0 8px 18px -8px rgba(0,0,0,.5)}
+.hfy-recent__item:hover .hfy-recent__play,.hfy-recent__item:focus-visible .hfy-recent__play{opacity:1;transform:none}
+.hfy-recent__item b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hfy-recent__item small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:640px){.hfy-row{grid-template-columns:1fr}.hfy-moment{padding:16px}.hfy-activities{flex-wrap:nowrap;overflow-x:auto;margin:0 -4px;padding:0 4px 4px}.hfy-activities button{flex:none}.hfy-activities{scrollbar-width:none}.hfy-activities::-webkit-scrollbar{display:none}.hfy-card{min-height:0}}
+@media(hover:none){.hfy-recent__play{opacity:1;transform:none;width:30px;height:30px}}
+@media(prefers-reduced-motion:reduce){.hfy-card,.hfy-activities button,.hfy-recent__play{transition:none}.hfy-card:hover{transform:none}}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'self'">
+<title>Осколок — мини-плеер</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:transparent;overflow:hidden;font:13px -apple-system,"Segoe UI",Inter,Roboto,sans-serif;color:#eef3ff;user-select:none}
+.mini{position:absolute;inset:6px;display:flex;align-items:center;gap:12px;padding:10px 12px 12px 10px;border-radius:20px;background:rgba(14,22,38,.86);border:1px solid rgba(156,190,255,.22);box-shadow:0 12px 30px rgba(0,0,0,.35);-webkit-app-region:drag;overflow:hidden}
+.art{width:68px;height:68px;border-radius:14px;flex:none;background:linear-gradient(135deg,#2b5fa8,#132c55);object-fit:cover}
+.text{min-width:0;flex:1;display:grid;gap:2px}
+.title{font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:44px}
+.artist{font-size:12.5px;color:#a9bbda;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;align-items:center;gap:2px;margin-top:4px;-webkit-app-region:no-drag}
+button{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#eef3ff;cursor:pointer;-webkit-app-region:no-drag}
+button:hover{background:rgba(255,255,255,.12)}button:focus-visible{outline:2px solid #9cbeff;outline-offset:1px}
+.play{width:38px;height:38px;background:#9cbeff;color:#0e1626}.play:hover{background:#b8d0ff}
+.like.on{color:#ff6b8a}
+.top{position:absolute;top:6px;right:8px;display:flex;gap:2px;-webkit-app-region:no-drag}
+.top button{width:24px;height:24px;color:#a9bbda}
+.bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(156,190,255,.16)}.bar i{display:block;height:100%;width:0;background:#9cbeff}
+.idle .controls,.idle .bar{opacity:.4}
+svg{width:18px;height:18px;fill:currentColor}.top svg{width:14px;height:14px}
+</style></head>
+<body>
+<div class="mini idle" id="mini">
+  <img class="art" id="art" alt="">
+  <div class="text">
+    <div class="title" id="title">Осколок</div>
+    <div class="artist" id="artist">Ничего не играет</div>
+    <div class="controls">
+      <button id="prev" title="Предыдущий" aria-label="Предыдущий трек"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button id="play" class="play" title="Воспроизвести" aria-label="Воспроизвести"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="next" title="Следующий" aria-label="Следующий трек"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      <button id="like" class="like" title="В любимые" aria-label="В любимые"><svg viewBox="0 0 24 24"><path d="M12 21l-1.4-1.3C5.4 15 2 12 2 8.4 2 5.4 4.4 3 7.4 3c1.7 0 3.4.8 4.6 2.1C13.2 3.8 14.9 3 16.6 3 19.6 3 22 5.4 22 8.4c0 3.6-3.4 6.6-8.6 11.3z"/></svg></button>
+    </div>
+  </div>
+  <div class="top">
+    <button id="open" title="Открыть Осколок" aria-label="Открыть Осколок"><svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14zM5 5h6v2H5v12h12v-6h2v8H3V5z"/></svg></button>
+    <button id="close" title="Закрыть мини-плеер" aria-label="Закрыть мини-плеер"><svg viewBox="0 0 24 24"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/></svg></button>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+</div>
+<script src="mini.js"></script>
+</body></html>

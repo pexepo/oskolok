@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Volume2, Volume1, VolumeX } from 'lucide-react';
+import { PlayerIcon } from './PlayerIcon.js';
 
+import { tr } from '../../stores/useLanguageStore.js';
 interface VolumeControlProps {
   volume: number;
   isMuted: boolean;
@@ -58,18 +59,14 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
     window.addEventListener('pointercancel', onPointerUp);
   };
 
-  const getIcon = () => {
-    if (isMuted || volume === 0) return <VolumeX size={18} />;
-    if (volume < 0.5) return <Volume1 size={18} />;
-    return <Volume2 size={18} />;
-  };
+  const getIcon = () => <PlayerIcon name="volume" size={20} className={isMuted || volume === 0 ? 'is-muted' : ''} />;
 
   return (
     <div className="flex items-center gap-2 select-none group">
       <button
         onClick={onToggleMute}
         className="p-1 rounded-lg text-[#7188a3] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-100 hover:bg-blue-50/70 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-        title={isMuted ? 'Включить звук' : 'Выключить звук'}
+        title={isMuted ? tr('Включить звук', 'Unmute') : tr('Выключить звук', 'Mute')}
       >
         {getIcon()}
       </button>

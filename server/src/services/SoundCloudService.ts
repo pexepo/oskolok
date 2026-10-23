@@ -41,10 +41,38 @@ export class SoundCloudService implements TrackProvider {
   public async resolveLink(url: string): Promise<{title:string;tracks:Track[];total:number}> {
     const parsed=new URL(url);
     if(parsed.protocol!=='https:'||!['soundcloud.com','www.soundcloud.com'].includes(parsed.hostname))throw new Error('Нужна полная ссылка soundcloud.com.');
+    // A profile link imports without signing in (SoundCloud only issues API keys to Artist Pro accounts): soundcloud.com/name
+    // or …/likes brings the public likes, …/tracks the uploads.
+    const profile=parsed.pathname.match(/^\/([^/]+)\/?(likes|tracks)?\/?$/);
+    if(profile&&!['discover','search','stream','you','upload','charts','pages','terms-of-use'].includes(profile[1].toLowerCase())){
+      const user=await this.fetchWithClientKey<any>('/resolve',{url:`https://soundcloud.com/${profile[1]}`});
+      if(user?.kind==='user')return this.profileTracks(user,profile[2]==='tracks'?'tracks':'likes');
+    }
     const dto=await this.fetchWithClientKey<any>('/resolve',{url:parsed.href});
     if(dto?.kind==='track') {const track=SoundCloudMapper.mapTrack(dto);await trackCacheRepository.setCachedTrack(track);return {title:track.title,tracks:[track],total:1};}
     if(dto?.kind==='playlist') {const playlist=await this.getPlaylist(`soundcloud:${dto.id}`);return {title:playlist?.title||dto.title,tracks:playlist?.tracks?.map(t=>t.track).filter(t=>Boolean(t.title))||[],total:dto.track_count||0};}
-    throw new Error('Откройте публичный трек или плейлист SoundCloud и скопируйте полную ссылку.');
+    throw new Error('Откройте публичный трек, плейлист или профиль SoundCloud и скопируйте полную ссылку.');
+  }
+
+  /** Every public like (or upload) of a profile, page by page through the public web API; up to 10 000 tracks. */
+  private async profileTracks(user:any,kind:'likes'|'tracks'):Promise<{title:string;tracks:Track[];total:number}>{
+    const tracks:Track[]=[],seen=new Set<string>();
+    let endpoint=`/users/${user.id}/${kind}`,params:Record<string,string>={limit:'200',linked_partitioning:'1'};
+    for(let page=0;page<50&&endpoint;page++){
+      const data=await this.fetchWithClientKey<any>(endpoint,params);
+      if(!data)break;
+      for(const item of data.collection||[]){
+        const dto=kind==='likes'?item.track:item;
+        if(!dto?.id||!dto.title||seen.has(String(dto.id)))continue;
+        seen.add(String(dto.id));tracks.push(SoundCloudMapper.mapTrack(dto));
+      }
+      if(!data.next_href||tracks.length>=10000)break;
+      const next=new URL(data.next_href);endpoint=next.pathname;params=Object.fromEntries([...next.searchParams].filter(([key])=>key!=='client_id'));
+    }
+    if(!tracks.length)throw new Error(kind==='likes'?'В профиле нет открытых лайков. Откройте их в настройках приватности SoundCloud или пришлите ссылку на плейлист.':'В профиле нет открытых треков.');
+    await Promise.all(tracks.map(track=>trackCacheRepository.setCachedTrack(track)));
+    const name=user.username||user.permalink||'SoundCloud';
+    return {title:kind==='likes'?`${name} · лайки SoundCloud`:`${name} · треки SoundCloud`,tracks,total:(kind==='likes'?user.likes_count??user.public_favorites_count:user.track_count)||tracks.length};
   }
 
   private async fetchWithClientKey<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
@@ -301,13 +329,16 @@ export class SoundCloudService implements TrackProvider {
         const progressive = dto.media.transcodings.find(
           (t) => t.format.protocol === 'progressive'
         );
+        // SoundCloud stopped offering progressive files in 2025: AAC HLS (remuxed by the server) is now the usual case.
         const targetTrans =
           progressive ||
-          dto.media.transcodings.find((t) => t.format.protocol === 'hls') ||
+          dto.media.transcodings.find((t) => t.format.protocol === 'hls' && !t.snipped && /^audio\/mp4/.test(t.format.mime_type || '')) ||
+          dto.media.transcodings.find((t) => t.format.protocol === 'hls' && !t.snipped) ||
           dto.media.transcodings[0];
 
         if (targetTrans?.url) {
-          const streamEndpoint = `${targetTrans.url}?client_id=${this.clientId}`;
+          const auth = (dto as any).track_authorization ? `&track_authorization=${encodeURIComponent((dto as any).track_authorization)}` : '';
+          const streamEndpoint = `${targetTrans.url}?client_id=${this.clientId}${auth}`;
           const streamRes = await fetch(streamEndpoint, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

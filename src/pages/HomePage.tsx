@@ -1,34 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import {useReportStore} from '../components/common/ReportDialog.js';
+import {useTranslation} from '../stores/useLanguageStore.js';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Play, Pause, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react';
+import { Play, Pause, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { usePlayerStore } from '../stores/usePlayerStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore } from '../stores/useThemeStore.js';
 import { HomeTrackWidget } from '../components/player/HomeTrackWidget.js';
-import { Modal } from '../components/common/Modal.js';
+// The shattered-glass settings panel (and its shard atlas) loads only when opened.
+const WaveSettingsPanel = React.lazy(() => import('../components/discovery/WaveSettingsPanel.js').then(m => ({ default: m.WaveSettingsPanel })));
 import {ShinyButton} from '../components/ui/shiny-button.js';
 import UniqueLoading from '../components/ui/morph-loading.js';
-import LumaSpin from '../components/ui/luma-spin.js';
-
-const MOODS = [
-  { id: 'energetic', label: 'Бодрое' },
-  { id: 'calm', label: 'Спокойное' },
-  { id: 'melancholic', label: 'Грустное' },
-  { id: 'joyful', label: 'Радостное' },
-  { id: 'focus', label: 'Концентрация' },
-];
-
-const CHARACTERS = [
-  { id: 'popular', label: 'Популярное' },
-  { id: 'discover', label: 'Незнакомое' },
-  { id: 'familiar', label: 'Любимое' },
-];
-
-const LANGUAGES = [
-  { id: 'all', label: 'Любой язык' },
-  { id: 'russian', label: 'Русский' },
-  { id: 'foreign', label: 'Иностранный' },
-];
+import { HomeCharts } from '../components/discovery/HomeCharts.js';
+import { HomeForYou } from '../components/discovery/HomeForYou.js';
+import { CenterPulseWave } from '../components/discovery/CenterPulseWave.js';
+import { useAudioLevels } from '../audio/audioLevels.js';
 
 export const HomePage: React.FC = () => {
   const {
@@ -37,27 +24,18 @@ export const HomePage: React.FC = () => {
     togglePlay,
     isWaveActive,
     isStartingWave,
-    waveOptions,
     startMyWave,
-  } = usePlayerStore();
+  } = usePlayerStore(useShallow(s => ({ currentTrack: s.currentTrack, isPlaying: s.isPlaying, togglePlay: s.togglePlay, isWaveActive: s.isWaveActive, isStartingWave: s.isStartingWave, startMyWave: s.startMyWave })));
   const { isDark } = useThemeStore();
 
+  const t=useTranslation();
   const reducedMotion = useReducedMotion();
   const [waveStarted,setWaveStarted] = useState(isWaveActive);
   const [isHoveringCenter, setIsHoveringCenter] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  const [selectedMood, setSelectedMood] = useState(waveOptions?.mood || 'energetic');
-  const [selectedCharacter, setSelectedCharacter] = useState(waveOptions?.character || 'popular');
-  const [selectedLanguage, setSelectedLanguage] = useState(waveOptions?.language || 'all');
-
-  useEffect(() => {
-    if (waveOptions) {
-      if (waveOptions.mood) setSelectedMood(waveOptions.mood);
-      if (waveOptions.character) setSelectedCharacter(waveOptions.character);
-      if (waveOptions.language) setSelectedLanguage(waveOptions.language);
-    }
-  }, [waveOptions]);
+  // The wordmark's hairlines and halo breathe with the kick of whatever is playing.
+  const wordmarkRef = React.useRef<HTMLSpanElement>(null);
+  useAudioLevels(l => wordmarkRef.current?.style.setProperty('--beat', Math.min(1, l.beat * .8 + l.bass * .35).toFixed(3)));
 
   const handleWaveAction = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -65,25 +43,14 @@ export const HomePage: React.FC = () => {
     if (isWaveActive) {
       togglePlay();
     } else {
-      await startMyWave({
-        mood: selectedMood,
-        character: selectedCharacter,
-        language: selectedLanguage,
-      });
+      // No options: the wave starts with the saved panel settings.
+      await startMyWave();
     }
   };
 
-  const handleApplySettings = async () => {
-    setIsSettingsOpen(false);
-    await startMyWave({
-      mood: selectedMood,
-      character: selectedCharacter,
-      language: selectedLanguage,
-    });
-  };
-
   return (
-    <div className="original-home relative w-full h-full flex flex-col items-center justify-center select-none overflow-hidden">
+    <div className="home-page">
+    <section className="original-home relative w-full h-full flex flex-col items-center justify-center select-none overflow-hidden">
       {/* Center Stage: Hero Typography & Decorative Wave */}
       <div className="relative z-20 flex flex-col items-center justify-center px-6 text-center">
         {/* Main Text (Section 1: "найди новый осколок \n для своего плейлиста") */}
@@ -94,16 +61,18 @@ export const HomePage: React.FC = () => {
         >
           <motion.h1
             initial={{ opacity: 0, y: 22, scale: 0.95, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
             transition={{ duration: 1.0, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="text-3xl sm:text-4xl md:text-[44px] lg:text-[50px] font-[300] tracking-wide text-[#162b50] dark:text-[#8ea8cb] leading-[1.3] text-center transition-colors duration-300"
+            className="sg-hero-title"
           >
-            найди новый{' '}
-            <span className="text-blue-600 dark:text-[#38bdf8] font-[400] transition-all duration-300 group-hover:text-blue-500 dark:group-hover:text-[#60a5fa] dark:drop-shadow-[0_0_14px_rgba(56,189,248,0.75)]">
-              осколок
+            <span className="sg-hero-line">{t('найди новый','find a new')}</span>
+            <span className="sg-wordmark" data-text={t('осколок','shard')} ref={wordmarkRef}>
+              <i className="sg-wordmark-glow" aria-hidden="true" />
+              <i className="sg-flare sg-flare--l" aria-hidden="true" />
+              <span className="sg-wordmark-text">{t('осколок','shard')}</span>
+              <i className="sg-flare sg-flare--r" aria-hidden="true" />
             </span>
-            <br />
-            для своего плейлиста
+            <span className="sg-hero-line">{t('для своего плейлиста','for your playlist')}</span>
           </motion.h1>
 
           {/* Decorative Waveform Line Underneath Text */}
@@ -113,180 +82,34 @@ export const HomePage: React.FC = () => {
             transition={{ duration: 1.1, delay: 0.38, ease: 'easeOut' }}
             className="mt-6 flex flex-col items-center justify-center w-full max-w-[340px] sm:max-w-[420px] relative"
           >
-            <svg
-              viewBox="0 0 400 48"
-              className="original-center-wave w-full h-12 overflow-visible pointer-events-none"
-            >
-              <defs>
-                <linearGradient id="centerPulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor={isDark ? '#38bdf8' : '#2563eb'} stopOpacity="0.0" />
-                  <stop offset="25%" stopColor={isDark ? '#38bdf8' : '#2563eb'} stopOpacity={isDark ? '0.6' : '0.35'} />
-                  <stop offset="50%" stopColor={isDark ? '#60a5fa' : '#1d4ed8'} stopOpacity={isDark ? '1.0' : '0.85'} />
-                  <stop offset="75%" stopColor={isDark ? '#38bdf8' : '#2563eb'} stopOpacity={isDark ? '0.6' : '0.35'} />
-                  <stop offset="100%" stopColor={isDark ? '#38bdf8' : '#2563eb'} stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Subtle animated wave pulse when music is playing or on hover */}
-              <motion.path
-                d="M 10 24 L 145 24 C 155 24, 160 30, 168 31 C 176 32, 184 -2, 192 -2 C 200 -2, 208 50, 216 50 C 223 50, 229 12, 235 12 C 241 12, 246 29, 252 29 C 257 29, 262 24, 270 24 L 390 24"
-                fill="none"
-                stroke="url(#centerPulseGrad)"
-                strokeWidth={isHoveringCenter || isPlaying ? (isDark ? 1.9 : 1.6) : (isDark ? 1.5 : 1.3)}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{
-                  filter: isDark ? 'drop-shadow(0 0 8px rgba(56,189,248,0.85)) drop-shadow(0 0 16px rgba(37,99,235,0.6))' : undefined,
-                }}
-                animate={
-                  isPlaying
-                    ? {
-                        strokeWidth: isDark ? [1.5, 2.1, 1.5] : [1.3, 1.8, 1.3],
-                        filter: isDark
-                          ? [
-                              'drop-shadow(0 0 6px rgba(56,189,248,0.6))',
-                              'drop-shadow(0 0 12px rgba(56,189,248,0.95)) drop-shadow(0 0 20px rgba(37,99,235,0.8))',
-                              'drop-shadow(0 0 6px rgba(56,189,248,0.6))',
-                            ]
-                          : [
-                              'drop-shadow(0 0 0px rgba(37,99,235,0))',
-                              'drop-shadow(0 0 6px rgba(37,99,235,0.45))',
-                              'drop-shadow(0 0 0px rgba(37,99,235,0))',
-                            ],
-                      }
-                    : isDark
-                    ? {
-                        filter: [
-                          'drop-shadow(0 0 6px rgba(56,189,248,0.7))',
-                          'drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 16px rgba(37,99,235,0.6))',
-                          'drop-shadow(0 0 6px rgba(56,189,248,0.7))',
-                        ],
-                      }
-                    : {}
-                }
-                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            </svg>
+            <CenterPulseWave isPlaying={isPlaying} isDark={isDark} emphasized={isHoveringCenter} />
           </motion.div>
         </div>
 
         <div className="wave-controls">
-          <span className="wave-caption">Моя волна</span>
+          <span className="wave-caption">{t('Резонанс','Resonance')}</span>
           <ShinyButton onClick={handleWaveAction} disabled={isStartingWave} className="wave-play-button"
-            aria-label={isWaveActive&&isPlaying?'Приостановить Мою волну':'Включить Мою волну'} aria-busy={isStartingWave}>
-            {isStartingWave?<UniqueLoading size="md" label="Запускаем волну"/>:isWaveActive&&isPlaying?<Pause size={34} fill="currentColor"/>:<Play size={34} fill="currentColor" style={{marginLeft:5}}/>}
+            aria-label={isWaveActive&&isPlaying?t('Приостановить Резонанс','Pause Resonance'):t('Включить Резонанс','Play Resonance')} aria-busy={isStartingWave}>
+            {isStartingWave?<UniqueLoading size="md" label={t('Запускаем Резонанс','Starting Resonance')}/>:isWaveActive&&isPlaying?<Pause size={34} fill="currentColor"/>:<Play size={34} fill="currentColor" style={{marginLeft:5}}/>}
           </ShinyButton>
           <div className="wave-settings-slot"><AnimatePresence>
-            {(waveStarted||isWaveActive)&&<motion.div key="settings" initial={{opacity:0,y:reducedMotion?0:-16,scale:reducedMotion?1:.92}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0}} transition={{type:'spring',stiffness:230,damping:23}}><ShinyButton onClick={()=>setIsSettingsOpen(true)} className="wave-settings-button" aria-haspopup="dialog"><SlidersHorizontal size={17}/>Настроить волну</ShinyButton></motion.div>}
+            {/* Settings are reachable before the first start too: language and mode decide what the wave plays. */}{<motion.div key="settings" initial={{opacity:0,y:reducedMotion?0:-16,scale:reducedMotion?1:.92}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0}} transition={{type:'spring',stiffness:230,damping:23}}><ShinyButton onClick={()=>setIsSettingsOpen(true)} className="wave-settings-button" aria-haspopup="dialog"><SlidersHorizontal size={17}/>{t('Настроить волну', 'Tune the wave')}</ShinyButton></motion.div>}
           </AnimatePresence></div>
         </div>
       </div>
 
-      {/* Settings Modal: "Настройки Моей волны" (Clean Typography, No emojis) */}
-      <Modal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        title="Настройки Моей волны"
-      >
-        <div className="space-y-5 pt-1 select-none">
-          {/* Mood Section */}
-          <div>
-            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-400 uppercase tracking-wider mb-2">
-              Настроение
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {MOODS.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedMood(m.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    selectedMood === m.id
-                      ? 'bg-blue-600 dark:bg-sky-500 text-white dark:text-slate-950 shadow-xs'
-                      : 'bg-blue-50/70 dark:bg-slate-800/80 text-[#162b50] dark:text-slate-200 hover:bg-blue-100/70 dark:hover:bg-slate-700/80'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Character Section */}
-          <div>
-            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-400 uppercase tracking-wider mb-2">
-              Характер
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {CHARACTERS.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedCharacter(c.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    selectedCharacter === c.id
-                      ? 'bg-blue-600 dark:bg-sky-500 text-white dark:text-slate-950 shadow-xs'
-                      : 'bg-blue-50/70 dark:bg-slate-800/80 text-[#162b50] dark:text-slate-200 hover:bg-blue-100/70 dark:hover:bg-slate-700/80'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Language Section */}
-          <div>
-            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-400 uppercase tracking-wider mb-2">
-              Язык треков
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => setSelectedLanguage(l.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    selectedLanguage === l.id
-                      ? 'bg-blue-600 dark:bg-sky-500 text-white dark:text-slate-950 shadow-xs'
-                      : 'bg-blue-50/70 dark:bg-slate-800/80 text-[#162b50] dark:text-slate-200 hover:bg-blue-100/70 dark:hover:bg-slate-700/80'
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Modal Footer Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-blue-100/80 dark:border-slate-800">
-            <button
-              onClick={() => setIsSettingsOpen(false)}
-              className="px-4 py-2 rounded-lg text-xs font-medium text-[#7188a3] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-white hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={handleApplySettings}
-              disabled={isStartingWave}
-              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
-            >
-              {isStartingWave ? (
-                <>
-                  <LumaSpin size="sm" label="Загрузка" />
-                  <span>Загрузка...</span>
-                </>
-              ) : (
-                <>
-                  <SlidersHorizontal size={13} />
-                  <span>Применить и слушать</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* «Моя волна» settings: full panel with the shattered-glass header */}
+      {isSettingsOpen && <React.Suspense fallback={null}><WaveSettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} /></React.Suspense>}
 
       {/* Bottom-Left: Real Playback Info Block (Section 6 & 7) */}
       <HomeTrackWidget />
-      <NavLink to="/search" className="home-recommendations-link">Собрано для вас <span>→</span></NavLink>
+      <button onClick={()=>useReportStore.getState().open()} className="home-recommendations-link">{t("Сообщить о проблеме","Report a problem")} <span>→</span></button>
+      <button className="sg-scroll-cue" onClick={()=>document.getElementById('home-for-you')?.scrollIntoView({behavior:reducedMotion?'auto':'smooth',block:'start'})}>
+        <span>{t('Для тебя','For you')}</span><ChevronDown size={16}/>
+      </button>
+    </section>
+    <HomeForYou />
+    <HomeCharts />
     </div>
   );
 };

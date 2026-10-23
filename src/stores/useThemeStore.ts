@@ -1,3 +1,4 @@
+import { setNativeBars } from '../utils/nativeShell.js';
 import { create } from 'zustand';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -24,6 +25,7 @@ const resolveIsDark = (theme: ThemeMode): boolean => {
 };
 
 const applyThemeToDOM = (isDark: boolean) => {
+  setNativeBars(isDark);
   if (typeof document === 'undefined') return;
   if (isDark) {
     document.documentElement.classList.add('dark');

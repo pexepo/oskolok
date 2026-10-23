@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640"><defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d1a36"/><stop offset="1" stop-color="#060b18"/></linearGradient>
+ <radialGradient id="glow" cx=".78" cy=".35" r=".6"><stop offset="0" stop-color="#6a5cff" stop-opacity=".55"/><stop offset="1" stop-color="#6a5cff" stop-opacity="0"/></radialGradient>
+ <linearGradient id="ice" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".85"/><stop offset=".45" stop-color="#b9c8ff" stop-opacity=".55"/><stop offset="1" stop-color="#b9c8ff" stop-opacity=".05"/></linearGradient>
+ <linearGradient id="ice2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c8ff" stop-opacity=".5"/><stop offset="1" stop-color="#ffffff" stop-opacity=".04"/></linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="1280" height="640" fill="url(#bg)"/>
+<rect width="1280" height="640" fill="url(#glow)"/><g transform="translate(860 120)">
+ <polygon points="140,0 260,170 170,400 40,250" fill="url(#ice)" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.5"/>
+ <polygon points="40,250 170,400 60,430 -40,330" fill="url(#ice2)" stroke="#ffffff" stroke-opacity=".25" stroke-width="1.2"/>
+ <polygon points="260,170 330,260 230,360 170,400" fill="url(#ice2)" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.2"/>
+ <polygon points="140,0 175,60 120,140 100,70" fill="#ffffff" fill-opacity=".18"/>
+</g>
+<g fill="#ffffff" fill-opacity=".5"><circle cx="820" cy="110" r="2"/><circle cx="1190" cy="90" r="1.6"/><circle cx="1130" cy="560" r="2.2"/><circle cx="780" cy="520" r="1.4"/><circle cx="1220" cy="380" r="1.8"/></g>
+<text x="96" y="200" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="34" letter-spacing="8" fill="#b9c8ff" fill-opacity=".9">ОСКОЛОК</text>
+<text x="92" y="300" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="96" font-weight="700" letter-spacing="-2" fill="#eef4ff">Сейчас играет</text>
+<rect x="96" y="442" width="14" height="28" rx="7" fill="#9cbeff" fill-opacity="0.58"/><rect x="122" y="408" width="14" height="62" rx="7" fill="#9cbeff" fill-opacity="0.75"/><rect x="148" y="365" width="14" height="105" rx="7" fill="#9cbeff" fill-opacity="0.95"/><rect x="174" y="421" width="14" height="49" rx="7" fill="#9cbeff" fill-opacity="0.68"/><rect x="200" y="386" width="14" height="84" rx="7" fill="#9cbeff" fill-opacity="0.85"/><rect x="226" y="432" width="14" height="38" rx="7" fill="#9cbeff" fill-opacity="0.63"/><rect x="252" y="400" width="14" height="70" rx="7" fill="#9cbeff" fill-opacity="0.78"/><rect x="278" y="376" width="14" height="94" rx="7" fill="#9cbeff" fill-opacity="0.90"/><rect x="304" y="428" width="14" height="42" rx="7" fill="#9cbeff" fill-opacity="0.65"/><rect x="330" y="411" width="14" height="59" rx="7" fill="#9cbeff" fill-opacity="0.73"/><rect x="356" y="449" width="14" height="21" rx="7" fill="#9cbeff" fill-opacity="0.55"/>
+<text x="96" y="545" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="32" fill="#c9d8f5" fill-opacity=".8">⏮  ⏯  ⏭ — очередь прямо в чате</text></svg>

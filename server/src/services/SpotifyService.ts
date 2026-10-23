@@ -1,6 +1,7 @@
 import {
   Track,
   Artist,
+  Release,
   Playlist,
   SearchResult,
   SearchOptions,
@@ -11,6 +12,11 @@ import { officialCatalogService } from './OfficialCatalogService.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { prisma } from '../database/client.js';
+import { latinFold } from './trackRanking.js';
+import path from 'node:path';
 interface SpotifyTokenResponse {
   access_token: string;
   token_type: string;
@@ -18,6 +24,7 @@ interface SpotifyTokenResponse {
 }
 
 interface SpotifyTrackDTO {
+  explicit?: boolean;
   id: string;
   name: string;
   duration_ms: number;
@@ -35,15 +42,38 @@ interface SpotifyArtistDTO {
   name: string;
   images?: Array<{ url: string; height?: number; width?: number }>;
   followers?: { total: number };
+  popularity?: number;
   genres?: string[];
   external_urls?: { spotify?: string };
 }
 
+interface SpotifyAlbumDTO {
+  id: string;
+  name: string;
+  images?: Array<{ url: string }>;
+  album_type?: string;
+  release_date?: string;
+  total_tracks?: number;
+  external_urls?: { spotify?: string };
+  artists?: SpotifyArtistDTO[];
+  popularity?: number;
+}
+
+interface SpotifySearchPage<T> { items?: T[]; total?: number; next?: string | null }
+interface SpotifySearchResponse {
+  tracks?: SpotifySearchPage<SpotifyTrackDTO>;
+  artists?: SpotifySearchPage<SpotifyArtistDTO>;
+  albums?: SpotifySearchPage<SpotifyAlbumDTO>;
+}
+
 export class SpotifyCatalogUnavailableError extends Error {
-  constructor(public readonly reason: 'not_configured' | 'token' | 'request') {
+  constructor(public readonly reason: 'not_configured' | 'token' | 'request' | 'rate_limited' | 'premium_required') {
     super(`Spotify catalog unavailable: ${reason}`);
   }
 }
+
+// Tests get a clean service; only real processes share the pause.
+const COOLDOWN_FILE = process.env.VITEST ? '' : path.resolve('.spotify-cooldown.local');
 
 export class SpotifyService {
   private clientId: string;
@@ -52,10 +82,126 @@ export class SpotifyService {
   private tokenExpiresAt: number = 0;
   private tokenRequest: Promise<string | null> | null = null;
   private searchCache = new Map<string, { expiresAt: number; result: Promise<SearchResult> }>();
+  private staleSearches = new Map<string, { at: number; result: SearchResult }>();
 
   constructor() {
     this.clientId = env.SPOTIFY_CLIENT_ID || '';
     this.clientSecret = env.SPOTIFY_CLIENT_SECRET || '';
+    // Restarts (tsx watch) must not knock on a door Spotify asked us to leave closed.
+    try { this.cooldownUntil = COOLDOWN_FILE ? Number(readFileSync(COOLDOWN_FILE, 'utf8')) || 0 : 0; } catch { this.cooldownUntil = 0; }
+  }
+
+  // One guard for every Web API call. Spotify answers 429 with Retry-After
+  // (hours for development-mode apps); retrying early only extends the ban, so
+  // the whole service waits it out and callers fall back immediately.
+  private cooldownUntil = 0;
+  private recentCalls: number[] = [];
+  private static readonly WINDOW_MS = 30_000;
+  // Well under Spotify's own (undocumented) rolling limit: a development-mode app that trips it is paused for hours.
+  private static readonly WINDOW_LIMIT = 20;
+  /** Every Web API call of the last hour, by endpoint shape (ids collapsed), to see what eats the quota. */
+  private callLog: Array<{ at: number; endpoint: string }> = [];
+  private lastUsageLog = 0;
+  private static endpointOf(url: string): string {
+    try { return new URL(url).pathname.replace(/\/[A-Za-z0-9]{22}(?=\/|$)/g, '/:id').replace(/^\/v1/, ''); } catch { return 'other'; }
+  }
+  public usage() {
+    const hourAgo = Date.now() - 3600_000;
+    this.callLog = this.callLog.filter(c => c.at > hourAgo);
+    const counts = new Map<string, number>();
+    for (const c of this.callLog) counts.set(c.endpoint, (counts.get(c.endpoint) || 0) + 1);
+    return { lastHour: this.callLog.length, byEndpoint: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([endpoint, count]) => ({ endpoint, count })), windowLimit: SpotifyService.WINDOW_LIMIT, windowSeconds: SpotifyService.WINDOW_MS / 1000, cacheHitsLastHour: this.cacheHits.filter(at => at > hourAgo).length };
+  }
+  private cacheHits: number[] = [];
+
+  /** Why the Web API is paused right now: '' when it is available. */
+  private blockReason: '' | 'rate_limited' | 'premium_required' = '';
+  public rateLimitedUntil(): number { return this.cooldownUntil > Date.now() ? this.cooldownUntil : 0; }
+  public status() { return { configured: this.isConfigured(), blockedUntil: this.rateLimitedUntil(), reason: this.rateLimitedUntil() ? this.blockReason || 'rate_limited' : '', usage: this.usage() }; }
+
+  /* Identical GETs share one network call and a short-lived cached body: catalogue pages fire
+     the same artist/album lookups many times, which is what exhausted the 30-second window. */
+  private responses = new Map<string, { at: number; status: number; body: string; type: string }>();
+  private inflight = new Map<string, Promise<{ status: number; body: string; type: string }>>();
+  private static readonly RESPONSE_TTL = 10 * 60_000;
+
+  /** How long a successful answer stays fresh: catalogue facts change slowly, search a bit faster. */
+  private static ttlFor(url: string): number {
+    const p = SpotifyService.endpointOf(url);
+    if (p.startsWith('/search')) return 3600_000;
+    if (/^\/(artists|albums|tracks)\b/.test(p)) return 24 * 3600_000;
+    return SpotifyService.RESPONSE_TTL;
+  }
+  private static dbKey(url: string) { return `sp:v1:${createHash('sha1').update(url).digest('hex')}`; }
+  // A paused Spotify still answers from answers it gave before, up to a week old: pages never go empty because of a 429.
+  private static readonly STALE_LIMIT = 7 * 24 * 3600_000;
+
+  private async apiFetch(url: string, init: RequestInit): Promise<Response> {
+    const method = (init.method || 'GET').toUpperCase();
+    if (method !== 'GET') return this.rawFetch(url, init);
+    const ttl = SpotifyService.ttlFor(url);
+    const respond = (r: { status: number; body: string; type: string }) => new Response(r.body, { status: r.status, headers: { 'content-type': r.type } });
+    const hit = this.responses.get(url);
+    if (hit && Date.now() - hit.at < ttl) { this.cacheHits.push(Date.now()); return respond(hit); }
+    // Persistent layer: survives restarts (tsx watch reloads on every edit).
+    const stored = process.env.VITEST ? null : await prisma.artistEnrichment.findUnique({ where: { id: SpotifyService.dbKey(url) } }).catch(() => null);
+    if (stored && Date.now() - stored.updatedAt.getTime() < ttl) {
+      const r = JSON.parse(stored.data); this.responses.set(url, { at: stored.updatedAt.getTime(), ...r }); this.cacheHits.push(Date.now()); return respond(r);
+    }
+    let pending = this.inflight.get(url);
+    if (!pending) {
+      pending = this.rawFetch(url, init).then(async res => ({ status: res.status ?? (res.ok ? 200 : 500), body: typeof res.text === 'function' ? await res.text() : JSON.stringify(await res.json()), type: res.headers?.get?.('content-type') || 'application/json' }));
+      this.inflight.set(url, pending);
+      void pending.finally(() => this.inflight.delete(url)).catch(() => {});
+    }
+    let r: { status: number; body: string; type: string };
+    try { r = await pending; }
+    catch (error) {
+      if (error instanceof SpotifyCatalogUnavailableError && stored && Date.now() - stored.updatedAt.getTime() < SpotifyService.STALE_LIMIT) { this.cacheHits.push(Date.now()); return respond(JSON.parse(stored.data)); }
+      throw error;
+    }
+    if (r.status === 200) {
+      this.responses.set(url, { at: Date.now(), ...r });
+      if (this.responses.size > 800) this.responses.delete(this.responses.keys().next().value!);
+      if (!process.env.VITEST) { const id = SpotifyService.dbKey(url), data = JSON.stringify(r); void prisma.artistEnrichment.upsert({ where: { id }, create: { id, data }, update: { data } }).catch(() => {}); }
+    }
+    return respond(r);
+  }
+
+  private async rawFetch(url: string, init: RequestInit): Promise<Response> {
+    const now = Date.now();
+    if (now < this.cooldownUntil) throw new SpotifyCatalogUnavailableError(this.blockReason === 'premium_required' ? 'premium_required' : 'rate_limited');
+    this.recentCalls = this.recentCalls.filter(at => now - at < SpotifyService.WINDOW_MS);
+    if (this.recentCalls.length >= SpotifyService.WINDOW_LIMIT) throw new SpotifyCatalogUnavailableError('rate_limited');
+    this.recentCalls.push(now);
+    this.callLog.push({ at: now, endpoint: SpotifyService.endpointOf(url) });
+    if (now - this.lastUsageLog > 15 * 60_000) { this.lastUsageLog = now; const u = this.usage(); logger.info({ lastHour: u.lastHour, top: u.byEndpoint }, 'Spotify Web API usage'); }
+    const res = await fetch(url, init);
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers?.get?.('retry-after')) || 30;
+      const until = Date.now() + Math.max(30, retryAfter) * 1000;
+      if (until > this.cooldownUntil) {
+        this.cooldownUntil = until;
+        if (COOLDOWN_FILE) try { writeFileSync(COOLDOWN_FILE, String(until)); } catch { /* best effort */ }
+        logger.warn({ retryAfterSeconds: retryAfter, lastHour: this.usage() }, 'Spotify rate limit: pausing Web API calls until Retry-After');
+      }
+      this.blockReason = 'rate_limited';
+      throw new SpotifyCatalogUnavailableError('rate_limited');
+    }
+    // Since 2026 a development-mode app answers every call with 403 unless its owner has Premium.
+    // After the owner buys Premium it takes a few hours to reach every Spotify backend, so answers flap between 200 and
+    // this 403. Pause briefly (every request falls back to Deezer meanwhile) rather than for long, to pick Spotify up soon.
+    if (res.status === 403) {
+      const text = typeof res.clone === 'function' ? await res.clone().text().catch(() => '') : '';
+      if (/premium/i.test(text)) {
+        if (this.blockReason !== 'premium_required') logger.error('Spotify Web API refused: the app owner account needs an active Spotify Premium subscription (developer.spotify.com). Falling back to Deezer.');
+        this.blockReason = 'premium_required';
+        this.cooldownUntil = Date.now() + 5 * 60_000;
+        if (COOLDOWN_FILE) try { writeFileSync(COOLDOWN_FILE, String(this.cooldownUntil)); } catch { /* best effort */ }
+        throw new SpotifyCatalogUnavailableError('premium_required');
+      }
+    }
+    return res;
   }
 
   public isConfigured(): boolean {
@@ -117,6 +263,8 @@ export class SpotifyService {
       source: 'spotify',
       sourceId: dto.id,
       title: dto.name,
+      explicit: dto.explicit,
+      popularity: typeof (dto as { popularity?: number }).popularity === 'number' ? (dto as { popularity?: number }).popularity : undefined,
       artist: {
         id: `spotify:artist:${primaryArtist?.id || 'unknown'}`,
         source: 'spotify',
@@ -143,6 +291,21 @@ export class SpotifyService {
       avatarUrl,
       permalinkUrl: dto.external_urls?.spotify,
       followersCount: dto.followers?.total,
+      popularity: dto.popularity,
+    };
+  }
+
+  private mapAlbum(dto: SpotifyAlbumDTO): Release {
+    return {
+      id: `spotify:album:${dto.id}`,
+      title: dto.name,
+      artworkUrl: dto.images?.[0]?.url,
+      type: dto.album_type || 'album',
+      date: dto.release_date,
+      trackCount: dto.total_tracks,
+      url: dto.external_urls?.spotify || `https://open.spotify.com/album/${dto.id}`,
+      artist: dto.artists?.[0] ? this.mapArtist(dto.artists[0]) : undefined,
+      popularity: dto.popularity,
     };
   }
 
@@ -151,19 +314,28 @@ export class SpotifyService {
       return {
         tracks: [],
         artists: [],
+        albums: [],
         playlists: [],
         pagination: { page: 1, limit: options?.limit || 20, hasMore: false },
       };
     }
 
-    const key = `${query.trim().toLocaleLowerCase()}:${options?.page || 1}:${options?.limit || 20}`;
+    const key = `${query.trim().toLocaleLowerCase()}:${options?.page || 1}:${options?.limit || 20}:${options?.type || 'all'}`;
     const cached = this.searchCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
-    if (this.searchCache.size >= 200) this.searchCache.delete(this.searchCache.keys().next().value!);
+    if (this.searchCache.size >= 500) this.searchCache.delete(this.searchCache.keys().next().value!);
     const result = this.searchUncached(query, options);
-    this.searchCache.set(key, { expiresAt: Date.now() + 90_000, result });
-    void result.catch(() => { if (this.searchCache.get(key)?.result === result) this.searchCache.delete(key); });
-    return result;
+    this.searchCache.set(key, { expiresAt: Date.now() + 30 * 60_000, result });
+    void result.then(value => {
+      this.staleSearches.set(key, { at: Date.now(), result: value });
+      if (this.staleSearches.size > 1000) this.staleSearches.delete(this.staleSearches.keys().next().value!);
+    }, () => { if (this.searchCache.get(key)?.result === result) this.searchCache.delete(key); });
+    // While Spotify is unavailable, a recent Spotify answer beats a different catalog.
+    return result.catch(error => {
+      const stale = this.staleSearches.get(key);
+      if (stale && Date.now() - stale.at < 24 * 60 * 60_000) return stale.result;
+      throw error;
+    });
   }
 
   private async searchUncached(query: string, options?: SearchOptions): Promise<SearchResult> {
@@ -175,18 +347,19 @@ export class SpotifyService {
     }
 
     const limit = Math.min(50, Math.max(1, options?.limit || 20));
-    const page = options?.page || 1;
+    const page = Math.max(1, options?.page || 1);
     const offset = (page - 1) * limit;
 
     try {
       // Spotify's current Search API accepts at most 10 results per type.
       // A single 20/25-result request used to produce HTTP 400 and a hidden Deezer fallback.
-      const batches = await Promise.all(Array.from({ length: Math.ceil(limit / 10) }, async (_, index) => {
+      const type = options?.type === 'albums' ? 'album' : options?.type === 'artists' ? 'artist' : options?.type === 'tracks' ? 'track,artist' : 'track,artist,album';
+      const responses = await Promise.allSettled(Array.from({ length: Math.ceil(limit / 10) }, async (_, index) => {
         const batchLimit = Math.min(10, limit - index * 10);
         const batchOffset = offset + index * 10;
         if (batchOffset > 1000) return null;
-        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,artist&market=US&limit=${batchLimit}&offset=${batchOffset}`;
-        const res = await fetch(searchUrl, {
+        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&market=US&limit=${batchLimit}&offset=${batchOffset}`;
+        const res = await this.apiFetch(searchUrl, {
           headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
           signal: AbortSignal.timeout(6000),
         });
@@ -194,17 +367,26 @@ export class SpotifyService {
           logger.warn({ status: res.status }, 'Spotify catalog search unavailable');
           throw new SpotifyCatalogUnavailableError('request');
         }
-        return res.json() as Promise<{
-        tracks?: { items?: SpotifyTrackDTO[]; total?: number };
-        artists?: { items?: SpotifyArtistDTO[] };
-        }>;
+        return res.json() as Promise<SpotifySearchResponse>;
       }));
+      const batches = responses.flatMap(response => response.status === 'fulfilled' && response.value ? [response.value] : []);
+      if (!batches.length) {
+        const failure = responses.find(response => response.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+      }
 
       const rawTracks = batches.flatMap(batch => batch?.tracks?.items || []);
       const rawArtists = batches.flatMap(batch => batch?.artists?.items || []);
+      const rawAlbums = batches.flatMap(batch => batch?.albums?.items || []);
 
       const tracks = rawTracks.map((t) => this.mapTrack(t));
       const artists = [...new Map(rawArtists.map(a => [a.id, this.mapArtist(a)])).values()];
+      const albums = [...new Map(rawAlbums.filter(a => a.id && a.name).map(a => [a.id, this.mapAlbum(a)])).values()];
+      const sectionPage = (section: 'tracks' | 'artists' | 'albums') => {
+        const total = batches.find(batch => typeof batch[section]?.total === 'number')?.[section]?.total;
+        return { total, hasMore: offset + limit <= 1000 && (typeof total === 'number' ? offset + limit < total : batches.some(batch => !!batch[section]?.next)) };
+      };
+      const sections = { tracks: sectionPage('tracks'), artists: sectionPage('artists'), albums: sectionPage('albums') };
 
       // Background non-blocking SQLite caching — never hold up the caller
       Promise.all(tracks.map((t) => trackCacheRepository.setCachedTrack(t))).catch(() => {});
@@ -212,12 +394,14 @@ export class SpotifyService {
       return {
         tracks,
         artists,
+        albums,
         playlists: [],
         pagination: {
           page,
           limit,
-          hasMore: offset + tracks.length < (batches[0]?.tracks?.total || 0),
-          total: batches[0]?.tracks?.total,
+          hasMore: Object.values(sections).some(section => section.hasMore),
+          total: sections.tracks.total,
+          sections,
         },
       };
     } catch (err) {
@@ -233,7 +417,7 @@ export class SpotifyService {
 
     if (token) {
       try {
-        const res = await fetch(`https://api.spotify.com/v1/tracks/${rawId}`, {
+        const res = await this.apiFetch(`https://api.spotify.com/v1/tracks/${rawId}`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(5000),
         });
@@ -370,7 +554,7 @@ export class SpotifyService {
     const token = await this.getAccessToken();
     if (!token) return null;
     try {
-      const res = await fetch(`https://api.spotify.com/v1/albums/${rawId}?market=US`, {
+      const res = await this.apiFetch(`https://api.spotify.com/v1/albums/${rawId}?market=US`, {
         headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
       });
       if (!res.ok) return null;
@@ -384,7 +568,7 @@ export class SpotifyService {
       const tracks = [...(album.tracks?.items || [])];
       let offset = tracks.length;
       while (album.tracks?.next && offset < Math.min(album.total_tracks || 0, 300)) {
-        const page = await fetch(`https://api.spotify.com/v1/albums/${rawId}/tracks?market=US&limit=50&offset=${offset}`, {
+        const page = await this.apiFetch(`https://api.spotify.com/v1/albums/${rawId}/tracks?market=US&limit=50&offset=${offset}`, {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
         });
         if (!page.ok) return null;
@@ -418,11 +602,12 @@ export class SpotifyService {
     if (!token) return null;
     try {
       const releases: Array<{ id: string; title: string; artworkUrl?: string; date?: string; type?: string; trackCount?: number; url: string }> = [];
-      for (let offset = 0; offset < 50; offset += 10) {
-        const res = await fetch(`https://api.spotify.com/v1/artists/${rawId}/albums?include_groups=album,single&market=US&limit=10&offset=${offset}`, {
+      // Whole discography (prolific artists have hundreds of singles), not just the first 50 entries.
+      for (let offset = 0; offset < 300; offset += 10) {
+        const res = await this.apiFetch(`https://api.spotify.com/v1/artists/${rawId}/albums?include_groups=album,single,compilation&market=US&limit=10&offset=${offset}`, {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000),
         });
-        if (!res.ok) return null;
+        if (!res.ok) return releases.length?releases:null;
         const page = await res.json() as { items?: Array<{ id: string; name: string; images?: Array<{ url: string }>; release_date?: string; album_type?: string; total_tracks?: number; external_urls?: { spotify?: string } }>; next?: string | null };
         for (const item of page.items || []) releases.push({
           id: `spotify:album:${item.id}`, title: item.name,
@@ -481,15 +666,16 @@ export class SpotifyService {
             source: 'spotify',
             sourceId: 'unknown',
             name: artistName,
-            avatarUrl: artworkUrl,
           },
           artworkUrl,
           duration: Math.round((t.duration || 0) / 1000) || 180,
+          explicit: typeof t.isExplicit === 'boolean' ? t.isExplicit : undefined,
           trackUrl: `https://open.spotify.com/track/${trId}`,
           access: 'playable',
         };
       });
 
+      await this.attachTrackArtwork(tracks, artworkUrl, 7000);
       for (const t of tracks) {
         await trackCacheRepository.setCachedTrack(t);
       }
@@ -520,11 +706,35 @@ export class SpotifyService {
     }
   }
 
+  /**
+   * The public playlist embed carries one cover for the whole list. Per-track
+   * covers come from Spotify's oEmbed endpoint, which needs no app quota;
+   * whatever does not arrive within the budget keeps the playlist cover.
+   */
+  private async attachTrackArtwork(tracks: Track[], fallback: string | undefined, budgetMs: number): Promise<void> {
+    const deadline = Date.now() + budgetMs;
+    let cursor = 0;
+    await Promise.all(Array.from({ length: 10 }, async () => {
+      while (cursor < tracks.length && Date.now() < deadline) {
+        const track = tracks[cursor++];
+        try {
+          const res = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(`https://open.spotify.com/track/${track.sourceId}`)}`, {
+            signal: AbortSignal.timeout(Math.max(500, deadline - Date.now())),
+          });
+          if (!res.ok) continue;
+          const body = await res.json() as { thumbnail_url?: string };
+          if (body.thumbnail_url) track.artworkUrl = body.thumbnail_url;
+        } catch { /* keep the playlist cover */ }
+      }
+    }));
+    for (const track of tracks) track.artworkUrl ||= fallback;
+  }
+
   private async resolveSpotifyPlaylistFromApi(rawId: string): Promise<Playlist | null> {
     const token = await this.getAccessToken();
     if (!token) return null;
     try {
-      const first = await fetch(`https://api.spotify.com/v1/playlists/${rawId}?market=US&fields=name,description,images,tracks.total`, {
+      const first = await this.apiFetch(`https://api.spotify.com/v1/playlists/${rawId}?market=US&fields=name,description,images,tracks.total`, {
         headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(7000),
       });
       if (!first.ok) return null;
@@ -533,7 +743,7 @@ export class SpotifyService {
       let offset = 0;
       const pageSize = 100;
       while (offset < 1000) {
-        const page = await fetch(`https://api.spotify.com/v1/playlists/${rawId}/tracks?market=US&limit=${pageSize}&offset=${offset}&fields=items(track(id,name,duration_ms,external_urls,artists,album)),next,total`, {
+        const page = await this.apiFetch(`https://api.spotify.com/v1/playlists/${rawId}/tracks?market=US&limit=${pageSize}&offset=${offset}&fields=items(track(id,name,duration_ms,external_urls,artists,album)),next,total`, {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(7000),
         });
         if (!page.ok) return null;
@@ -616,8 +826,18 @@ export class SpotifyService {
     return null;
   }
 
+  private artistMemo = new Map<string, { at: number; artist: Artist }>();
   public async getArtist(id: string): Promise<Artist | null> {
     const rawId = id.replace(/^spotify:artist:/, '');
+    // The paused-API fallback scrapes the public embed page each time; one answer a day is enough.
+    const memo = this.artistMemo.get(rawId);
+    if (memo && Date.now() - memo.at < 24 * 3600_000) return memo.artist;
+    const artist = await this.getArtistUncached(rawId);
+    if (artist) { this.artistMemo.set(rawId, { at: Date.now(), artist }); if (this.artistMemo.size > 3000) this.artistMemo.delete(this.artistMemo.keys().next().value!); }
+    return artist;
+  }
+
+  private async getArtistUncached(rawId: string): Promise<Artist | null> {
     const token = await this.getAccessToken();
 
     if (!token) {
@@ -625,7 +845,7 @@ export class SpotifyService {
     }
 
     try {
-      const res = await fetch(`https://api.spotify.com/v1/artists/${rawId}`, {
+      const res = await this.apiFetch(`https://api.spotify.com/v1/artists/${rawId}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(5000),
       });
@@ -668,8 +888,86 @@ export class SpotifyService {
     return match?officialCatalogService.getArtistTracks(match.id,options):[];
   }
 
+  /**
+   * Releases known from Spotify tracks already in the local cache, for when the Web API is paused: albums that exist
+   * only on Spotify (Слава КПСС «Ангельское True») keep their place in the discography. Their pages open via the embed.
+   */
+  public async cachedReleases(rawId: string, artistName?: string): Promise<Array<{ id: string; title: string; artworkUrl?: string; type?: string; trackCount?: number; url: string }>> {
+    // Albums opened through the public embed were cached without the artist id («spotify:artist:unknown»): those match by name.
+    const rows = await prisma.trackCache.findMany({ where: { source: 'spotify', OR: [{ trackData: { contains: `spotify:artist:${rawId}` } }, ...(artistName ? [{ trackData: { contains: '"spotify:artist:unknown"' } }] : [])] }, select: { trackData: true } }).catch(() => []);
+    const wanted = artistName ? latinFold(artistName) : '';
+    const byRelease = new Map<string, { id: string; title: string; artworkUrl?: string; tracks: Set<string> }>();
+    for (const row of rows) {
+      let t: Track; try { t = JSON.parse(row.trackData); } catch { continue; }
+      const mine = t.artist?.id === `spotify:artist:${rawId}` || (!!wanted && t.artist?.id === 'spotify:artist:unknown' && latinFold((t.artist.name || '').split(',')[0]) === wanted);
+      if (!mine || !t.release?.id?.startsWith('spotify:album:')) continue;
+      const r = byRelease.get(t.release.id) || { id: t.release.id, title: t.release.title, artworkUrl: t.artworkUrl, tracks: new Set<string>() };
+      r.tracks.add(t.id); byRelease.set(t.release.id, r);
+    }
+    // One title, one card: a single cut from a mixtape shares its name; the fullest release represents it.
+    const byTitle = new Map<string, { id: string; title: string; artworkUrl?: string; tracks: Set<string> }>();
+    for (const r of byRelease.values()) { const k = r.title.toLocaleLowerCase().trim(), prev = byTitle.get(k); if (!prev || r.tracks.size > prev.tracks.size) byTitle.set(k, r); }
+    return [...byTitle.values()].map(r => ({ id: r.id, title: r.title, artworkUrl: r.artworkUrl, trackCount: r.tracks.size, type: r.tracks.size >= 7 ? 'album' : r.tracks.size >= 4 ? 'ep' : 'single', url: `https://open.spotify.com/album/${r.id.split(':').at(-1)}` }));
+  }
+
+  /**
+   * The same artist on Deezer, so a Spotify card can be served from the catalog of record.
+   * Same-named Deezer profiles must share a release title with the Spotify discography when it is
+   * known (homonyms: the rapper «pyrokinesis» vs the metal band); otherwise the larger audience wins.
+   * Verified matches live for 30 days. A miss expires quickly: upstream
+   * timeouts must not hide an existing discography for days.
+   */
+  private counterparts = new Map<string, string | null>();
+  private counterpartMissUntil = new Map<string,number>();
+  public async deezerCounterpart(rawId: string): Promise<string | null> {
+    if(this.counterparts.has(rawId)){
+      const known=this.counterparts.get(rawId)!;
+      if(known||(this.counterpartMissUntil.get(rawId)||0)>Date.now())return known;
+      this.counterparts.delete(rawId);this.counterpartMissUntil.delete(rawId);
+    }
+    const key = `sp2dz:v1:${rawId}`;
+    const stored = await prisma.artistEnrichment.findUnique({ where: { id: key } }).catch(() => null);
+    if (stored) {
+      const saved = JSON.parse(stored.data) as { deezerId: string | null; verified?: boolean }, value = saved.deezerId;
+      const ttl=value?(saved.verified?30:3)*24*3600_000:5*60_000;
+      if(Date.now()-stored.updatedAt.getTime()<ttl){this.counterparts.set(rawId,value);if(!value)this.counterpartMissUntil.set(rawId,stored.updatedAt.getTime()+ttl);return value;}
+    }
+    const artist = await this.getArtist(`spotify:artist:${rawId}`).catch(() => null);
+    if (!artist?.name) return null;
+    const fold = (t: string) => t.normalize('NFKC').toLocaleLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const found = await officialCatalogService.search(artist.name, { limit: 1 }).catch(() => null);
+    const same = (found?.artists || []).filter(a => fold(a.name) === fold(artist.name) || (!!latinFold(a.name) && latinFold(a.name) === latinFold(artist.name)));
+    let deezerId: string | null = null, verified = false;
+    if (same.length) {
+      const spotifyTitles = (await this.getArtistReleases(rawId).catch(() => null))?.map(r => fold(r.title)) || [];
+      if (spotifyTitles.length) {
+        for (const candidate of same.slice(0, 3)) {
+          const albums = await fetch(`https://api.deezer.com/artist/${candidate.sourceId}/albums?limit=100`, { signal: AbortSignal.timeout(5000) }).then(r => r.json()).catch(() => null) as { data?: Array<{ title: string }> } | null;
+          if ((albums?.data || []).some(a => spotifyTitles.includes(fold(a.title)))) { deezerId = candidate.sourceId; verified = true; break; }
+        }
+      } else {
+        deezerId = [...same].sort((a, b) => (b.followersCount || 0) - (a.followersCount || 0))[0].sourceId;
+      }
+    }
+    this.counterparts.set(rawId, deezerId);
+    if(!deezerId)this.counterpartMissUntil.set(rawId,Date.now()+5*60_000);
+    if(this.counterparts.size>5000){const oldest=this.counterparts.keys().next().value!;this.counterparts.delete(oldest);this.counterpartMissUntil.delete(oldest);}
+    const data = JSON.stringify({ deezerId, verified, name: artist.name });
+    await prisma.artistEnrichment.upsert({ where: { id: key }, create: { id: key, data }, update: { data } }).catch(() => {});
+    return deezerId;
+  }
+
   public async getArtistTracks(id: string, options?: PaginationOptions): Promise<Track[]> {
     const rawId = id.replace(/^spotify:artist:/, '');
+    // Deezer first: the catalog of record answers the artist's songs without spending Spotify quota.
+    if (/^[a-zA-Z0-9]{22}$/.test(rawId)) {
+      const deezerId = await this.deezerCounterpart(rawId).catch(() => null);
+      if (deezerId) {
+        const titles = ((await this.getArtistReleases(rawId).catch(() => null)) || []).map(r => r.title);
+        const tracks = await officialCatalogService.getArtistTracks(`deezer:artist:${deezerId}`, options, titles).catch(() => []);
+        if (tracks.length) return tracks;
+      }
+    }
     if (!this.isConfigured()) {
       return this.matchedCatalogTracks(id, options);
     }
@@ -679,10 +977,38 @@ export class SpotifyService {
       if (!artist) return this.matchedCatalogTracks(id, options);
       // The former /artists/{id}/top-tracks endpoint was removed in 2026.
       const result = await this.search(`artist:"${artist.name.replace(/"/g, '')}"`, { page: options?.page || 1, limit: Math.min(options?.limit || 30, 30) });
-      return result.tracks.filter(track => track.artist.sourceId === rawId);
+      const own = result.tracks.filter(track => track.artist.sourceId === rawId);
+      if (own.length >= 5 || (options?.page || 1) > 1) return own;
+      // A lesser artist sharing a famous name drowns in that name's search results: read its own latest releases instead.
+      const seen = new Set(own.map(track => track.id));
+      for (const release of (await this.getArtistReleases(rawId))?.slice(0, 4) || []) {
+        const album = await this.getAlbumFromApi(release.id).catch(() => null);
+        for (const track of album?.tracks || []) if (!seen.has(track.id) && track.artist.sourceId === rawId) { seen.add(track.id); own.push(track); }
+        if (own.length >= 20) break;
+      }
+      return own;
     } catch {
       return this.matchedCatalogTracks(id, options);
     }
+  }
+
+  private popularityBlockedUntil = 0;
+  /** Track popularity (0–100) and ISRC via GET /v1/tracks, 50 ids per call. Apps the
+   * Web API refuses (403: no premium owner / endpoint retired) back off for 30 minutes. */
+  public async getTracksPopularity(ids: string[]): Promise<Map<string, { popularity?: number; isrc?: string }>> {
+    const out = new Map<string, { popularity?: number; isrc?: string }>();
+    if (Date.now() < this.popularityBlockedUntil) return out;
+    const token = await this.getAccessToken();
+    if (!token) return out;
+    for (let i = 0; i < ids.length; i += 50) {
+      try {
+        const res = await this.apiFetch(`https://api.spotify.com/v1/tracks?ids=${ids.slice(i, i + 50).join(',')}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) });
+        if (!res.ok) { if (res.status === 403 || res.status === 404) this.popularityBlockedUntil = Date.now() + 30 * 60_000; break; }
+        const data = await res.json() as { tracks?: Array<{ id: string; popularity?: number; external_ids?: { isrc?: string } } | null> };
+        for (const t of data.tracks || []) if (t) out.set(t.id, { popularity: typeof t.popularity === 'number' ? t.popularity : undefined, isrc: t.external_ids?.isrc });
+      } catch { break; }
+    }
+    return out;
   }
 }
 

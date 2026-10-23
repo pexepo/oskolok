@@ -5,12 +5,14 @@ import { GripVertical } from 'lucide-react';
 import { Track } from '../../types/index.js';
 import { TrackRow } from '../tracks/TrackRow.js';
 
+import { useTranslation } from '../../stores/useLanguageStore.js';
 interface DndSortableTrackRowProps {
   id: string;
   track: Track;
   index: number;
   playlistId: string;
   collection: Track[];
+  readOnly?:boolean;
 }
 
 export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
@@ -19,7 +21,9 @@ export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
   index,
   playlistId,
   collection,
+  readOnly=false,
 }) => {
+  const t = useTranslation();
   const {
     attributes,
     listeners,
@@ -27,7 +31,7 @@ export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id,disabled:readOnly });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(
@@ -41,13 +45,13 @@ export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
 
   const isExternal = playlistId.startsWith('soundcloud:') || playlistId.startsWith('spotify:');
 
-  if (isExternal) {
+  if (isExternal||readOnly) {
     return (
       <div className="w-full">
         <TrackRow
           track={track}
           index={index}
-          playlistId={playlistId}
+          playlistId={readOnly?undefined:playlistId}
           collection={collection}
         />
       </div>
@@ -60,7 +64,7 @@ export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
         {...attributes}
         {...listeners}
         className="p-2 text-[#7188a3] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-white cursor-grab active:cursor-grabbing opacity-0 group-hover/dnd:opacity-100 transition-opacity touch-none shrink-0"
-        title="Перетащите для изменения порядка"
+        title={t('Перетащите для изменения порядка', 'Drag to reorder')}
       >
         <GripVertical size={16} />
       </button>
@@ -69,7 +73,7 @@ export const DndSortableTrackRow: React.FC<DndSortableTrackRowProps> = ({
         <TrackRow
           track={track}
           index={index}
-          playlistId={playlistId}
+          playlistId={readOnly?undefined:playlistId}
           collection={collection}
         />
       </div>

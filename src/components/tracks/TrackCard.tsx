@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import {TrackArtistLink} from './TrackCredits.js';
 import { Play, Pause, MoreHorizontal } from 'lucide-react';
 import { Track } from '../../types/index.js';
 import { usePlayerStore } from '../../stores/usePlayerStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { ArtworkImage } from '../common/ArtworkImage.js';
 import { TrackContextMenu, ContextMenuPosition } from '../common/TrackContextMenu.js';
 import { formatDisplayTitle } from '../../utils/formatTrack.js';
@@ -15,7 +16,7 @@ interface TrackCardProps {
 }
 
 export const TrackCard: React.FC<TrackCardProps> = ({ track, collection, index }) => {
-  const { currentTrack, isPlaying, playTrack, playCollection, togglePlay } = usePlayerStore();
+  const { currentTrack, isPlaying, playTrack, playCollection, togglePlay } = usePlayerStore(useShallow(s => ({ currentTrack: s.currentTrack, isPlaying: s.isPlaying, playTrack: s.playTrack, playCollection: s.playCollection, togglePlay: s.togglePlay })));
   const [contextMenuPos, setContextMenuPos] = useState<ContextMenuPosition | null>(null);
 
   const isCurrent = currentTrack?.id === track.id;
@@ -65,12 +66,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({ track, collection, index }
           <h4 className="font-bold text-xs text-[#162b50] dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
             {formatDisplayTitle(track.title, track.artist.name)}
           </h4>
-          <NavLink
-            to={`/artist/${encodeURIComponent(track.artist.id)}`}
-            className="text-[11px] text-[#5a6e85] dark:text-slate-400 hover:text-blue-600 dark:hover:text-sky-400 truncate block mt-0.5"
-          >
-            {track.artist.name}
-          </NavLink>
+          <TrackArtistLink track={track} className="text-[11px] text-[#5a6e85] dark:text-slate-400 hover:text-blue-600 dark:hover:text-sky-400 truncate block mt-0.5"/>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-export type TrackSource = 'spotify' | 'soundcloud' | 'local' | 'licensed' | 'deezer' | 'youtube';
+export type TrackSource = 'spotify' | 'soundcloud' | 'local' | 'licensed' | 'deezer' | 'youtube' | 'unreleased';
 
 export type TrackAccess = 'playable' | 'preview' | 'blocked' | 'unavailable';
 
@@ -12,10 +12,30 @@ export interface Artist {
   description?: string;
   trackCount?: number;
   followersCount?: number;
+  /** Provider popularity on a 0–100 scale, when available. */
+  popularity?: number;
   monthlyListeners?: number;
+  /** The same artist on other platforms (search merges them under one card). */
+  alsoOn?: Array<{ source: TrackSource; id: string; url?: string }>;
+}
+
+export interface Release {
+  id: string;
+  title: string;
+  artworkUrl?: string;
+  date?: string;
+  type?: string;
+  trackCount?: number;
+  url?: string;
+  artist?: Artist;
+  popularity?: number;
+  tracks?: Track[];
 }
 
 export interface Track {
+  explicit?: boolean;
+  /** 0..100 across sources (Deezer rank, Spotify popularity, SoundCloud plays); absent when unknown. */
+  popularity?: number;
   release?: {id:string;title:string};
   id: string;
   source: TrackSource;
@@ -33,6 +53,10 @@ export interface Track {
   downloadable?: boolean;
   recommendationReason?: string;
   audioSource?: string;
+  /** Wave model hints from Yandex «Моя волна»: hue 0…360 and energy 0…1 tint the Резонанс visual. */
+  vibe?: { hue?: number; energy?: number };
+  /** Who actually uploaded a SoundCloud track (the credited artist may be parsed from its title). */
+  uploader?: { name: string; followers?: number; verified?: boolean };
 }
 
 export type PlaybackType = 'hls' | 'progressive' | 'preview' | 'none';
@@ -54,9 +78,18 @@ export interface PlaylistTrackItem {
   track: Track;
 }
 
+export interface PlaylistOwner {
+  id: string;
+  name: string;
+  username?: string;
+  source: 'oskolok' | 'soundcloud' | 'spotify';
+}
+
 export interface Playlist {
+  isPublic?: boolean;
   id: string;
   userId: string;
+  owner?: PlaylistOwner;
   title: string;
   description?: string;
   artworkUrl?: string;
@@ -105,21 +138,27 @@ export interface SearchPagination {
   limit: number;
   hasMore: boolean;
   total?: number;
+  sections?: Partial<Record<'tracks' | 'artists' | 'albums' | 'playlists', { hasMore: boolean; total?: number }>>;
 }
 
 export interface SearchResult {
   tracks: Track[];
   artists: Artist[];
+  albums?: Release[];
   playlists: Playlist[];
   pagination: SearchPagination;
   catalogSource?: 'spotify' | 'deezer';
-  catalogFallbackReason?: 'not_configured' | 'token' | 'request';
+  catalogFallbackReason?: 'not_configured' | 'token' | 'request' | 'rate_limited' | 'premium_required';
+  /** Set when the query was re-read in the other keyboard layout. */
+  correctedQuery?: string;
+  /** Yandex Music's «лучший результат» for the query, when this answer holds the same item. */
+  bestHint?: { type: 'artist' | 'track' | 'album'; id: string };
 }
 
 export interface SearchOptions {
   page?: number;
   limit?: number;
-  type?: 'all' | 'tracks' | 'artists' | 'playlists';
+  type?: 'all' | 'tracks' | 'artists' | 'albums' | 'playlists';
 }
 
 export interface PaginationOptions {

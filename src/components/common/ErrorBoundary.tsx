@@ -1,6 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
+import { useLanguageStore } from '../../stores/useLanguageStore.js';
+const t = (ru: string, en: string) => useLanguageStore.getState().language === 'en' ? en : ru;
 interface Props {
   children: ReactNode;
 }
@@ -38,9 +40,9 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Произошла ошибка интерфейса</h2>
+              <h2 className="text-lg font-bold text-white">{t('Произошла ошибка интерфейса', 'Something went wrong in the interface')}</h2>
               <p className="text-xs text-slate-400 mt-1">
-                {this.state.error?.message || 'Интерфейс временно недоступен'}
+                {this.state.error?.message || t('Интерфейс временно недоступен', 'The interface is temporarily unavailable')}
               </p>
             </div>
             <button
@@ -48,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-colors cursor-pointer"
             >
               <RotateCcw size={14} />
-              <span>Перезагрузить</span>
+              <span>{t('Перезагрузить', 'Reload')}</span>
             </button>
           </div>
         </div>

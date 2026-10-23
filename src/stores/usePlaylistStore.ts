@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { libraryActions } from '../telemetry/bus.js';
 import { Playlist, Track } from '../types/index.js';
 import { apiClient } from '../api/apiClient.js';
 import { useToastStore } from './useToastStore.js';
@@ -7,6 +8,8 @@ interface PlaylistState {
   playlists: Playlist[];
   currentPlaylist: Playlist | null;
   isLoading: boolean;
+  isPlaylistLoading: boolean;
+  playlistError: string;
 
   fetchPlaylists: () => Promise<void>;
   fetchPlaylistById: (id: string) => Promise<Playlist | null>;
@@ -16,17 +19,19 @@ interface PlaylistState {
     artworkUrl?: string,
     tracks?: Track[]
   ) => Promise<Playlist | null>;
-  updatePlaylist: (id: string, data: { title?: string; description?: string; artworkUrl?: string }) => Promise<void>;
+  updatePlaylist: (id: string, data: { title?: string; description?: string; artworkUrl?: string; isPublic?: boolean }) => Promise<boolean>;
   deletePlaylist: (id: string) => Promise<void>;
   addTrackToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   reorderPlaylistTracks: (playlistId: string, trackIds: string[]) => Promise<void>;
 }
 
+let playlistRequest=0;
 export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   playlists: [],
   currentPlaylist: null,
   isLoading: false,
+  isPlaylistLoading:false,playlistError:'',
 
   fetchPlaylists: async () => {
     set({ isLoading: true });
@@ -39,15 +44,13 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   fetchPlaylistById: async (id: string) => {
-    set({ isLoading: true });
-    try {
-      const playlist = await apiClient.getPlaylist(id);
-      set({ currentPlaylist: playlist, isLoading: false });
+    const request=++playlistRequest;
+    set({isPlaylistLoading:true,playlistError:'',currentPlaylist:null});
+    try{
+      const playlist=await apiClient.getPlaylist(id);
+      if(request===playlistRequest)set({currentPlaylist:playlist,isPlaylistLoading:false});
       return playlist;
-    } catch {
-      set({ isLoading: false });
-      return null;
-    }
+    }catch(e){if(request===playlistRequest)set({isPlaylistLoading:false,playlistError:(e as Error).message||'Не удалось загрузить плейлист'});return null;}
   },
 
   createPlaylist: async (title, description, artworkUrl, tracks) => {
@@ -70,8 +73,10 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
         currentPlaylist: state.currentPlaylist?.id === id ? updated : state.currentPlaylist,
       }));
       useToastStore.getState().addToast('Плейлист обновлен', 'success');
+      return true;
     } catch {
       useToastStore.getState().addToast('Не удалось обновить плейлист', 'error');
+      return false;
     }
   },
 
@@ -89,6 +94,7 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   addTrackToPlaylist: async (playlistId, track) => {
+    libraryActions.emit('playlist_add', track, undefined, `playlist:${playlistId}`);
     try {
       const updated = await apiClient.addTrackToPlaylist(playlistId, track);
       set((state) => ({
@@ -102,6 +108,7 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   },
 
   removeTrackFromPlaylist: async (playlistId, trackId) => {
+    { const playlist = (Array.isArray(get().playlists) ? get().playlists : []).find(p => p.id === playlistId), item = playlist?.tracks?.find(x => x.track.id === trackId || x.trackId === trackId); libraryActions.emit('playlist_remove', item?.track || { id: trackId, artist: { id: '', name: '' } as never }, undefined, `playlist:${playlistId}`); }
     try {
       const updated = await apiClient.removeTrackFromPlaylist(playlistId, trackId);
       set((state) => ({

@@ -1,0 +1,91 @@
+/* Report button, notifications, follows and unreleased tracks. */
+.report-fab{position:fixed;right:20px;bottom:calc(max(18px,env(safe-area-inset-bottom)) + 96px);z-index:34;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;border:1px solid var(--edge);background:var(--glass);backdrop-filter:blur(16px) saturate(1.2);color:var(--muted);font-size:11px;font-weight:550;box-shadow:0 4px 16px var(--glass-shadow);opacity:.72;transition:opacity .2s,color .2s,transform .2s}
+.report-fab span{max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .25s ease}
+.report-fab:hover,.report-fab:focus-visible{opacity:1;color:var(--ink);transform:translateY(-1px)}
+.report-fab:hover span,.report-fab:focus-visible span{max-width:90px}
+@media(max-width:700px){.report-fab{right:12px;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 88px);height:30px;padding:0 9px}}
+@media(prefers-reduced-motion:reduce){.report-fab,.report-fab span{transition:none}}
+.report-page-context{display:block;font-size:11px;color:var(--muted)}
+.report-diagnostics{display:flex!important;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.report-diagnostics input{width:16px;height:16px;accent-color:var(--accent)}
+
+.notify-wrap{position:relative;display:flex;align-items:center}
+.notify-button{position:relative}
+.notify-count{position:absolute;top:2px;right:0;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;line-height:16px;text-align:center}
+.dark .notify-count{color:#14223c}
+.notify-panel{position:absolute;top:calc(100% + 10px);right:0;z-index:60;width:min(340px,calc(100vw - 24px));max-height:min(460px,70vh);overflow:auto;border-radius:16px;border:1px solid var(--edge);background:rgba(243,248,255,.96);backdrop-filter:blur(24px);box-shadow:0 14px 40px var(--glass-shadow);padding:8px;-webkit-app-region:no-drag}
+.dark .notify-panel{background:rgba(17,26,43,.96)}
+.notify-panel header{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 8px;font-size:13px}
+.notify-panel header .text-button{display:inline-flex;gap:4px;align-items:center;font-size:11px}
+.notify-panel li>button{display:flex;gap:10px;width:100%;text-align:left;padding:8px;border-radius:10px;align-items:flex-start}
+.notify-panel li>button:hover{background:var(--glass)}
+.notify-panel li>button.is-unread strong::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle}
+.notify-panel img,.notify-glyph{width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;display:grid;place-items:center;background:var(--glass);color:var(--muted)}
+.notify-panel li span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.notify-panel strong{font-size:12px;font-weight:600;color:var(--ink)}
+.notify-panel small,.notify-panel time{font-size:11px;color:var(--muted)}
+.notify-empty{padding:16px 10px;font-size:12px;color:var(--muted);line-height:1.5}
+
+.follow-btn small{margin-left:4px;font-size:11px;opacity:.7}
+.follow-btn.is-following{border-color:var(--accent);color:var(--accent)}
+.follow-shelf{margin-top:38px}
+.follow-shelf .section-heading{display:flex;align-items:baseline;gap:10px}
+.follow-shelf-count{font-size:11px;color:var(--muted)}
+
+.unrel-page{padding-top:32px}
+.unrel-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:24px;align-items:start}
+@media(max-width:900px){.unrel-layout{grid-template-columns:1fr}}
+.unrel-form,.unrel-mine{padding:24px;border-radius:22px}
+.unrel-form h2,.unrel-mine h2{font-size:20px;font-weight:450;margin-bottom:6px}
+.unrel-hint{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+.unrel-form .content-form{display:flex;flex-direction:column;gap:12px;border:0;padding:0;margin:0}
+.unrel-form label{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.unrel-drop{position:relative;border:1px dashed var(--edge);border-radius:14px;padding:18px;cursor:pointer;background:var(--glass)}
+.unrel-drop.small{padding:10px 14px}
+.unrel-drop span{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink);word-break:break-all}
+.unrel-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.unrel-drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.unrel-cover-row{display:flex;align-items:center;gap:12px}
+.unrel-cover-row img{width:64px;height:64px;border-radius:10px;object-fit:cover}
+.unrel-picker{position:relative}
+.unrel-picker ul{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;border-radius:12px;border:1px solid var(--edge);background:rgba(243,248,255,.97);padding:4px;box-shadow:0 10px 30px var(--glass-shadow)}
+.dark .unrel-picker ul{background:rgba(17,26,43,.97)}
+.unrel-picker li button{display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border-radius:8px;font-size:13px;text-align:left}
+.unrel-picker li button:hover{background:var(--glass)}
+.unrel-picker li img,.unrel-picker li span{width:28px;height:28px;border-radius:50%;object-fit:cover;background:var(--glass)}
+.unrel-picker li small{margin-left:auto;color:var(--muted);font-size:10px}
+.unrel-linked{font-size:11px;color:var(--muted)}
+.unrel-row,.unrel-genius li{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--edge)}
+.unrel-row:last-child,.unrel-genius li:last-child{border-bottom:0}
+.unrel-play{position:relative;width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;display:grid;place-items:center}
+.unrel-play>svg{position:absolute;color:#fff;filter:drop-shadow(0 1px 3px #0008);opacity:.9}
+.unrel-play:disabled{opacity:.4}
+.unrel-meta{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.unrel-meta strong{font-size:13px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.unrel-meta small{font-size:11px;color:var(--muted)}
+.unrel-meta a{text-decoration:underline;text-underline-offset:2px}
+.unrel-note{font-style:italic}
+.unrel-status{font-size:10px;font-weight:600;letter-spacing:.04em;padding:4px 8px;border-radius:999px;background:var(--glass);border:1px solid var(--edge);white-space:nowrap}
+.unrel-status.is-approved{color:#2f9e6d}
+.unrel-status.is-rejected{color:#d0566a}
+.unrel-empty{font-size:12px;color:var(--muted);padding:12px 0}
+.unrel-artist .artist-toolbar,.unrel-genius .artist-toolbar{display:flex;align-items:center;gap:10px}
+.unrel-suggest{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+.unrel-upcoming h2,.unrel-genius h2{display:inline-flex;align-items:center;gap:8px}
+.unrel-genius .text-button{display:inline-flex;align-items:center;gap:4px;font-size:11px;white-space:nowrap}
+
+.adm-unreleased{margin-top:16px}
+.adm-unreleased details{margin-bottom:10px;padding:14px 16px;border-radius:14px;border:1px solid var(--edge,#ffffff22)}
+.adm-unreleased summary{cursor:pointer}
+.adm-unreleased form,.admin-unreleased-actions,.admin-unreleased-media{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:10px 0}
+.adm-unreleased label{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.adm-unreleased input,.adm-unreleased select,.adm-unreleased textarea{min-width:180px}
+.adm-unreleased audio{width:min(420px,100%)}
+
+/* Report reasons: tiles with icons instead of a select. */
+.report-reasons{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.report-reason{display:flex;align-items:center;gap:8px;min-height:44px;padding:9px 12px;border-radius:14px;font-size:13px;font-weight:550;text-align:left;color:var(--sg-ink,inherit);background:color-mix(in srgb,var(--sg-ink,#1b2b44) 5%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sg-ink,#1b2b44) 10%,transparent);transition:background .15s,box-shadow .15s}
+.report-reason svg{flex:none;color:var(--sg-muted,#6a7d94)}
+.report-reason:hover:not(:disabled){background:color-mix(in srgb,var(--sg-accent,#3a78f0) 9%,transparent)}
+.report-reason.is-on{background:color-mix(in srgb,var(--sg-accent,#3a78f0) 14%,transparent);box-shadow:inset 0 0 0 1.5px var(--sg-accent,#3a78f0)}
+.report-reason.is-on svg{color:var(--sg-accent,#3a78f0)}

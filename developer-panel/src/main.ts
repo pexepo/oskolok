@@ -1,21 +1,24 @@
 import './style.css';
+import {mountAdminWorkspace} from '../../src/admin/workspace.js';
 import {parseLyricsFile} from './utils/lyricsParser.js';
 const root=document.querySelector<HTMLDivElement>('#app')!;
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 let page='pending',selected:any=null,items:any[]=[],uploadLines:any,uploadName='',busy=false;
 async function api(url:string,options:RequestInit={}){
-  const r=await fetch(url,{...options,headers:{'Content-Type':'application/json'}});
+  const r=await fetch(url,{...options,headers:{'Content-Type':'application/json',...options.headers}});
+  if(r.ok&&(options.headers as any)?.Accept==='application/octet-stream')return r.blob();
   const json=await r.json();if(!r.ok){if(r.status===401)login();throw new Error(json.error?.message||'Ошибка запроса');}return json.data;
 }
 function notice(text:string){document.querySelector('#notice')!.textContent=text;}
 async function action(fn:()=>Promise<void>){if(busy)return;busy=true;root.setAttribute('aria-busy','true');try{await fn();}catch(e){notice((e as Error).message);}finally{busy=false;root.removeAttribute('aria-busy');}}
 function login(){root.innerHTML=`<main class="login"><span class="eyebrow">ОСКОЛОК / STUDIO</span><h1>Студия текстов</h1><p>Проверяйте, редактируйте и публикуйте.</p><form id="login"><label>Пароль разработчика<input name="password" type="password" autocomplete="current-password" required/></label><button>Войти</button></form><p role="alert" id="notice"></p></main>`;root.querySelector('form')!.onsubmit=e=>{e.preventDefault();void action(async()=>{await api('/session',{method:'POST',body:JSON.stringify({password:new FormData(e.target as HTMLFormElement).get('password')})});await dashboard();});};}
 async function dashboard(){
-  items=page==='upload'?[]:await api(page==='published'?'/api/lyrics':`/api/submissions?status=${page}`);
-  root.innerHTML=`<header><a href="/" class="brand">◈ осколок <span>STUDIO</span></a><button id="logout" class="quiet">Выйти</button></header><main><div class="heading"><div><span class="eyebrow">ПАНЕЛЬ РАЗРАБОТЧИКА</span><h1>Слова обретают голос.</h1><p>Заявки сообщества и опубликованные тексты.</p></div><button id="refresh" class="quiet">Обновить</button></div><nav aria-label="Разделы панели">${[['pending','На проверке'],['approved','Одобрено'],['rejected','Отклонено'],['published','Опубликовано'],['upload','Загрузить текст']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav><p role="status" id="notice"></p><section id="workspace"></section></main>`;
+  items=['upload','manage'].includes(page)?[]:await api(page==='published'?'/api/lyrics':`/api/submissions?status=${page}`);
+  root.innerHTML=`<header><a href="/" class="brand">◈ осколок <span>STUDIO</span></a><button id="logout" class="quiet">Выйти</button></header><main><div class="heading"><div><span class="eyebrow">ПАНЕЛЬ РАЗРАБОТЧИКА</span><h1>Слова обретают голос.</h1><p>Заявки сообщества и опубликованные тексты.</p></div><button id="refresh" class="quiet">Обновить</button></div><nav aria-label="Разделы панели">${[['manage','Пользователи и обращения'],['pending','На проверке'],['approved','Одобрено'],['rejected','Отклонено'],['published','Опубликовано'],['upload','Загрузить текст']].map(([id,label])=>`<button data-page="${id}" class="${page===id?'active':''}">${label}</button>`).join('')}</nav><p role="status" id="notice"></p><section id="workspace"></section></main>`;
   root.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(b=>b.onclick=()=>void action(async()=>{page=b.dataset.page!;selected=null;await dashboard();}));
   root.querySelector<HTMLButtonElement>('#refresh')!.onclick=()=>void action(dashboard);
   root.querySelector<HTMLButtonElement>('#logout')!.onclick=()=>void action(async()=>{await api('/session',{method:'DELETE',body:'{}'});login();});
+  if(page==='manage'){await mountAdminWorkspace(root.querySelector<HTMLElement>('#workspace')!,(path,options)=>api('/api'+path,options));return;}
   if(page==='upload'){upload();return;}
   const workspace=root.querySelector('#workspace')!;
   workspace.innerHTML=`<div class="queue"><span class="eyebrow">${items.length} ТЕКСТОВ · ПОСЛЕДНИЕ 200</span>${items.map(s=>`<button class="item" data-id="${escape(s.id)}"><strong>${escape(s.trackTitle)}</strong><span>${escape(s.artistName)}</span><small>${escape(s.author?.username?'@'+s.author.username:s.credit)}</small></button>`).join('')||'<p class="empty">Здесь пока нет текстов.</p>'}</div><article id="detail" class="detail"><div class="empty">Выберите текст слева, чтобы прочитать разметку и принять решение.</div></article>`;

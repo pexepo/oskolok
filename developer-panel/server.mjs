@@ -14,11 +14,11 @@ export function createPanelServer(config=process.env){
   const digest=s=>createHash('sha256').update(s).digest();
   const cookie=(value,maxAge)=>`panel_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure?'; Secure':''}`;
   const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
-  const body=async req=>{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>2_000_000)throw Object.assign(new Error('Слишком большой файл.'),{status:413});chunks.push(chunk);}return Buffer.concat(chunks).toString();};
+  const body=async(req,binary=false)=>{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>(binary?8*1024*1024:2_000_000))throw Object.assign(new Error('Слишком большой файл.'),{status:413});chunks.push(chunk);}return binary?Buffer.concat(chunks):Buffer.concat(chunks).toString();};
   const dist=path.resolve(fileURLToPath(new URL('./dist/',import.meta.url)));
   return http.createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try{
       const url=new URL(req.url,'http://panel');
       const token=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('panel_session='))?.slice(14);
@@ -26,7 +26,7 @@ export function createPanelServer(config=process.env){
       for(const [id,expires]of sessions)if(expires<now)sessions.delete(id);
       for(const [id,a]of attempts)if(a.until<now)attempts.delete(id);
       if(!['GET','HEAD'].includes(req.method)){
-        if(req.headers.origin!==panelOrigin||!req.headers['content-type']?.startsWith('application/json'))return send(res,403,{error:{message:'Недопустимый источник запроса.'}});
+        if(req.headers.origin!==panelOrigin||!(req.headers['content-type']?.startsWith('application/json')||url.pathname==='/api/files'&&req.headers['content-type']==='application/octet-stream'))return send(res,403,{error:{message:'Недопустимый источник запроса.'}});
       }
       if(url.pathname==='/session'&&req.method==='POST'){
         const ip=req.socket.remoteAddress||'unknown',a=attempts.get(ip)||{count:0,until:now+900000};
@@ -41,10 +41,10 @@ export function createPanelServer(config=process.env){
       if(url.pathname.startsWith('/api/')){
         if(!token||!sessions.has(token))return send(res,401,{error:{message:'Войдите в панель.'}});
         const route=url.pathname.slice(4);
-        const allowed=(req.method==='GET'&&['/submissions','/lyrics'].includes(route))||(req.method==='POST'&&(route==='/lyrics'||/^\/submissions\/[a-zA-Z0-9-]+\/review$/.test(route)))||(req.method==='DELETE'&&/^\/lyrics\/[a-zA-Z0-9-]+$/.test(route));
+        const allowed=(req.method==='GET'&&(['/submissions','/lyrics','/reports','/beta','/stats','/unreleased'].includes(route)||/^\/files\/[a-zA-Z0-9-]+$/.test(route)||/^\/unreleased\/[a-zA-Z0-9-]+\/(?:audio|cover)$/.test(route)))||(req.method==='POST'&&(['/lyrics','/beta','/reports','/files'].includes(route)||/^\/reports\/[a-zA-Z0-9-]+\/review$/.test(route)||/^\/submissions\/[a-zA-Z0-9-]+\/review$/.test(route)||/^\/unreleased\/[a-zA-Z0-9-]+\/(?:review|update)$/.test(route)))||(req.method==='DELETE'&&/^\/(?:lyrics|beta|unreleased)\/[a-zA-Z0-9_-]+$/.test(route));
         if(!allowed)return send(res,404,{error:{message:'Маршрут не найден.'}});
-        const response=await fetch(`${api.replace(/\/$/,'')}/admin${route}${url.search}`,{method:req.method,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:req.method==='GET'?undefined:await body(req),signal:AbortSignal.timeout(15000),redirect:'error'});
-        res.writeHead(response.status,{'Content-Type':'application/json'});res.end(await response.text());return;
+        const response=await fetch(`${api.replace(/\/$/,'')}/admin${route}${url.search}`,{method:req.method,headers:{Authorization:`Bearer ${key}`,'Content-Type':route==='/files'?'application/octet-stream':'application/json'},body:req.method==='GET'?undefined:await body(req,route==='/files'),signal:AbortSignal.timeout(15000),redirect:'error'});
+        res.writeHead(response.status,{'Content-Type':response.headers.get('Content-Type')||'application/octet-stream',...(response.headers.get('Content-Disposition')?{'Content-Disposition':response.headers.get('Content-Disposition')}:{})});res.end(Buffer.from(await response.arrayBuffer()));return;
       }
       if(req.method!=='GET'&&req.method!=='HEAD')return send(res,405,{error:{message:'Метод не поддерживается.'}});
       const relative=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname).replace(/^\//,'');

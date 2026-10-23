@@ -1,4 +1,6 @@
-import { telegramAuthHeaders, useTelegramStore } from '../telegram/runtime.js';
+import { telegramAuthHeaders, useTelegramStore, apiBase } from '../telegram/runtime.js';
+import { tr } from '../stores/useLanguageStore.js';
+import { getLosslessPreferred, getRecording } from '../utils/playbackPreferences.js';
 import {
   SearchResult,
   Track,
@@ -8,19 +10,22 @@ import {
   LyricsData,
   HistoryItem,
   HealthStatus,
-  ImportPreview, Release, ArtistDetails,
+  ImportPreview, Release, ArtistDetails, GeniusRelease, TrackPopularity,
   UserSummary,
 } from '../types/index.js';
+import type { GeniusAnnotationSet } from '../utils/geniusAnnotations.js';
 
 export class ApiError extends Error {
   public code: string;
   public details?: any;
+  public status?: number;
 
-  constructor(message: string, code: string = 'UNKNOWN_ERROR', details?: any) {
+  constructor(message: string, code: string = 'UNKNOWN_ERROR', details?: any, status?: number) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.details = details;
+    this.status = status;
   }
 }
 
@@ -30,13 +35,17 @@ class ApiClient {
   public suggestions(q:string,signal?:AbortSignal):Promise<SearchResult>{return this.request(`/suggestions?q=${encodeURIComponent(q)}`,{signal});}
   public getRelease(id:string):Promise<Release>{return this.request(`/releases/${encodeURIComponent(id)}`);}
   public getArtistDetails(id:string):Promise<ArtistDetails>{return this.request(`/artists/${encodeURIComponent(id)}/details`);}
-  private baseUrl =
-    typeof window !== 'undefined' && window.location.protocol === 'file:'
-      ? 'http://127.0.0.1:5000/api'
-      : ((import.meta as any).env?.VITE_API_URL || '/api');
+  public getTrackPopularity(artist:string,tracks:Array<{id:string;title:string;artistId?:string}>):Promise<Record<string,TrackPopularity|null>>{return this.request('/artists/popularity',{method:'POST',body:JSON.stringify({artist,tracks})});}
+  public getGeniusRelease(artist:string,title:string):Promise<GeniusRelease|null>{return this.request(`/releases/genius?${new URLSearchParams({artist,title})}`);}
+  private baseUrl = apiBase;
 
-  public getStreamUrl(trackId: string, source?: string): string {
-    const suffix = source ? `?source=${encodeURIComponent(source)}` : '';
+  public getStreamUrl(trackId: string, source?: string, recordingPreview = false): string {
+    const params = new URLSearchParams();
+    if (source) params.set('source', source);
+    const recording=recordingPreview?undefined:getRecording(trackId,source);if(recording)params.set('recording',recording);
+    if(recordingPreview)params.set('exact','1');
+    if ((!source || source === 'auto') && getLosslessPreferred()) params.set('lossless', '1');
+    const suffix = params.size ? `?${params}` : '';
     return `${this.baseUrl}/tracks/${encodeURIComponent(trackId)}/stream${suffix}`;
   }
 
@@ -54,19 +63,22 @@ class ApiClient {
         },
       });
 
-      const json = await response.json();
+      const text = await response.text();
+      let json:any;try{json=text?JSON.parse(text):{};}catch{json={error:{message:response.ok?tr('Некорректный ответ сервера', 'Invalid server response'):`Ошибка сервера (${response.status})`}};}
 
       if (!response.ok) {
         if(response.status===401)useTelegramStore.setState({user:null});
         const errObj = json.error || {};
+        if(errObj.code==='BETA_ACCESS_DENIED')useTelegramStore.setState({betaAllowed:false,access:'beta_denied'});
         throw new ApiError(
           errObj.message || `HTTP ${response.status} Error`,
           errObj.code || `HTTP_${response.status}`,
-          errObj.details
+          errObj.details,
+          response.status
         );
       }
 
-      return json.data as T;
+      return (endpoint==='/health'?json:json.data) as T;
     } catch (err: any) {
       if (err.name === 'AbortError') {
         throw err; // Re-throw abort error for caller to handle cleanly
@@ -82,9 +94,18 @@ class ApiClient {
     return this.request('/telegram/profile-track', { method: 'POST', body: JSON.stringify({ trackId }) });
   }
 
+  public async addTrackToTelegramProfile(trackId:string):Promise<{status:string}>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),300000);
+    try{return await this.request('/telegram/profile-music',{method:'POST',body:JSON.stringify({trackId}),signal:controller.signal});}
+    catch(error){
+      if(controller.signal.aborted)throw new ApiError(tr('Сервер не подтвердил добавление. Проверьте музыку в Telegram-профиле перед повторной попыткой.','The server did not confirm the addition. Check your Telegram profile music before retrying.'),'PROFILE_MUSIC_TIMEOUT');
+      throw error;
+    }finally{clearTimeout(timer);}
+  }
+
   public async downloadTrack(track: Track): Promise<void> {
     const response = await fetch(`${this.baseUrl}/tracks/${encodeURIComponent(track.id)}/download`, { credentials: 'include', headers: telegramAuthHeaders() });
-    if (!response.ok) { const json = await response.json(); throw new Error(json.error?.message || 'Не удалось подготовить аудиофайл.'); }
+    if (!response.ok) { const json = await response.json(); throw new Error(json.error?.message || tr('Не удалось подготовить аудиофайл.', 'Could not prepare the audio file.')); }
     const blob = await response.blob(), url = URL.createObjectURL(blob), a = document.createElement('a');
     const extension = blob.type.includes('mpeg') ? 'mp3' : 'm4a';
     a.href = url; a.download = `${track.artist.name} - ${track.title}.${extension}`.replace(/[\\/]/g, '_'); a.click();
@@ -152,7 +173,7 @@ class ApiClient {
 
   public async updatePlaylist(
     id: string,
-    data: { title?: string; description?: string; artworkUrl?: string }
+    data: { title?: string; description?: string; artworkUrl?: string; isPublic?: boolean }
   ): Promise<Playlist> {
     return this.request<Playlist>(`/playlists/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -164,6 +185,11 @@ class ApiClient {
     return this.request<{ success: boolean }>(`/playlists/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
+  }
+
+  /** Appends up to 500 tracks in one request. */
+  public addTracksToPlaylist(playlistId: string, tracks: Track[]): Promise<{ added: number; total: number }> {
+    return this.request(`/playlists/${encodeURIComponent(playlistId)}/tracks`, { method: 'POST', body: JSON.stringify({ tracks }) });
   }
 
   public async addTrackToPlaylist(playlistId: string, track: Track): Promise<Playlist> {
@@ -228,15 +254,37 @@ class ApiClient {
     trackId: string,
     trackName?: string,
     artistName?: string,
-    duration?: number
+    duration?: number,
+    signal?: AbortSignal
   ): Promise<LyricsData> {
     const params = new URLSearchParams();
     if (trackName) params.set('trackName', trackName);
     if (artistName) params.set('artistName', artistName);
     if (duration) params.set('duration', String(duration));
     const qs = params.toString() ? `?${params.toString()}` : '';
-    return this.request<LyricsData>(`/lyrics/${encodeURIComponent(trackId)}${qs}`);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const data = await this.request<LyricsData>(`/lyrics/${encodeURIComponent(trackId)}${qs}`, { signal });
+        if (!data || typeof data.provider !== 'string') throw new ApiError('Invalid lyrics response', 'INVALID_RESPONSE');
+        return data;
+      } catch (error) {
+        if (signal?.aborted || attempt >= 2 || !(error instanceof ApiError) || !([429, 502, 503, 504].includes(error.status || 0) || ['UNKNOWN_ERROR', 'INVALID_RESPONSE'].includes(error.code))) throw error;
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+          const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, 350 * (attempt + 1));
+          signal?.addEventListener('abort', abort, { once: true });
+          if (signal?.aborted) abort();
+        });
+      }
+    }
   }
+
+  public async translateLyrics(lines:string[],target:string,signal?:AbortSignal):Promise<{translations:string[];source:string;sameLanguage:boolean}>{
+    const parts:Array<{translations:string[];source:string;sameLanguage:boolean}>=[];
+    for(let at=0;at<lines.length;at+=400)parts.push(await this.request(`/lyrics/translate`,{method:'POST',body:JSON.stringify({lines:lines.slice(at,at+400),target}),signal}));
+    return {translations:parts.flatMap(p=>p.translations),source:parts[0]?.source||'auto',sameLanguage:parts.length>0&&parts.every(p=>p.sameLanguage)};
+  }
+  public getLyricsAnnotations(trackId:string,trackName:string,artistName:string,signal?:AbortSignal):Promise<GeniusAnnotationSet>{return this.request<GeniusAnnotationSet>(`/lyrics/${encodeURIComponent(trackId)}/annotations?${new URLSearchParams({trackName,artistName})}`,{signal});}
 
   public async getUserSummary(userId: string): Promise<UserSummary> {
     return this.request<UserSummary>(`/users/${encodeURIComponent(userId)}/summary`);

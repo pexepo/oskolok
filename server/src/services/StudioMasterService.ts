@@ -1,6 +1,7 @@
+import { officialFor } from './canonicalRelease.js';
 import { hasVersion } from '../utils/versionMatch.js';
-import { exec, spawn, ChildProcess } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn, ChildProcess } from 'node:child_process';
+import { ytdlpSearch } from './ytdlpFallback.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -11,8 +12,24 @@ import { soundCloudService } from './SoundCloudService.js';
 import { streamResolverService } from './StreamResolverService.js';
 import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { logger } from '../utils/logger.js';
+import { prisma } from '../database/client.js';
+import { foldName, foldedCoverage, namesMatch } from './searchQuery.js';
+import {AudioFileError,audioDeadline,completedAudioFile,downloadAudioFile,remuxHlsToFile,type CachedAudio} from './audioFileCache.js';
 
-const execAsync = promisify(exec);
+/** First non-null result; null once every attempt has settled empty. */
+function firstResolved<T>(attempts: Array<Promise<T | null>>): Promise<T | null> {
+  return new Promise((resolve) => {
+    let pending = attempts.length;
+    if (!pending) resolve(null);
+    for (const attempt of attempts) {
+      attempt.then((value) => { if (value) resolve(value); }, () => {}).finally(() => { if (--pending === 0) resolve(null); });
+    }
+  });
+}
+
+// A track that found no source is not searched again for a while: the client
+// used to retry, and each retry walked the whole chain from scratch.
+const UNAVAILABLE_TTL = 30 * 1000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -24,6 +41,8 @@ interface ResolvedMaster {
   channel: string;
   mimeType: string;
   expiresAt: number;
+  /** A playlist (SoundCloud HLS), remuxed into the disk cache before it is served. */
+  hls?: boolean;
 }
 
 interface WorkerResponse {
@@ -35,15 +54,24 @@ interface WorkerResponse {
     title: string;
     channel: string;
     score?: number;
-  };
+    uploadDate?: string;
+    reissue?: { pYear: number; released: string };
+  } | null;
+  reissue?: { pYear: number; released: string } | null;
+  cutoff?: string;
   items?: any[];
   error?: string;
 }
+
+/** Markers of censored editions; never preferred unless the requested title carries them. */
+const CENSORED = ['clean', 'censored', 'radio edit', 'radio version', 'цензур', 'без мата', 'bleeped', 'edited'];
 
 export class StudioMasterService {
   private cacheDir: string;
   private urlCache = new Map<string, ResolvedMaster>();
   private inFlightResolutions = new Map<string, Promise<ResolvedMaster | null>>();
+  private unavailableUntil = new Map<string, number>();
+  private inFlightDownloads = new Map<string,Promise<CachedAudio>>();
   private get pythonPath(): string {
     return this.getPythonPath() || 'python';
   }
@@ -64,7 +92,7 @@ export class StudioMasterService {
   constructor() {
     // Bump the cache namespace whenever resolver rules change. This prevents a
     // previously accepted user upload from surviving a stricter provenance fix.
-    this.cacheDir = path.resolve(process.cwd(), 'server', 'data', 'audio_cache_originals_v6');
+    this.cacheDir = path.resolve(process.cwd(), 'server', 'data', 'audio_cache_originals_v7');
     try {
       if (!fs.existsSync(this.cacheDir)) {
         fs.mkdirSync(this.cacheDir, { recursive: true });
@@ -101,9 +129,9 @@ export class StudioMasterService {
     return process.platform === 'win32' ? 'python' : 'python3';
   }
 
-  private getFfmpegArg(): string {
+  private getFfmpegLocation(): string {
     if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) {
-      return `--ffmpeg-location "${process.env.FFMPEG_PATH}"`;
+      return process.env.FFMPEG_PATH;
     }
     const wingetCandidate = path.join(
       process.env.LOCALAPPDATA || '',
@@ -112,7 +140,7 @@ export class StudioMasterService {
       'Links'
     );
     if (wingetCandidate && fs.existsSync(wingetCandidate)) {
-      return `--ffmpeg-location "${wingetCandidate}"`;
+      return wingetCandidate;
     }
     return '';
   }
@@ -247,23 +275,45 @@ export class StudioMasterService {
     return str.replace(/[^a-zA-Z0-9_\-]/g, '_');
   }
 
+  /** Bumped when source selection changes in a way cached audio must not survive
+   * (v2: pitched copies rejected, pre-re-release originals preferred). */
+  private static readonly CACHE_VERSION = 2;
   private getDiskCachePath(trackId: string): string {
-    return path.join(this.cacheDir, `${this.sanitizeFilename(trackId)}.m4a`);
+    return path.join(this.cacheDir, `${this.sanitizeFilename(trackId)}.v${StudioMasterService.CACHE_VERSION}.m4a`);
+  }
+
+  private originalChecks = new Map<string, { at: number; value: ResolvedMaster | null }>();
+  /** Russian 2026 re-releases replaced older songs with muted ("censored") audio under the same title, length and
+   * channel. For such songs the most-watched exact-length copy uploaded before the re-release is the original. */
+  private async findOriginalEdition(track: Track, cleanTitle: string, cleanArtist: string, targetDuration: number): Promise<ResolvedMaster | null> {
+    if (!/[\u0400-\u04FF]/.test(`${track.artist.name} ${track.title}`)) return null;
+    const known = this.originalChecks.get(track.id);
+    if (known && Date.now() - known.at < (known.value ? 4 * 3600_000 : 30 * 24 * 3600_000)) return known.value;
+    const stored = await prisma.artistEnrichment.findUnique({ where: { id: `orig1:${track.id}` } }).catch(() => null);
+    if (stored && Date.now() - stored.updatedAt.getTime() < 30 * 24 * 3600_000 && JSON.parse(stored.data).reissue === null) {
+      this.originalChecks.set(track.id, { at: Date.now(), value: null });
+      return null;
+    }
+    try {
+      const cutoff = await streamResolverService.reissueUploadDate(cleanArtist, cleanTitle, targetDuration);
+      const res = await this.sendWorkerRequest({ action: 'original', cleanTitle, cleanArtist, targetDuration, cutoff }, 30000);
+      if (!res.success) return null;
+      await prisma.artistEnrichment.upsert({ where: { id: `orig1:${track.id}` }, create: { id: `orig1:${track.id}`, data: JSON.stringify({ reissue: res.reissue ?? null, cutoff: res.cutoff, original: res.candidate ? { title: res.candidate.title, channel: res.candidate.channel, uploadDate: res.candidate.uploadDate } : null }) }, update: { data: JSON.stringify({ reissue: res.reissue ?? null, cutoff: res.cutoff, original: res.candidate ? { title: res.candidate.title, channel: res.candidate.channel, uploadDate: res.candidate.uploadDate } : null }) } }).catch(() => {});
+      const value: ResolvedMaster | null = res.candidate?.streamUrl ? { streamUrl: res.candidate.streamUrl, audioSource: 'youtube', duration: res.candidate.duration || targetDuration, title: res.candidate.title || track.title, channel: res.candidate.channel || track.artist.name, mimeType: 'audio/mp4', expiresAt: Date.now() + 1000 * 60 * 60 * 5 } : null;
+      if (res.reissue) logger.info({ trackId: track.id, reissue: res.reissue, cutoff: res.cutoff, original: res.candidate ? `${res.candidate.title} · ${res.candidate.channel} · ${res.candidate.uploadDate}` : null }, 'Re-released song: original edition lookup');
+      this.originalChecks.set(track.id, { at: Date.now(), value });
+      if (this.originalChecks.size > 2000) this.originalChecks.delete(this.originalChecks.keys().next().value!);
+      return value;
+    } catch (err) {
+      logger.debug({ err, trackId: track.id }, 'Original edition lookup failed');
+      return null;
+    }
   }
 
   /** Completed cached audio only; never expose temporary files or arbitrary paths. */
   public getExportAudio(trackId: string): { path: string; size: number; extension: string; mime: string } | null {
     if (!/^(soundcloud|spotify|deezer|youtube|licensed):[a-zA-Z0-9:_-]{1,180}$/.test(trackId)) return null;
-    const file = this.getDiskCachePath(trackId);
-    if (!fs.existsSync(file)) return null;
-    const size = fs.statSync(file).size;
-    if (size < 500000 || size > 49 * 1024 * 1024) return null;
-    const fd = fs.openSync(file, 'r');
-    const header = Buffer.alloc(16);
-    try { fs.readSync(fd, header, 0, 16, 0); } finally { fs.closeSync(fd); }
-    if (header.toString('ascii', 4, 8) === 'ftyp') return { path: file, size, extension: 'm4a', mime: 'audio/mp4' };
-    if (header.toString('ascii', 0, 3) === 'ID3' || (header[0] === 255 && (header[1] & 224) === 224 && (header[1] & 6) !== 0)) return { path: file, size, extension: 'mp3', mime: 'audio/mpeg' };
-    return null;
+    return completedAudioFile(this.getDiskCachePath(trackId),49*1024*1024);
   }
 
   private normalize(str: string): string {
@@ -276,19 +326,21 @@ export class StudioMasterService {
 
   public async prepareExportAudio(track:Track) {
     const cached=this.getExportAudio(track.id);if(cached)return cached;
-    const master=await this.resolveStudioStream(track);
-    if(!master||master.audioSource==='deezer')throw new Error('Полный аудиофайл недоступен.');
-    if(master.streamUrl.startsWith('https://'))this.cacheStreamToDisk(track.id,master.streamUrl);
-    const deadline=Date.now()+60000;
-    while(Date.now()<deadline){const file=this.getExportAudio(track.id);if(file)return file;await new Promise(resolve=>setTimeout(resolve,500));}
-    throw new Error('Загрузка аудио не завершилась. Повторите попытку позже.');
+    const master=await audioDeadline(this.resolveStudioStream(track),45000,'Поиск полного аудио занял слишком долго. Попробуйте позже.');
+    if(!master||master.audioSource==='deezer')throw new AudioFileError('Полный аудиофайл недоступен.');
+    if(master.streamUrl.startsWith('https://')){
+      try{await this.downloadToCache(track.id,master.streamUrl);}
+      catch(error){if(this.urlCache.get(track.id)?.streamUrl===master.streamUrl)this.urlCache.delete(track.id);throw error;}
+    }
+    const file=this.getExportAudio(track.id);if(file)return file;
+    throw new AudioFileError('Полный MP3 или M4A этой версии недоступен либо превышает 49 МБ.');
   }
 
   /**
    * Resolves the authentic studio master stream URL for a given official track.
    * Uses in-flight promise de-duplication to prevent race conditions and queue congestion.
    */
-  public async resolveStudioStream(track: Track, preferredSource?: string): Promise<ResolvedMaster | null> {
+  public async resolveStudioStream(track: Track, preferredSource?: string, exactRecording = false): Promise<ResolvedMaster | null> {
     // 1. In-memory cache check
     const cached = this.urlCache.get(track.id);
     if (cached && Date.now() < cached.expiresAt && (!preferredSource || cached.audioSource === preferredSource)) {
@@ -297,16 +349,16 @@ export class StudioMasterService {
 
     // 2. Disk cache check
     const diskPath = this.getDiskCachePath(track.id);
-    if (!preferredSource && fs.existsSync(diskPath)) {
-      const stats = fs.statSync(diskPath);
-      if (stats.size > 500000) { // Valid audio file (> 500 KB)
+    if (!preferredSource) {
+      const audio=completedAudioFile(diskPath);
+      if (audio) {
         const resolved: ResolvedMaster = {
           streamUrl: `file://${diskPath}`,
           audioSource: 'cache',
           duration: track.duration,
           title: track.title,
           channel: track.artist.name,
-          mimeType: 'audio/mp4',
+          mimeType: audio.mime,
           expiresAt: Date.now() + 86400000 * 7,
         };
         this.urlCache.set(track.id, resolved);
@@ -320,11 +372,14 @@ export class StudioMasterService {
       return this.inFlightResolutions.get(resolutionKey)!;
     }
 
-    const promise = this.performResolve(track, preferredSource).then((resolved) => {
+    if ((this.unavailableUntil.get(resolutionKey) || 0) > Date.now()) return null;
+
+    const promise = this.performResolve(track, preferredSource, exactRecording).then((resolved) => {
       // Keep an explicitly selected source warm for the range request that
       // follows the probe. A source mismatch is never reused for another
       // explicit choice.
-      if (resolved) this.urlCache.set(track.id, resolved);
+      if (resolved) { this.urlCache.set(track.id, resolved); this.unavailableUntil.delete(resolutionKey); }
+      else this.unavailableUntil.set(resolutionKey, Date.now() + UNAVAILABLE_TTL);
       return resolved;
     }).finally(() => {
       this.inFlightResolutions.delete(resolutionKey);
@@ -406,7 +461,7 @@ export class StudioMasterService {
     return { title: title.trim() || rawTitle, artist: artist.trim() || rawArtist || '', isAnimeCut: true };
   }
 
-  private async performResolve(track: Track, preferredSource?: string): Promise<ResolvedMaster | null> {
+  private async performResolve(track: Track, preferredSource?: string, exactRecording = false): Promise<ResolvedMaster | null> {
     const animeCheck = this.parseAnimeTrack(track.title, track.artist?.name);
 
     // Spotify exposes metadata through its Web API, but not a raw audio URL.
@@ -422,7 +477,7 @@ export class StudioMasterService {
     }
 
     // 0. If track is from YouTube (direct video ID from search or link) AND NOT a TV anime cut/commercial
-    if (preferredSource !== 'soundcloud' && track.id.startsWith('youtube:') && !animeCheck.isAnimeCut) {
+    if (preferredSource !== 'soundcloud' && track.id.startsWith('youtube:') && (!animeCheck.isAnimeCut || exactRecording)) {
       const vidId = track.sourceId;
       try {
         const res = await this.sendWorkerRequest({
@@ -453,8 +508,9 @@ export class StudioMasterService {
       try {
         const pb = await soundCloudService.getPlaybackInfo(`soundcloud:${track.sourceId}`);
         const isM3U8 = pb?.url?.includes('.m3u8') || pb?.type === 'hls';
+        if (isM3U8 && pb.url) this.hlsUrls.add(pb.url);
         const isPreview = pb?.url?.includes('/preview/') || pb?.url?.includes('preview') || pb?.url?.includes('snip');
-        if (pb && pb.available && pb.url && pb.url.startsWith('http') && !isM3U8 && !isPreview) {
+        if (pb && pb.available && pb.url && pb.url.startsWith('http') && !isPreview) {
           const resolved: ResolvedMaster = {
             streamUrl: pb.url,
             audioSource: 'soundcloud',
@@ -463,6 +519,7 @@ export class StudioMasterService {
             channel: track.artist.name,
             mimeType: pb.mimeType || 'audio/mpeg',
             expiresAt: pb.expiresAt || (Date.now() + 1000 * 60 * 60 * 3),
+            hls: isM3U8,
           };
           this.urlCache.set(track.id, resolved);
           this.cacheStreamToDisk(track.id, pb.url);
@@ -473,12 +530,15 @@ export class StudioMasterService {
       }
     }
 
+    // A censorship vote must describe the selected upload, so never substitute a search result.
+    if (exactRecording) return null;
+
     let cleanTitle = animeCheck.isAnimeCut ? animeCheck.title : track.title;
     let cleanArtist = animeCheck.isAnimeCut && animeCheck.artist ? animeCheck.artist : track.artist.name.split(',')[0].trim();
 
     if (!animeCheck.isAnimeCut) {
       cleanTitle = cleanTitle
-        .replace(/\s*[\(\[][^\)\]]*(?:official|audio|video|remastered|bonus|version|deluxe|edit|prod|feat|ft)[\)\]]/gi, '')
+        .replace(/\s*[\(\[][^\)\]]*(?:official|audio|video|prod|feat|ft)[\)\]]/gi, '')
         .replace(/\s+(?:feat\.?|ft\.?)\s+.*$/i, '')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -493,92 +553,87 @@ export class StudioMasterService {
       cleanTitle = cleanTitle.slice(cleanArtist.length + 2).trim();
     }
 
-    const targetDuration = animeCheck.isAnimeCut ? 0 : (track.duration || 0);
+    // The reference length is the official release's, not the upload's own: a sped-up or slowed copy in a library
+    // would otherwise make the resolver look for another copy at the same wrong speed.
+    let referenceDuration = track.duration || 0;
+    if (!animeCheck.isAnimeCut && ['soundcloud', 'licensed', 'youtube'].includes(track.source)) {
+      const official = await Promise.race([officialFor(track), new Promise<null>(r => setTimeout(() => r(null), 1500))]);
+      if (official?.duration) referenceDuration = official.duration;
+    }
+    const targetDuration = animeCheck.isAnimeCut ? 0 : referenceDuration;
     const queries = [
       `${cleanArtist} - ${cleanTitle}`,
-      `${cleanArtist} ${cleanTitle} audio`,
+      // Label uploads carry this line; it surfaces official audio that plain
+      // searches bury under re-uploads.
+      `${cleanArtist} ${cleanTitle} "Provided to YouTube"`,
     ];
+    const allowSoundCloud = preferredSource === 'soundcloud' || (!preferredSource && track.source !== 'youtube' && track.source !== 'licensed');
+    const allowYouTube = !preferredSource || preferredSource === 'youtube';
+    let workerAnswered = false;
 
-    // Prefer a full, artist-owned SoundCloud upload before asking YouTube.
-    // This is the common case for independent releases and avoids needless
-    // cross-platform substitution.
-    if (preferredSource === 'soundcloud' || (!preferredSource && track.source !== 'youtube' && track.source !== 'licensed')) {
+    // An artist-owned SoundCloud upload is the most faithful copy of an
+    // independent release.
+    const viaSoundCloud = async (): Promise<ResolvedMaster | null> => {
+      if (!allowSoundCloud) return null;
       try {
         const clientId = await streamResolverService.getFreshClientId();
         const sc = await streamResolverService.searchAndResolve(`${cleanArtist} ${cleanTitle}`, cleanTitle, cleanArtist, targetDuration, clientId);
-        if (sc.available && sc.url && !sc.url.includes('.m3u8')) {
-          return { streamUrl: sc.url, audioSource: 'soundcloud', duration: track.duration, title: track.title, channel: track.artist.name, mimeType: sc.mimeType || 'audio/mpeg', expiresAt: sc.expiresAt || Date.now() + 3 * 60 * 60 * 1000 };
+        if (sc.available && sc.url) {
+          const hls = sc.type === 'hls' || sc.url.includes('.m3u8');
+          if (hls) this.hlsUrls.add(sc.url);
+          return { streamUrl: sc.url, audioSource: 'soundcloud', duration: track.duration, title: track.title, channel: track.artist.name, mimeType: hls ? 'audio/mp4' : sc.mimeType || 'audio/mpeg', expiresAt: sc.expiresAt || Date.now() + 3 * 60 * 60 * 1000, hls };
         }
-      } catch (err) { logger.debug({ err, trackId: track.id }, 'Preferred SoundCloud source unavailable'); }
-      if (preferredSource === 'soundcloud') return null;
-    }
+      } catch (err) { logger.debug({ err, trackId: track.id }, 'SoundCloud source unavailable'); }
+      return null;
+    };
 
-    if (preferredSource && preferredSource !== 'youtube') return null;
-
-    // 1. High-speed two-phase resolution via persistent warm worker (~3s latency)
-    for (const query of queries) {
+    // Warm yt-dlp worker: flat search, then stream extraction (~2–4s).
+    const viaWorker = async (query: string): Promise<ResolvedMaster | null> => {
       try {
         logger.info({ trackId: track.id, query }, 'Resolving studio master via warm Python worker');
-        const res = await this.sendWorkerRequest(
-          {
-            action: 'resolve',
-            query,
-            cleanTitle,
-            cleanArtist,
-            targetDuration,
-          },
-          25000
-        );
-
+        const res = await this.sendWorkerRequest({ action: 'resolve', query, cleanTitle, cleanArtist, targetDuration }, 15000);
+        workerAnswered = true;
         if (res.success && res.candidate?.streamUrl) {
           const best = res.candidate;
-          logger.info(
-            {
-              trackId: track.id,
-              matchedTitle: best.title,
-              channel: best.channel,
-              duration: best.duration,
-              score: best.score,
-            },
-            'Successfully resolved studio master stream via warm worker'
-          );
-
-          const resolved: ResolvedMaster = {
-            streamUrl: best.streamUrl,
-            audioSource: 'youtube',
-            duration: best.duration || targetDuration,
-            title: best.title || track.title,
-            channel: best.channel || track.artist.name,
-            mimeType: 'audio/mp4',
-            expiresAt: Date.now() + 1000 * 60 * 60 * 5, // 5 hours
-          };
-
-          this.urlCache.set(track.id, resolved);
-          this.cacheStreamToDisk(track.id, best.streamUrl);
-          return resolved;
+          logger.info({ trackId: track.id, matchedTitle: best.title, channel: best.channel, duration: best.duration, score: best.score }, 'Resolved studio master via warm worker');
+          return { streamUrl: best.streamUrl, audioSource: 'youtube', duration: best.duration || targetDuration, title: best.title || track.title, channel: best.channel || track.artist.name, mimeType: 'audio/mp4', expiresAt: Date.now() + 1000 * 60 * 60 * 5 };
         }
       } catch (workerErr) {
-        logger.warn({ err: workerErr, trackId: track.id, query }, 'Worker resolution query failed or timed out');
+        logger.warn({ err: workerErr, trackId: track.id, query }, 'Worker resolution failed or timed out');
       }
+      return null;
+    };
+    const viaYouTube = async (): Promise<ResolvedMaster | null> => {
+      if (!allowYouTube) return null;
+      return (await viaWorker(queries[0])) ?? (await viaWorker(queries[1]));
+    };
+
+    // A re-released song is checked alongside: when the label replaced its audio, the original wins.
+    const original = !animeCheck.isAnimeCut && (!preferredSource || preferredSource === 'youtube') ? this.findOriginalEdition(track, cleanTitle, cleanArtist, targetDuration) : Promise.resolve(null);
+
+    // Both paths verify the artist and the duration, so the first answer wins
+    // instead of waiting for SoundCloud before even asking YouTube.
+    let resolved = await firstResolved([viaSoundCloud(), viaYouTube()]);
+    const originalEdition = await original;
+    if (originalEdition) resolved = originalEdition;
+
+    // The one-shot yt-dlp process only helps when the worker itself is down;
+    // a worker that answered "no match" would give the same answer slower.
+    if (!resolved && allowYouTube && !workerAnswered) resolved = await this.resolveViaExec(track, queries[0], cleanTitle, cleanArtist, targetDuration);
+
+    if (resolved) {
+      this.urlCache.set(track.id, resolved);
+      this.cacheStreamToDisk(track.id, resolved.streamUrl);
     }
+    return resolved;
+  }
 
-    // 2. Fallback: direct exec if worker candidate was not found
-    const primaryQuery = queries[0];
+  private async resolveViaExec(track: Track, query: string, cleanTitle: string, cleanArtist: string, targetDuration: number): Promise<ResolvedMaster | null> {
     const pyBin = this.pythonPath;
-    const ffmpegArg = this.getFfmpegArg();
-    const cmd = `"${pyBin}" -m yt_dlp ${ffmpegArg} --no-check-certificates --js-runtimes node:node -f "ba[ext=m4a]/bestaudio/best" --playlist-end 4 --print "%(duration)s|%(title)s|%(channel)s|%(url)s" "ytsearch4:${primaryQuery.replace(/"/g, '')}"`;
-
     try {
-      logger.info({ trackId: track.id, query: primaryQuery }, 'Resolving studio master via direct exec fallback');
-      const { stdout } = await execAsync(cmd, {
-        timeout: 18000,
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-      });
+      logger.info({ trackId: track.id, query }, 'Resolving studio master via direct exec fallback');
+      const stdout = await ytdlpSearch(pyBin, this.getFfmpegLocation(), query);
       const lines = stdout.trim().split('\n').map((l) => l.trim()).filter(Boolean);
-
-      const cleanTargetTitle = this.normalize(cleanTitle);
-      const targetTokens = cleanTargetTitle.split(' ').filter((t) => t.length >= 2);
-      const normTargetArtist = this.normalize(cleanArtist);
       const targetCombined = `${cleanTitle} ${cleanArtist}`.toLowerCase();
       const modifierKeywords = [
         'cover', 'кавер', 'karaoke', 'караоке', 'nightcore', 'sped up', 'slowed',
@@ -589,142 +644,55 @@ export class StudioMasterService {
         'commercial', 'announcement', 'анонс', 'превью', 'ノンクレジット'
       ];
       const allowedKeywords = modifierKeywords.filter((kw) => hasVersion(targetCombined, kw));
-
-      const validCandidates: Array<{
-        streamUrl: string;
-        durSec: number;
-        candTitle: string;
-        channel: string;
-        durDiff: number;
-        score: number;
-      }> = [];
+      const titleTokens = foldName(cleanTitle).split(' ').filter((t) => t.length >= 2);
+      const candidates: Array<{ streamUrl: string; durSec: number; candTitle: string; channel: string; score: number }> = [];
 
       for (const line of lines) {
         const parts = line.split('|');
-        if (parts.length < 4) continue;
-
+        if (parts.length < 5) continue;
         const durSec = parseInt(parts[0], 10) || 0;
-        const candTitle = parts[1];
-        const channel = parts[2];
-        const streamUrl = parts.slice(3).join('|');
-
+        const views = parseInt(parts[1], 10) || 0;
+        const candTitle = parts[2];
+        const channel = parts[3];
+        const streamUrl = parts.slice(4).join('|');
         if (!streamUrl.startsWith('http')) continue;
-
         const titleLower = candTitle.toLowerCase();
-        const normCandTitle = this.normalize(candTitle);
 
-        const artistCompact = normTargetArtist.replace(/\s+/g, '');
-        const channelNormalized = this.normalize(channel);
-        const officialChannel = channel.toLowerCase().endsWith('- topic') || (artistCompact && channelNormalized.replace(/\s+/g, '').includes(artistCompact));
-        if (artistCompact && !officialChannel) continue;
+        // Folded comparison: a Cyrillic channel matches a Latin catalogue name.
+        const topic = channel.toLowerCase().endsWith('- topic');
+        if (cleanArtist && !namesMatch(cleanArtist, topic ? channel.slice(0, -8) : channel)) continue;
 
-        // 1. Resilient title match
-        const matchesCount = targetTokens.filter((token) => normCandTitle.includes(token)).length;
-        const matchRatio = targetTokens.length > 0 ? matchesCount / targetTokens.length : 1;
-        const hasTitle =
-          normCandTitle.includes(cleanTargetTitle) ||
-          matchRatio >= 0.4 ||
-          (targetTokens.length <= 2 && matchesCount >= 1);
+        const ratio = foldedCoverage(candTitle, cleanTitle);
+        const hasTitle = foldName(candTitle).includes(foldName(cleanTitle)) || ratio >= 0.4 || (titleTokens.length <= 2 && ratio > 0);
+        if (!hasTitle) continue;
+        let score = 200 + Math.round(ratio * 150);
 
-        let score = 200;
-        if (hasTitle) {
-          score += Math.round(matchRatio * 150);
-        } else {
-          continue;
-        }
+        if (modifierKeywords.some((kw) => hasVersion(titleLower, kw) && !allowedKeywords.includes(kw))) continue;
+        if (promoKeywords.some((kw) => hasVersion(titleLower, kw) && !hasVersion(targetCombined, kw))) score -= 1500;
 
-        // 2. Penalize unwanted modifiers if not explicitly requested
-        const unwantedMods = modifierKeywords.filter((kw) => hasVersion(titleLower, kw) && !allowedKeywords.includes(kw));
-        if (unwantedMods.length > 0) {
-          continue;
-        }
-
-        // 2.1 Heavily penalize anime commercials, trailers, CM and promo clips (which contain speech and ads)
-        for (const pkw of promoKeywords) {
-          if (hasVersion(titleLower, pkw) && !hasVersion(targetCombined, pkw)) {
-            score -= 1500;
-            break;
-          }
-        }
-
-        // 3. Duration check
         const durDiff = Math.abs(durSec - targetDuration);
         if (targetDuration > 30 && durSec > 0 && durDiff > 8) continue;
-
         if (durDiff <= 2) score += 350;
         else if (durDiff <= 5) score += 200;
         else if (durDiff <= 12) score += 100;
         else score -= durDiff * 5;
 
-        if (channel.endsWith('- Topic')) score += 350;
+        if (topic) score += 350;
         if (titleLower.includes('(audio)') || titleLower.includes('[audio]')) score += 250;
         else if (titleLower.includes('official audio')) score += 280;
-
-        if (titleLower.includes('official video') || titleLower.includes('official music video') || titleLower.includes('клип')) {
-          score += 100;
-        }
-
-        if (normCandTitle.includes(normTargetArtist) || this.normalize(channel).includes(normTargetArtist)) {
-          score += 120;
-        }
-
-        validCandidates.push({ streamUrl, durSec, candTitle, channel, durDiff, score });
+        if (titleLower.includes('official video') || titleLower.includes('official music video') || titleLower.includes('клип')) score += 100;
+        // Censored re-releases share title, length and channel with the original; the original keeps its audience.
+        if (!CENSORED.some((kw) => hasVersion(targetCombined, kw)) && CENSORED.some((kw) => hasVersion(titleLower, kw))) score -= 900;
+        score += Math.round(Math.min(260, 40 * Math.log10(views + 1)));
+        candidates.push({ streamUrl, durSec, candTitle, channel, score });
       }
 
-      if (validCandidates.length > 0) {
-        validCandidates.sort((a, b) => b.score - a.score);
-        const best = validCandidates[0];
-
-        const resolved: ResolvedMaster = {
-          streamUrl: best.streamUrl,
-            audioSource: 'youtube',
-          duration: best.durSec,
-          title: best.candTitle,
-          channel: best.channel,
-          mimeType: 'audio/mp4',
-          expiresAt: Date.now() + 1000 * 60 * 60 * 5,
-        };
-
-        this.urlCache.set(track.id, resolved);
-        this.cacheStreamToDisk(track.id, best.streamUrl);
-        return resolved;
-      }
+      candidates.sort((a, b) => b.score - a.score);
+      const best = candidates[0];
+      if (best) return { streamUrl: best.streamUrl, audioSource: 'youtube', duration: best.durSec, title: best.candTitle, channel: best.channel, mimeType: 'audio/mp4', expiresAt: Date.now() + 1000 * 60 * 60 * 5 };
     } catch (err) {
       logger.error({ err, trackId: track.id }, 'Error during yt-dlp direct exec fallback');
     }
-
-    if(preferredSource==='youtube')return null;
-    // 3. Fallback: Secondary resolution via SoundCloud stream resolver
-    try {
-      logger.info({ trackId: track.id }, 'Attempting secondary SoundCloud fallback via streamResolverService');
-      const clientId = await streamResolverService.getFreshClientId();
-      const scFallback = await streamResolverService.searchAndResolve(
-        `${cleanArtist} ${cleanTitle}`,
-        cleanTitle,
-        cleanArtist,
-        targetDuration,
-        clientId
-      );
-
-      if (scFallback.available && scFallback.url && !scFallback.url.includes('.m3u8')) {
-        const resolved: ResolvedMaster = {
-          streamUrl: scFallback.url,
-            audioSource: 'soundcloud',
-          duration: track.duration,
-          title: track.title,
-          channel: track.artist.name,
-          mimeType: scFallback.mimeType || 'audio/mpeg',
-          expiresAt: scFallback.expiresAt || Date.now() + 1000 * 60 * 60 * 3,
-        };
-
-        this.urlCache.set(track.id, resolved);
-        this.cacheStreamToDisk(track.id, scFallback.url);
-        return resolved;
-      }
-    } catch (scErr) {
-      logger.debug({ scErr, trackId: track.id }, 'Secondary SoundCloud fallback failed');
-    }
-
     return null;
   }
 
@@ -732,50 +700,21 @@ export class StudioMasterService {
    * Automatically downloads resolved audio stream to local disk cache in background
    * so all subsequent plays start with 0ms local latency.
    */
+  private hlsUrls = new Set<string>();
+  private downloadToCache(trackId:string,url:string):Promise<CachedAudio> {
+    const pending=this.inFlightDownloads.get(trackId);if(pending)return pending;
+    const hls=this.hlsUrls.has(url)||url.includes('.m3u8');
+    if(this.hlsUrls.size>2000)this.hlsUrls.clear();
+    const operation=(hls?remuxHlsToFile(url,this.getDiskCachePath(trackId)):downloadAudioFile(url,this.getDiskCachePath(trackId))).finally(()=>this.inFlightDownloads.delete(trackId));
+    this.inFlightDownloads.set(trackId,operation);
+    return operation;
+  }
+
   private cacheStreamToDisk(trackId: string, url: string): void {
-    const diskPath = this.getDiskCachePath(trackId);
-    if (fs.existsSync(diskPath) || url.startsWith('file://')) {
-      return;
-    }
-
-    const tempPath = `${diskPath}.pre.tmp`;
-    const headers: Record<string, string> = {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
-
-    fetch(url, { headers })
-      .then((res) => {
-        if (!res.ok || !res.body) return;
-        const fileStream = fs.createWriteStream(tempPath);
-        const reader = res.body.getReader();
-
-        const pump = async () => {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            fileStream.write(value);
-          }
-          fileStream.end(() => {
-            try {
-              if (fs.existsSync(tempPath) && fs.statSync(tempPath).size > 500000) {
-                fs.renameSync(tempPath, diskPath);
-                logger.info({ trackId }, 'Pre-cached audio stream directly to disk');
-              } else if (fs.existsSync(tempPath)) {
-                fs.unlinkSync(tempPath);
-              }
-            } catch {}
-          });
-        };
-
-        pump().catch(() => {
-          try {
-            fileStream.destroy();
-            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-          } catch {}
-        });
-      })
-      .catch(() => {});
+    if(!url.startsWith('https://'))return;
+    // Playback and Telegram export share the same download instead of writing
+    // concurrently into one temporary file. Export receives the actual failure.
+    void this.downloadToCache(trackId,url).catch(error=>logger.debug({trackId,message:error instanceof Error?error.message:String(error)},'Audio cache download failed'));
   }
 
   /**
@@ -787,6 +726,8 @@ export class StudioMasterService {
     if (this.urlCache.has(track.id) || fs.existsSync(this.getDiskCachePath(track.id))) {
       return;
     }
+    // Hover and queue warm-ups are a bonus: they never take the resolver away from a song someone pressed play on.
+    if (this.inFlightResolutions.size >= 3) return;
     this.resolveStudioStream(track).catch((err) => {
       logger.debug({ err, trackId: track.id }, 'Background prefetch error');
     });
@@ -795,10 +736,11 @@ export class StudioMasterService {
   /**
    * Proxies audio stream with full HTTP 206 Partial Content (Range requests) support.
    */
-  public async handleAudioStream(track: Track, req: Request, res: Response, preferredSource?: string): Promise<void> {
+  public async handleAudioStream(track: Track, req: Request, res: Response, preferredSource?: string, exactRecording = false): Promise<void> {
     if(preferredSource==='auto')preferredSource=undefined;
+    const requested=track;
     if(preferredSource&&!['youtube','soundcloud','deezer'].includes(preferredSource)){res.status(400).json({error:{message:'Этот источник воспроизведения не подключён.'}});return;}
-    if(preferredSource)track={...track,id:`${track.id}:playback:${preferredSource}`};
+    if(preferredSource)track={...track,id:`${track.id}:playback:${preferredSource}${exactRecording?':exact':''}`};
     const diskPath = this.getDiskCachePath(track.id);
 
     // If already saved on disk, stream directly from disk with Range support
@@ -825,23 +767,46 @@ export class StudioMasterService {
           return;
         }
       }
+      if (master.hls) return this.serveHls(master, track, req, res);
       // Proxy from URL (fall through to proxy logic below)
       return this.proxyStream(master.streamUrl, track, diskPath, req, res);
     }
 
     // Keep the first media request alive while resolving. An immediate 503 made
     // HTMLAudio fail and added the client's retry delay even for fast resolutions.
-    const master = await this.resolveStudioStream(track, preferredSource);
+    const master = await this.resolveStudioStream(track, preferredSource, exactRecording);
     if (res.destroyed || req.aborted) return;
     if (master) {
       res.setHeader('X-Audio-Source', master.audioSource || 'unknown');
       if (master.streamUrl.startsWith('file://')) {
         const filePath = master.streamUrl.slice(7);
         if (fs.existsSync(filePath)) { this.streamLocalFile(filePath, fs.statSync(filePath).size, req, res); return; }
-      } else { await this.proxyStream(master.streamUrl, track, diskPath, req, res); return; }
+      } else if (master.hls) { await this.serveHls(master, track, req, res); return; }
+      else { await this.proxyStream(master.streamUrl, track, diskPath, req, res); return; }
     }
-    res.setHeader('Retry-After', '3');
-    res.status(503).json({ error: { code: 'AUDIO_RESOLVING', message: 'Audio stream is being resolved, please retry' } });
+    // A chosen source is a preference, not a wall: a song that is not on SoundCloud (or YouTube) still plays,
+    // from the automatic choice, and the player is told which source stood in.
+    if (preferredSource && !exactRecording && !res.headersSent) {
+      res.setHeader('X-Source-Fallback', preferredSource);
+      return this.handleAudioStream(requested, req, res, undefined, false);
+    }
+    // The request was held for the whole resolution, so an empty result is
+    // final: report it instead of inviting the client to start over.
+    res.status(404).json({ error: { code: 'AUDIO_UNAVAILABLE', message: 'Для этого трека не нашлось полной аудиодорожки.' } });
+  }
+
+  /** HLS can't be proxied byte-for-byte to an <audio> element: the remuxed file is served with Range support instead (~2–5 s once per song). */
+  private async serveHls(master: ResolvedMaster, track: Track, req: Request, res: Response): Promise<void> {
+    try {
+      this.hlsUrls.add(master.streamUrl);
+      const file = await this.downloadToCache(track.id, master.streamUrl);
+      if (res.destroyed || req.aborted) return;
+      this.streamLocalFile(file.path, file.size, req, res);
+    } catch (error) {
+      logger.warn({ trackId: track.id, message: error instanceof Error ? error.message : String(error) }, 'SoundCloud HLS remux failed');
+      this.urlCache.delete(track.id);
+      if (!res.headersSent) res.status(502).json({ error: { code: 'AUDIO_REMUX_FAILED', message: 'Не удалось подготовить аудио. Попробуйте ещё раз.' } });
+    }
   }
 
   private async proxyStream(streamUrl: string, track: Track, diskPath: string, req: Request, res: Response): Promise<void> {

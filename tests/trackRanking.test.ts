@@ -42,6 +42,10 @@ describe('music ranking',()=>{
   expect(result).toHaveLength(1);
   expect(result[0].source).toBe('spotify');
  });
+ it('keeps canonical metadata even when its own platform only offers a preview',()=>{
+  const catalog={...track('Crystal','Artist','spotify'),access:'preview' as const};
+  expect(deduplicateSearchTracks([track('Crystal'),catalog])[0].id).toBe(catalog.id);
+ });
  it('demotes snippets and blocked releases',()=>{
   const full={id:1,title:'Crystal',duration:180000,user:{id:1,username:'Artist'}} as SoundCloudTrackDTO;
   expect(rankSoundCloud(full,'Crystal')).toBeGreaterThan(rankSoundCloud({...full,policy:'BLOCK'},'Crystal'));
@@ -54,4 +58,41 @@ describe('music ranking',()=>{
  it('keeps different short titles and versions separate',()=>{
   expect(deduplicateSearchTracks([track('Home','Artist A'),track('Home','Artist B'),track('Home live','Artist A')])).toHaveLength(3);
  });
+});
+
+import {detectGenre} from '../server/src/services/genreIntent.js';
+describe('search intent and popularity',()=>{
+  const t=(artist:string,title:string,popularity?:number,source:'deezer'|'soundcloud'='deezer')=>({id:`${source}:${artist}:${title}`,source,sourceId:'1',title,artist:{id:artist,source,sourceId:artist,name:artist},duration:200,access:'playable',popularity}) as any;
+  it('ranks the artist named in the query above songs titled after that artist',()=>{
+    expect(rankTrack(t('Metallica','Enter Sandman',90),'metallica')).toBeGreaterThan(rankTrack(t('SDM','METALLICA',91),'metallica'));
+  });
+  it('lets a famous recording beat an unknown one with the same title',()=>{
+    expect(rankTrack(t('Eminem','Lose Yourself',95),'lose yourself')).toBeGreaterThan(rankTrack(t('Kimo Sounds','Lose Yourself',3),'lose yourself'));
+  });
+  it('pushes hour-long mixes and playlists down',()=>{
+    expect(rankTrack(t('PHONK Club','Phonk Music Mix 2025 ※ 1 HOUR AGGRESSIVE PHONK PLAYLIST',60),'phonk')).toBeLessThan(rankTrack(t('Maurizzle','Phonk',40),'phonk'));
+  });
+  it('recognises genre queries but not artist names that contain a genre word',()=>{
+    expect(detectGenre('heavy metal')?.artists).toContain('Metallica');
+    expect(detectGenre('Фонк музыка')?.id).toBe('phonk');
+    expect(detectGenre('metallica')).toBeNull();
+    expect(detectGenre('metal gear solid')).toBeNull();
+  });
+});
+it('keeps one copy of a song released as a single and on an album, across scripts and featured artists',()=>{
+  const a={...track('NAKED','Kai Angel','spotify'),id:'spotify:1',duration:207};
+  const b={...track('NAKED','Kai Angel, 9mice','spotify'),id:'spotify:2',duration:208};
+  const c={...track('РКН','SLAVA KPSS','soundcloud'),id:'soundcloud:3',duration:150};
+  const d={...track('РКН','Слава КПСС','spotify'),id:'spotify:4',duration:151};
+  expect(deduplicateSearchTracks([a,b,c,d]).map(t=>t.id)).toEqual(['spotify:1','spotify:4']);
+});
+it('tolerates a slip in an artist name and does not let an empty SoundCloud page beat the artist being typed',async()=>{
+  const {nearlySameName,rankArtist,mergeSearchArtists}=await import('../server/src/services/trackRanking.js');
+  expect(nearlySameName('Kai Angel','kai angle')).toBe(true);
+  expect(nearlySameName('Скриптонит','skriptonit')).toBe(true);
+  expect(nearlySameName('Kai Angel','Kai Jefferson')).toBe(false);
+  const real={id:'deezer:artist:1',source:'deezer',sourceId:'1',name:'BOULEVARD DEPO',followersCount:900000} as any;
+  const stray={id:'soundcloud:9',source:'soundcloud',sourceId:'9',name:'boulevard dep',followersCount:12} as any;
+  expect(rankArtist(real,'boulevard dep')).toBeGreaterThan(rankArtist(stray,'boulevard dep'));
+  expect(mergeSearchArtists([{id:'d:2',source:'deezer',sourceId:'2',name:'Kai Angel',followersCount:200000} as any],'kai angle').map(a=>a.name)).toEqual(['Kai Angel']);
 });

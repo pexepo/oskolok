@@ -17,6 +17,36 @@ model CreatorProfile {
   playbackSeenAt DateTime?
   playbackSessionId String?
   telegramSyncError String?
+  telegramStatusTemplate String?
+  accentColor String?
+  profileTheme String @default("default")
+  pronouns String @default("")
+  location String @default("")
+  statusEmoji String @default("")
+  statusText String @default("")
+  socialLinks String @default("[]")
+  profileVisibility String @default("{}")
+}
+// Discord-style roles. Lower position = higher priority (listed first, tints the name).
+model Role {
+  id String @id @default(uuid())
+  key String? @unique
+  name String
+  color String @default("#9cbeff")
+  icon String @default("")
+  description String @default("")
+  position Int @default(0)
+  hoist Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([position])
+}
+model UserRole {
+  userId String
+  roleId String
+  assignedAt DateTime @default(now())
+  @@id([userId, roleId])
+  @@index([roleId])
 }
 model ProfilePlaylist {
   id String @id @default(uuid())
@@ -103,6 +133,7 @@ model WebSession {
 }
 
 model User {
+  lastActiveAt DateTime?
   id        String   @id
   name      String   @default("Слушатель")
   username  String?
@@ -119,6 +150,7 @@ model Playlist {
   userId      String
   title       String
   description String?
+  isPublic    Boolean  @default(false)
   artworkUrl  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -193,4 +225,341 @@ model SpicyLyricsCredit {
   seenAt      DateTime @default(now())
   @@index([contributorId, seenAt])
   @@index([trackId])
+}
+
+model BetaAccess {
+ id String @id @default(uuid())
+ username String @unique
+ telegramUserId String? @unique
+ enabled Boolean @default(true)
+ approvalNotificationId String?
+ approvalNotificationState String @default("none")
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+}
+/// Verified private bot contacts, including listeners waiting for a beta invitation.
+model TelegramBotContact {
+ userId String @id
+ username String? @unique
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+}
+model PersonalTrack {
+ hasTimingOffset Boolean @default(false)
+ id String @id @default(uuid())
+ userId String
+ trackId String
+ offset Float @default(0)
+ lyricsData String?
+ audioFileId String?
+ updatedAt DateTime @updatedAt
+ @@unique([userId, trackId])
+}
+model UserFile {
+ id String @id @default(uuid())
+ userId String
+ trackId String?
+ kind String
+ fileName String
+ mime String
+ size Int
+ path String
+ createdAt DateTime @default(now())
+ @@index([userId, trackId])
+}
+model UserReport {
+ id String @id @default(uuid())
+ userId String
+ requestId String
+ kind String
+ reason String
+ description String
+ trackId String?
+ page String?
+ payload String
+ status String @default("pending")
+ reviewNote String @default("")
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ @@unique([userId, requestId])
+ @@index([status, createdAt])
+}
+model SharedTrackOverride {
+ trackId String @id
+ offset Float @default(0)
+ audioFileId String?
+ sourceUrl String?
+ platform String?
+ updatedAt DateTime @updatedAt
+}
+model ReleaseExport {
+ id String @id @default(uuid())
+ userId String
+ requestId String
+ releaseId String
+ title String
+ status String @default("preparing")
+ result String @default("{}")
+ filePath String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([userId, requestId])
+ @@index([userId, releaseId, createdAt])
+}
+
+model MonthlyActivity {
+ userId String
+ month String
+ @@id([userId, month])
+}
+
+model AdminAuditLog {
+  id String @id @default(uuid())
+  action String
+  target String @default("")
+  details String @default("")
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+// Community: unreleased uploads, artist follows and in-app notifications.
+model UnreleasedTrack {
+ id String @id @default(uuid())
+ userId String
+ title String
+ artistName String
+ artistKey String
+ artistId String?
+ audioFileId String
+ coverFileId String?
+ kind String @default("leak")
+ source String @default("")
+ description String @default("")
+ duration Int @default(0)
+ status String @default("pending")
+ reviewNote String @default("")
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([status, artistKey])
+ @@index([userId, createdAt])
+}
+model ArtistFollow {
+ id String @id @default(uuid())
+ userId String
+ artistKey String
+ artistId String?
+ name String
+ avatar String?
+ createdAt DateTime @default(now())
+ @@unique([userId, artistKey])
+ @@index([artistKey])
+}
+model ArtistReleaseWatch {
+ artistKey String @id
+ artistId String?
+ name String
+ knownIds String @default("[]")
+ checkedAt DateTime @default(now())
+}
+model UserNotification {
+ id String @id @default(uuid())
+ userId String
+ kind String
+ title String
+ body String @default("")
+ url String?
+ artworkUrl String?
+ dedupeKey String
+ readAt DateTime?
+ deliveredAt DateTime?
+ createdAt DateTime @default(now())
+ @@unique([userId, dedupeKey])
+ @@index([userId, createdAt])
+}
+/// One row per reached tier of an automatic achievement (see server/src/services/rewardsCatalog.ts).
+model UserAchievement {
+  userId String
+  achievementId String
+  tier Int
+  unlockedAt DateTime @default(now())
+  seenAt DateTime?
+  @@id([userId, achievementId, tier])
+  @@index([userId, unlockedAt])
+}
+/// Prestigious medal; revokedAt keeps the row so rule-based medals are not re-granted after a revoke.
+model UserMedal {
+  id String @id @default(uuid())
+  userId String
+  medalId String
+  note String @default("")
+  awardedBy String @default("admin")
+  awardedAt DateTime @default(now())
+  revokedAt DateTime?
+  seenAt DateTime?
+  @@unique([userId, medalId])
+  @@index([medalId])
+}
+/// Server copy of the listener's playback (Mini App crash recovery, Telegram-source playback driven by the bot).
+model PlaybackSession {
+  userId String @id
+  queueData String @default("[]")
+  queueHash String @default("")
+  currentIndex Int @default(0)
+  positionSec Float @default(0)
+  isPlaying Boolean @default(false)
+  mode String @default("app")
+  clientSessionId String?
+  messageId Int?
+  aheadMessageId Int?
+  updatedAt DateTime @updatedAt
+}
+/// Bot API file_id of a track already uploaded once — later sends are instant.
+model TelegramAudioCache {
+  trackId String @id
+  fileId String
+  fileUniqueId String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Friends: a request from requesterId to addresseeId, «accepted» once the other side agrees.
+model Friendship {
+ id String @id @default(uuid())
+ requesterId String
+ addresseeId String
+ status String @default("pending")
+ createdAt DateTime @default(now())
+ updatedAt DateTime @default(now()) @updatedAt
+ @@unique([requesterId, addresseeId])
+ @@index([addresseeId, status])
+}
+
+/// Product interactions with tracks (play started, skip, complete, like…), stored only with the
+/// listener's personalisation consent. `id` is the client's event id, so a re-sent batch is not duplicated.
+model TrackEvent {
+  id            String   @id
+  userId        String
+  sessionId     String
+  type          String
+  trackId       String
+  artist        String   @default("")
+  context       String   @default("")
+  data          String   @default("{}")
+  schemaVersion Int      @default(1)
+  training      Boolean  @default(false)
+  at            DateTime
+  receivedAt    DateTime @default(now())
+
+  @@index([userId, at])
+  @@index([at])
+}
+
+/// Separate purposes: personalisation of the listener's own recommendations, and use of their
+/// events for improving recommendations for everyone (evaluation/training). Absent row = not decided.
+model UserConsent {
+  userId          String    @id
+  personalization Boolean   @default(false)
+  training        Boolean   @default(false)
+  version         Int       @default(1)
+  decidedAt       DateTime?
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Versioned ranking parameters; one active row. Rollback = activate the previous version.
+model RecommendationModel {
+  version   String   @id
+  params    String
+  metrics   String   @default("{}")
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+/// Idempotency for playlist import: one confirmed request creates one playlist, chunks apply once.
+model PlaylistImportRequest {
+  requestId  String   @id
+  userId     String
+  playlistId String
+  chunks     Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Beta applications from the site form. `id` is only a display number (#000125): applicants
+/// read their application with a secret status token or a Telegram session, never by id.
+model BetaApplication {
+  id                 Int       @id @default(autoincrement())
+  telegramUsername   String
+  telegramUserId     String?
+  verifiedUsername   String?
+  purpose            String
+  about              String
+  platforms          String    @default("[]")
+  status             String    @default("pending")
+  statusTokenHash    String    @unique
+  verifyTokenHash    String?   @unique
+  verifyExpiresAt    DateTime?
+  verifiedAt         DateTime?
+  sourceHash         String    @default("")
+  adminNotifyState   String    @default("none")
+  adminMessages      String    @default("[]")
+  userNotifyState    String    @default("none")
+  userNotifyAttempts Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  rejectionReason    String?
+  adminComment       String?
+
+  @@index([telegramUsername])
+  @@index([telegramUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Append-only decision history of a beta application.
+model BetaApplicationEvent {
+  id            String   @id @default(uuid())
+  applicationId Int
+  type          String
+  actor         String   @default("")
+  data          String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([applicationId])
+}
+
+/// Small server-side switches changed from the bot (e.g. beta recruitment open/closed).
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Published application builds. storage=public files are served by Nginx from /downloads/,
+/// storage=private files only through a short-lived signed link after a beta access check.
+model AppRelease {
+  id           String   @id @default(uuid())
+  platform     String
+  variant      String   @default("")
+  label        String   @default("")
+  version      String
+  buildNumber  Int      @default(0)
+  releaseDate  DateTime
+  changelog    String   @default("")
+  fileName     String
+  fileSize     Int      @default(0)
+  checksum     String   @default("")
+  availability String   @default("available")
+  betaOnly     Boolean  @default(false)
+  storage      String   @default("public")
+  requirements String   @default("")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([platform, variant, version])
+  @@index([platform, active])
 }

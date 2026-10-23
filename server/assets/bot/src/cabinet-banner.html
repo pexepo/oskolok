@@ -1,0 +1,29 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>
+@font-face{font-family:Cor;src:url('FONT_SERIF') format('woff2');unicode-range:U+0400-045F}
+@font-face{font-family:Cor;src:url('FONT_SERIF_LATIN') format('woff2');unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:On;src:url('FONT_SANS') format('woff2');font-weight:100 900;unicode-range:U+0400-045F}
+@font-face{font-family:On;src:url('FONT_SANS_LATIN') format('woff2');font-weight:100 900;unicode-range:U+0000-00FF,U+2000-206F}
+*{box-sizing:border-box;margin:0}html,body{width:1280px;height:640px;overflow:hidden}
+body{--accent:ACCENT;--glow:GLOW;font-family:On,system-ui;color:#f0f5ff;background:radial-gradient(ellipse 60% 95% at 84% 35%,var(--glow),transparent 80%),linear-gradient(155deg,#0b182e,#060e1b 80%)}
+body:before{content:'';position:absolute;inset:0;background:radial-gradient(1px 1px at 8% 14%,#fffc,transparent),radial-gradient(1px 1px at 22% 82%,#fff8,transparent),radial-gradient(1.5px 1.5px at 36% 10%,#fffb,transparent),radial-gradient(1px 1px at 55% 22%,#fffb,transparent),radial-gradient(1.5px 1.5px at 92% 12%,#fff9,transparent),radial-gradient(1px 1px at 97% 52%,#fff9,transparent),radial-gradient(1px 1px at 4% 90%,#fff8,transparent)}
+.copy{position:absolute;left:84px;top:0;bottom:0;width:690px;display:flex;flex-direction:column;justify-content:center;gap:23px;z-index:2}
+.brand{display:flex;align-items:center;gap:12px;font:500 30px/1 Cor;color:#dbe8ff}.brand img{width:40px;height:40px;filter:drop-shadow(0 4px 14px #2f6fd688)}
+.brand span{margin-left:6px;padding:6px 12px;border-radius:999px;font:700 12px/1 On;letter-spacing:.14em;color:var(--accent);background:#ffffff08;box-shadow:inset 0 0 0 1px #ffffff25}
+h1{font:500 104px/1.02 Cor;letter-spacing:-.02em;text-shadow:0 0 20px #c3e4ff44;white-space:nowrap}
+p{font:400 27px/1.45 On;color:#afc0d9;max-width:630px}
+.chips{display:flex;gap:10px;margin-top:4px}.chips b{padding:10px 16px;border-radius:999px;font:600 17px/1 On;color:#dce7f8;background:#ffffff0b;box-shadow:inset 0 0 0 1px #ffffff20}
+.line{position:absolute;left:760px;right:0;bottom:56px;height:1px;background:linear-gradient(90deg,transparent,var(--accent));opacity:.4}
+.visual{position:absolute;right:40px;width:430px;top:0;bottom:0}.visual>img{position:absolute;object-fit:contain}
+.profile>img{height:520px;bottom:56px;left:35px}.halo{position:absolute;left:24px;top:105px;width:370px;height:370px;border:1px solid #ffffff18;border-radius:50%;box-shadow:0 0 0 36px #ffffff03,0 0 0 70px #ffffff02}
+.info>img{width:450px;height:450px;top:90px;left:0;object-fit:cover;mask-image:radial-gradient(ellipse closest-side,#000 45%,#000c 70%,transparent 100%);filter:drop-shadow(0 0 28px #79baff22)}
+.pending>img{height:500px;bottom:56px;right:-15px}.approved>img{height:530px;bottom:56px;left:45px}
+.badge{position:absolute;right:10px;bottom:110px;border:1px solid #ffffff30;background:#142637e8;border-radius:22px;padding:16px 20px;font:600 18px On;color:var(--accent);box-shadow:0 16px 40px #0005}
+.badge svg{width:30px;height:30px;vertical-align:middle;margin-right:10px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.laptop{position:absolute;top:180px;left:0;width:355px;height:230px;border:2px solid #7db4ff66;border-radius:17px;background:linear-gradient(130deg,#142c4c,#0b1429);box-shadow:0 25px 90px #0008;transform:rotate(-7deg)}
+.laptop img{width:100%;height:100%;object-fit:contain;padding:34px}.laptop:after{content:'';position:absolute;bottom:-12px;left:-24px;width:400px;height:12px;background:linear-gradient(#6483b0,#263854);border-radius:3px 3px 12px 12px}
+.phone{position:absolute;top:270px;right:4px;width:125px;height:235px;border:3px solid #93b6ed88;border-radius:25px;background:#0d203a;box-shadow:0 20px 50px #0008;transform:rotate(9deg)}
+.phone img{width:100%;padding:25px 15px 10px}.phone:before{content:'';position:absolute;width:40px;height:5px;top:9px;left:40px;border-radius:3px;background:#a9c7f966}.phone:after{content:'Осколок';display:block;text-align:center;font:500 22px Cor;color:#dce7f8}
+</style></head><body><div class="line"></div>
+<div class="copy"><div class="brand"><img src="LOGO">Осколок<span>TAG</span></div><h1>TITLE</h1><p>DESCRIPTION</p><div class="chips">CHIPS</div></div>
+<div class="visual KIND">VISUAL</div>
+</body></html>

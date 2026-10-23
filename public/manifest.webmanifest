@@ -1,0 +1,23 @@
+{
+  "name": "Осколок",
+  "short_name": "Осколок",
+  "description": "Музыкальный плеер с волной рекомендаций, текстами песен и интеграцией с Telegram.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080e1b",
+  "theme_color": "#0a1424",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Поиск", "url": "/app/search" },
+    { "name": "Коллекция", "url": "/app/collection" }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { LyricLine, LyricWord } from '../types/index.js';
 import { parseTtmlDocument } from './ttmlParser.js';
 
+import { tr } from '../stores/useLanguageStore.js';
 export function lyricTimestamp(value: string): number {
   if (/^\d+(\.\d+)?ms$/.test(value)) return parseFloat(value)/1000;
   if (/^\d+(\.\d+)?s$/.test(value)) return parseFloat(value);
@@ -68,19 +69,19 @@ export function normalizeLyricTimings(lines: LyricLine[], duration = 0): Normali
 export const withWordTiming = normalizeLyricTimings;
 
 export function validateLyricLines(value: unknown): LyricLine[] {
-  if (!Array.isArray(value)||!value.length||value.length>10000) throw new Error('Нужен непустой список строк (не более 10 000).');
+  if (!Array.isArray(value)||!value.length||value.length>10000) throw new Error(tr('Нужен непустой список строк (не более 10 000).', 'A non-empty list of lines is required (up to 10,000).'));
   const lines = value.map((line:any)=>{
     if (!line || typeof line.text!=='string'||!Number.isFinite(line.time)||line.time<0||line.time>86400) throw new Error('У каждой строки нужны text и time в секундах.');
     let words:LyricWord[]|undefined;
     if (line.words!==undefined) {
-      if(!Array.isArray(line.words)||!line.words.length) throw new Error('Список words должен содержать слова.');
+      if(!Array.isArray(line.words)||!line.words.length) throw new Error(tr('Список words должен содержать слова.', 'The words list must contain words.'));
       words=line.words.map((w:any)=>{
         if(typeof w?.text!=='string'||!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<line.time||w.end<w.start||w.end>86400)throw new Error('Некорректное время слова: start / end.');
       return {text:w.text,start:w.start,end:w.end,...(w.joinNext?{joinNext:true}:{}),...(w.endEstimated?{endEstimated:true}:{})};
       });
-      if(words!.some((w,i)=>i>0&&w.start<words![i-1].start))throw new Error('Слова должны идти по времени.');
+      if(words!.some((w,i)=>i>0&&w.start<words![i-1].start))throw new Error(tr('Слова должны идти по времени.', 'Words must be in time order.'));
     }
-    if(line.end!==undefined&&(!Number.isFinite(line.end)||line.end<line.time))throw new Error('Некорректное окончание строки.');
+    if(line.end!==undefined&&(!Number.isFinite(line.end)||line.end<line.time))throw new Error(tr('Некорректное окончание строки.', 'Invalid line end.'));
     return {time:line.time,text:line.text,...(words?{words}:{}),...(line.end!==undefined?{end:line.end}:{}),...(line.estimated?{estimated:true}:{}),
       ...(typeof line.agent==='string'?{agent:line.agent}:{}),...(typeof line.agentName==='string'?{agentName:line.agentName}:{}),
       ...(line.role==='background'?{role:'background' as const}:{}),
@@ -91,13 +92,13 @@ export function validateLyricLines(value: unknown): LyricLine[] {
 }
 
 export function parseLyricsFile(text: string, filename: string): LyricLine[] {
-  if(text.length>1000000)throw new Error('Файл слишком большой. Максимум 1 МБ.');
+  if(text.length>1000000)throw new Error(tr('Файл слишком большой. Максимум 1 МБ.', 'File is too large. 1 MB max.'));
   if(/\.json$/i.test(filename)) {
     const json=JSON.parse(text);return validateLyricLines(Array.isArray(json)?json:json.syncedLyrics||json.lines);
   }
   if(/\.(ttml|xml)$/i.test(filename)) {
     const xml=new DOMParser().parseFromString(text,'application/xml');
-    if(xml.getElementsByTagName('parsererror').length)throw new Error('Не удалось прочитать TTML.');
+    if(xml.getElementsByTagName('parsererror').length)throw new Error(tr('Не удалось прочитать TTML.', 'Could not read TTML.'));
     return validateLyricLines(parseTtmlDocument(xml));
   }
   return validateLyricLines(parseLrc(text));

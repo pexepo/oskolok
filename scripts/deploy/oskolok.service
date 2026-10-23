@@ -1,0 +1,26 @@
+[Unit]
+Description=Oskolok website and API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oskolok
+Group=oskolok
+WorkingDirectory=/opt/oskolok/current
+EnvironmentFile=/etc/oskolok/oskolok.env
+ExecStart=/usr/local/bin/node dist-server/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/oskolok
+RestrictSUIDSGID=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

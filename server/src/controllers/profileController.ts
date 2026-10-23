@@ -11,6 +11,9 @@ import {prisma} from '../database/client.js';
 import {sessionConfigured,beginLogin,beginPhoneLogin,beginBotLogin,cancelLogin,loginStatus,consumeLogin,submitPhoneCode,submitLoginPassword,hashToken,disconnectSession} from '../services/telegramSession.js';
 import {updateNowPlaying,refreshTelegramIntegration,clearNowPlayingOnExit} from '../services/telegramNowPlaying.js';
 import {profileTrackWithArtwork} from '../services/profileArtwork.js';
+import {profileCustomizationSchema,customizationColumns,readCustomization,ProfileValidationError} from '../services/profileCustomization.js';
+import {rolesForUser} from '../services/roles.js';
+import {publicRewards} from '../services/rewards.js';
 export const cookies=(req:any)=>Object.fromEntries(String(req.headers.cookie||'').split(';').map(s=>s.trim().split('=')));
 const route=(fn:any)=>async(req:any,res:any,next:any)=>{try{await fn(req,res);}catch(e){next(e);}};
 export const telegramLogin=Router();
@@ -42,6 +45,8 @@ telegramLogin.post('/start-bot',route(async(req:any,res:any)=>{
   res.cookie('oskolok_login',id,{httpOnly:true,sameSite:'strict',secure:req.secure,maxAge:300000,path:'/api/telegram/login'});
   res.json({data:{url:`https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=connect_${id}`}});
 }));
+telegramLogin.post('/logout',route(async(req:any,res:any)=>{const token=cookies(req).oskolok_session;if(token)await prisma.webSession.deleteMany({where:{tokenHash:hashToken(token)}});res.clearCookie('oskolok_session',{path:'/'});res.json({data:{ok:true}});}));
+telegramLogin.post('/cancel',route(async(req:any,res:any)=>{cancelLogin(cookies(req).oskolok_login);res.clearCookie('oskolok_login',{path:'/api/telegram/login'});res.json({data:{ok:true}});}));
 telegramLogin.get('/status',route(async(req:any,res:any)=>{
   const id=cookies(req).oskolok_login,l=id?loginStatus(id):undefined;
   res.setHeader('Cache-Control','no-store');
@@ -49,14 +54,14 @@ telegramLogin.get('/status',route(async(req:any,res:any)=>{
     if(res.locals.userId&&await prisma.telegramConnection.findUnique({where:{userId:res.locals.userId},select:{userId:true}})){
       res.json({data:{state:'connected',configured:sessionConfigured}});return;
     }
-    res.json({data:{state:'idle',configured:sessionConfigured}});return;
+    res.json({data:{state:id?'expired':'idle',configured:sessionConfigured}});return;
   }
   if(res.locals.userId&&((l.expected&&l.expected!==res.locals.userId)||(l.userId&&l.userId!==res.locals.userId))){res.status(403).json({error:{message:'Вход начат для другого аккаунта Telegram.'}});return;}
   if(l.state==='connected'&&l.userId){
     const token=randomBytes(32).toString('hex');await prisma.webSession.create({data:{tokenHash:hashToken(token),userId:l.userId,expiresAt:new Date(Date.now()+30*86400000)}});
     res.cookie('oskolok_session',token,{httpOnly:true,sameSite:'strict',secure:req.secure,maxAge:30*86400000,path:'/'});consumeLogin(id);
   }
-  res.json({data:{state:l.state,method:l.method,configured:sessionConfigured,error:l.error,passwordHint:l.passwordHint,codeViaApp:l.codeViaApp,botUrl:l.method==='bot'?`https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=connect_${id}`:undefined,qr:l.state==='qr'&&l.url?await QRCode.toDataURL(l.url,{width:256,margin:2}):undefined}});
+  res.json({data:{state:l.state,method:l.method,configured:sessionConfigured,error:l.error,passwordHint:l.passwordHint,codeViaApp:l.codeViaApp,expires:l.expires,qrExpires:l.qrExpires,botUrl:l.method==='bot'?`https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=connect_${id}`:undefined,qr:l.state==='qr'&&l.url?await QRCode.toDataURL(l.url,{width:256,margin:2}):undefined}});
 }));
 telegramLogin.post('/code',route(async(req:any,res:any)=>{
   const code=z.string().trim().min(1).max(64).parse(req.body?.code);
@@ -80,9 +85,23 @@ profileRoutes.get('/',route(async(_req:any,res:any)=>{
   const submissions=await prisma.lyricSubmission.findMany({where:{userId},select:{id:true,trackId:true,trackTitle:true,artistName:true,credit:true,status:true,reviewNote:true,createdAt:true},orderBy:{createdAt:'desc'}});
   const music=await prisma.profileMusic.findMany({where:{userId},orderBy:{addedAt:'desc'}});
   const playlists=await prisma.profilePlaylist.findMany({where:{userId},orderBy:{addedAt:'desc'}});
-  res.json({data:{userId,username:user?.username||null,telegramAvatarUrl:user?.avatarUrl||'',music:await Promise.all(music.map(m=>profileTrackWithArtwork(m.trackData))),playlists:playlists.map(p=>({id:p.id,playlistId:p.playlistId,title:p.title,artworkUrl:p.artworkUrl,tracks:JSON.parse(p.tracksData)})),currentTrack:profile?.playbackSeenAt&&Date.now()-profile.playbackSeenAt.getTime()<90000&&profile.currentTrackData?JSON.parse(profile.currentTrackData):null,telegramFullIntegration:profile?.telegramFullIntegration??true,telegramSyncError:profile?.telegramSyncError||null,submissions,displayName:profile?.displayName||user?.name||'Слушатель',avatarUrl:profile?.avatarUrl||user?.avatarUrl||'',bannerUrl:profile?.bannerUrl||'',bio:profile?.bio||'',contributions,telegramConnected:!!await prisma.telegramConnection.findUnique({where:{userId}}),telegramConfigured:sessionConfigured}});
+  res.json({data:{userId,username:user?.username||null,telegramAvatarUrl:user?.avatarUrl||'',music:await Promise.all(music.map(m=>profileTrackWithArtwork(m.trackData))),playlists:playlists.map(p=>({id:p.id,playlistId:p.playlistId,title:p.title,artworkUrl:p.artworkUrl,tracks:JSON.parse(p.tracksData)})),currentTrack:profile?.playbackSeenAt&&Date.now()-profile.playbackSeenAt.getTime()<90000&&profile.currentTrackData?JSON.parse(profile.currentTrackData):null,telegramFullIntegration:profile?.telegramFullIntegration??true,telegramSyncError:profile?.telegramSyncError||null,submissions,displayName:profile?.displayName||user?.name||'Слушатель',avatarUrl:profile?.avatarUrl||user?.avatarUrl||'',bannerUrl:profile?.bannerUrl||'',bio:profile?.bio||'',customization:readCustomization(profile),roles:await rolesForUser(userId).catch(()=>[]),rewards:await publicRewards(userId).catch(()=>({medals:[],achievements:[],achievementsUnlocked:0})),contributions,telegramConnected:!!await prisma.telegramConnection.findUnique({where:{userId}}),telegramConfigured:sessionConfigured}});
 }));
 profileRoutes.patch('/',route(async(req:any,res:any)=>{const data=z.object({displayName:z.string().trim().min(1).max(80),bio:z.string().max(500),avatarUrl:image.optional(),bannerUrl:image.optional()}).parse(req.body);res.json({data:await prisma.creatorProfile.upsert({where:{userId:res.locals.userId},create:{userId:res.locals.userId,...data},update:data})});}));
+/** Look & links: accent, theme, status, pronouns, location, social links, section visibility. */
+profileRoutes.patch('/customization',route(async(req:any,res:any)=>{
+  const userId=res.locals.userId;
+  try{
+    const input=profileCustomizationSchema.parse(req.body),current=await prisma.creatorProfile.findUnique({where:{userId}});
+    const data=customizationColumns(input,current?.profileVisibility);
+    const user=current?null:await prisma.user.findUnique({where:{id:userId}});
+    const saved=await prisma.creatorProfile.upsert({where:{userId},create:{userId,displayName:user?.name||'Слушатель',...data},update:data});
+    res.json({data:readCustomization(saved)});
+  }catch(e:any){
+    if(e instanceof ProfileValidationError||e?.name==='ZodError'){res.status(400).json({error:{code:'PROFILE_INVALID',message:e instanceof ProfileValidationError?e.message:e.issues?.[0]?.message||'Проверьте поля профиля.'}});return;}
+    throw e;
+  }
+}));
 profileRoutes.delete('/telegram',route(async(_req:any,res:any)=>{await clearNowPlayingOnExit(res.locals.userId);await disconnectSession(res.locals.userId);res.clearCookie('oskolok_session',{path:'/'});res.json({data:{ok:true}});}));
 profileRoutes.post('/lyrics',route(async(req:any,res:any)=>{
   const data=lyricSubmissionSchema.parse(req.body);
@@ -125,6 +144,7 @@ profileRoutes.post('/playlists',route(async(req:any,res:any)=>{
   const {playlistId}=z.object({playlistId:z.string().min(1).max(200)}).parse(req.body),userId=res.locals.userId;
   const playlist=await prisma.playlist.findFirst({where:{id:playlistId,userId},include:{tracks:{orderBy:{position:'asc'}}}});
   if(!playlist){res.status(404).json({error:{message:'Плейлист не найден.'}});return;}
+  await prisma.playlist.update({where:{id:playlistId},data:{isPublic:true}});
   const snapshot=playlist.tracks.map(t=>JSON.parse(t.trackData));
   const artworkUrl=playlist.artworkUrl||snapshot.find(t=>t.artworkUrl)?.artworkUrl||null;
   await prisma.profilePlaylist.upsert({where:{userId_playlistId:{userId,playlistId}},create:{userId,playlistId,title:playlist.title,artworkUrl,tracksData:JSON.stringify(snapshot)},update:{title:playlist.title,artworkUrl,tracksData:JSON.stringify(snapshot)}});

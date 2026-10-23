@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640"><defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f1420"/><stop offset="1" stop-color="#0b0710"/></linearGradient>
+ <radialGradient id="glow" cx=".78" cy=".35" r=".6"><stop offset="0" stop-color="#d0606e" stop-opacity=".55"/><stop offset="1" stop-color="#d0606e" stop-opacity="0"/></radialGradient>
+ <linearGradient id="ice" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".85"/><stop offset=".45" stop-color="#f0b3bb" stop-opacity=".55"/><stop offset="1" stop-color="#f0b3bb" stop-opacity=".05"/></linearGradient>
+ <linearGradient id="ice2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0b3bb" stop-opacity=".5"/><stop offset="1" stop-color="#ffffff" stop-opacity=".04"/></linearGradient>
+ <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="1280" height="640" fill="url(#bg)"/>
+<rect width="1280" height="640" fill="url(#glow)"/><g transform="translate(860 120)">
+ <polygon points="140,0 260,170 205,250 150,190" fill="url(#ice)" stroke="#ffffff" stroke-opacity=".3" stroke-width="1.5"/>
+ <polygon points="150,220 205,280 170,400 40,250" fill="url(#ice)" stroke="#ffffff" stroke-opacity=".3" stroke-width="1.5" transform="translate(-26 34) rotate(-6 120 300)"/>
+ <polygon points="40,250 170,400 60,430 -40,330" fill="url(#ice2)" transform="translate(-40 60)" stroke="#ffffff" stroke-opacity=".2"/>
+</g>
+<text x="96" y="250" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="34" letter-spacing="8" fill="#f0b3bb" fill-opacity=".9">ОСКОЛОК</text>
+<text x="92" y="360" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="100" font-weight="700" letter-spacing="-2" fill="#fbeff1">Что-то треснуло</text>
+<text x="96" y="430" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="36" fill="#e9cfd4" fill-opacity=".85">Мы уже чиним — попробуйте через минуту</text></svg>

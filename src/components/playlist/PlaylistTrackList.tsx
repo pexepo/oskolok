@@ -17,19 +17,24 @@ import {
 import { PlaylistTrackItem, Track } from '../../types/index.js';
 import { DndSortableTrackRow } from './DndSortableTrackRow.js';
 import { usePlaylistStore } from '../../stores/usePlaylistStore.js';
+import {VirtualTrackRows} from './VirtualTrackRows.js';
 
+import { useTranslation } from '../../stores/useLanguageStore.js';
 interface PlaylistTrackListProps {
   playlistId: string;
   items: PlaylistTrackItem[];
   filterQuery?: string;
+  readOnly?: boolean;
 }
 
 export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
   playlistId,
   items,
   filterQuery = '',
+  readOnly=false,
 }) => {
-  const { reorderPlaylistTracks } = usePlaylistStore();
+  const t = useTranslation();
+  const reorderPlaylistTracks = usePlaylistStore(s=>s.reorderPlaylistTracks);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -42,7 +47,7 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
     })
   );
 
-  const filteredItems = items.filter((item) => {
+  const filteredItems = React.useMemo(()=>items.filter((item) => {
     if (!filterQuery.trim()) return true;
     const q = filterQuery.toLowerCase();
     const title = item.track?.title || '';
@@ -51,11 +56,13 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
         ? item.track?.artist?.name || ''
         : String(item.track?.artist || '');
     return title.toLowerCase().includes(q) || artistName.toLowerCase().includes(q);
-  });
+  }),[items,filterQuery]);
 
-  const collection: Track[] = filteredItems.map((i) => i.track);
+  const collection: Track[] = React.useMemo(()=>filteredItems.map((i) => i.track),[filteredItems]);
+  const sortableIds=React.useMemo(()=>filteredItems.map(item=>item.trackId),[filteredItems]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (readOnly)return;
     if (playlistId.startsWith('soundcloud:') || playlistId.startsWith('spotify:')) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -73,9 +80,9 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
   if (items.length === 0) {
     return (
       <div className="py-16 text-center text-[#7188a3] dark:text-slate-400 space-y-2 bg-white/40 dark:bg-slate-900/40 border border-blue-100/50 dark:border-slate-800/80 rounded-2xl p-8">
-        <p className="text-base font-semibold text-[#162b50] dark:text-slate-100">Плейлист пока пуст</p>
+        <p className="text-base font-semibold text-[#162b50] dark:text-slate-100">{t('Плейлист пока пуст', 'This playlist is empty')}</p>
         <p className="text-xs text-[#7188a3] dark:text-slate-400 max-w-sm mx-auto">
-          Нажмите правой кнопкой мыши (ПКМ) на любом треке и выберите «Добавить в плейлист»
+          {t('Нажмите правой кнопкой мыши (ПКМ) на любом треке и выберите «Добавить в плейлист»', 'Right-click any track and choose “Add to playlist”')}
         </p>
       </div>
     );
@@ -84,8 +91,8 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
   if (filteredItems.length === 0) {
     return (
       <div className="py-12 text-center text-[#7188a3] dark:text-slate-400 space-y-1 bg-white/40 dark:bg-slate-900/40 border border-blue-100/50 dark:border-slate-800/80 rounded-2xl p-6">
-        <p className="text-base font-semibold text-[#162b50] dark:text-slate-100">Ничего не найдено</p>
-        <p className="text-xs text-[#7188a3] dark:text-slate-400">По запросу «{filterQuery}» треки не найдены</p>
+        <p className="text-base font-semibold text-[#162b50] dark:text-slate-100">{t('Ничего не найдено', 'Nothing found')}</p>
+        <p className="text-xs text-[#7188a3] dark:text-slate-400">{t(`По запросу «${filterQuery}» треки не найдены`, `No tracks match “${filterQuery}”`)}</p>
       </div>
     );
   }
@@ -93,12 +100,13 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext
-        items={items.map((i) => i.trackId)}
+        items={sortableIds}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-1">
-          {filteredItems.map((item, idx) => (
+        <VirtualTrackRows count={filteredItems.length}>
+          {idx=>{const item=filteredItems[idx];return (
             <DndSortableTrackRow
+              readOnly={readOnly}
               key={item.trackId}
               id={item.trackId}
               track={item.track}
@@ -106,8 +114,8 @@ export const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
               playlistId={playlistId}
               collection={collection}
             />
-          ))}
-        </div>
+          );}}
+        </VirtualTrackRows>
       </SortableContext>
     </DndContext>
   );

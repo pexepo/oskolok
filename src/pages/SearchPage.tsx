@@ -1,323 +1,249 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, NavLink } from 'react-router-dom';
-import { Search, Music, User, ListMusic, Play, X, Sparkles } from 'lucide-react';
+import { Search, X, Sparkles, Play, ArrowUpRight, Disc3 } from 'lucide-react';
 import { SearchResult, Track } from '../types/index.js';
 import { apiClient } from '../api/apiClient.js';
 import { TrackRow } from '../components/tracks/TrackRow.js';
-import { ArtworkImage } from '../components/common/ArtworkImage.js';
+import { ShardArtwork } from '../components/tracks/ShardArtwork.js';
 import { RecommendationShelf } from '../components/discovery/RecommendationShelf.js';
-import { LoadingState } from '../components/common/LoadingState.js';
+import { LoadingSurface, SkeletonCards, SkeletonRows } from '../components/common/Skeleton.js';
+import { HomeDailyMixes } from '../components/discovery/HomeDailyMixes.js';
+import { ConsentCard } from '../components/settings/ConsentCard.js';
 import { SearchSuggestions } from '../components/discovery/SearchSuggestions.js';
 import { useLibraryStore } from '../stores/useLibraryStore.js';
 import { usePlaylistStore } from '../stores/usePlaylistStore.js';
+import { usePlayerStore } from '../stores/usePlayerStore.js';
+import { useTranslation } from '../stores/useLanguageStore.js';
+import { UnreleasedSearchResults } from '../components/community/UnreleasedSearchResults.js';
+import { UNRELEASED_OPEN } from '../config/beta.js';
+import {ArtworkImage} from '../components/common/ArtworkImage.js';
+import {selectBestSearchResult} from '../utils/searchRanking.js';
+import {QueryVibeButton} from '../components/discovery/QueryVibeButton.js';
 
-type TabType = 'all' | 'tracks' | 'artists' | 'playlists' | 'collection';
+type TabType = 'all' | 'tracks' | 'artists' | 'albums' | 'playlists' | 'collection';
+
+/** The last answers for this session: going back to a query shows it at once instead of searching again. */
+const searchCache = new Map<string, { at: number; value: SearchResult }>();
+const cachedSearch = (q: string) => { const hit = searchCache.get(q.toLocaleLowerCase()); return hit && Date.now() - hit.at < 5 * 60_000 ? hit.value : null; };
+const rememberSearch = (q: string, value: SearchResult) => { searchCache.set(q.toLocaleLowerCase(), { at: Date.now(), value }); if (searchCache.size > 30) searchCache.delete(searchCache.keys().next().value!); };
+
+const norm = (text: string) => text.normalize('NFKC').toLocaleLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 export const SearchPage: React.FC = () => {
+  const t = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryParam = searchParams.get('q') || '';
 
   const [inputVal, setInputVal] = useState(queryParam);
-  const [focused,setFocused]=useState(false);
+  // Japanese/Chinese input: nothing is searched while a word is still being composed.
+  const [composing, setComposing] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [albumPage,setAlbumPage]=useState(1);
+  const [loadingAlbums,setLoadingAlbums]=useState(false);
+  const [albumError,setAlbumError]=useState('');
 
   const { likedTracks } = useLibraryStore();
   const { playlists } = usePlaylistStore();
+  const playCollection = usePlayerStore(s => s.playCollection);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync local input with queryParam
+  useEffect(() => { setInputVal(queryParam); setActiveTab('all'); }, [queryParam]);
+
   useEffect(() => {
-    setInputVal(queryParam);
-  }, [queryParam]);
+    if (composing || inputVal.trim() === queryParam) return;
+    const timer = setTimeout(() => setSearchParams(inputVal.trim() ? { q: inputVal.trim() } : {}, { replace: true }), 450);
+    return () => clearTimeout(timer);
+  }, [inputVal, queryParam, setSearchParams, composing]);
 
-  useEffect(()=>{
-    if(inputVal.trim()===queryParam)return;
-    const timer=setTimeout(()=>setSearchParams(inputVal.trim()?{q:inputVal.trim()}:{},{replace:true}),650);
-    return()=>clearTimeout(timer);
-  },[inputVal,queryParam,setSearchParams]);
-
-  // Handle input submit / search trigger
   const handleSearch = (q: string) => {
     const trimmed = q.trim();
-    if (trimmed) {
-      setSearchParams({ q: trimmed });
-    } else {
-      setSearchParams({});
-    }
+    setSearchParams(trimmed ? { q: trimmed } : {});
   };
 
-  // Search API execution
   useEffect(() => {
-    if (!queryParam.trim()) {
-      setResults(null);
-      setLoading(false);
-      return;
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
+    if (!queryParam.trim()) { setResults(null); setLoading(false); return; }
+    abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
     setLoading(true);
     setErrorMsg(null);
-
+    const cached = cachedSearch(queryParam.trim());
+    if (cached) { setResults(cached); setLoading(false); return; }
+    setAlbumPage(1);setLoadingAlbums(false);setAlbumError('');
     apiClient
       .search(queryParam.trim(), 1, 25, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
+        rememberSearch(queryParam.trim(), res);
         setResults(res);
-        if (res?.tracks && res.tracks.length > 0) {
-          apiClient.prefetchTrack(res.tracks[0].id).catch(() => {});
-        }
+        if (res?.tracks?.length) apiClient.prefetchTrack(res.tracks[0].id).catch(() => {});
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setErrorMsg(err.message || 'Ошибка выполнения поиска');
-          setResults(null);
-        }
+        if (err.name !== 'AbortError') { setErrorMsg(err.message || t('Поиск не удался', 'Search failed')); setResults(null); }
       })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [queryParam]);
 
-  // Local collection search matches
   const localMatches = useMemo(() => {
-    if (!queryParam.trim()) return { tracks: [], playlists: [] };
-    const q = queryParam.toLowerCase();
-    const tracks = likedTracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.artist?.name.toLowerCase().includes(q)
-    );
-    const matchedPlaylists = playlists.filter((p) =>
-      p.title.toLowerCase().includes(q)
-    );
-    return { tracks, playlists: matchedPlaylists };
+    if (!queryParam.trim()) return { tracks: [] as Track[], playlists: [] as typeof playlists };
+    const q = norm(queryParam);
+    return {
+      tracks: likedTracks.filter(tr => norm(`${tr.artist?.name || ''} ${tr.title}`).includes(q)),
+      playlists: playlists.filter(p => norm(p.title).includes(q)),
+    };
   }, [queryParam, likedTracks, playlists]);
 
+  const effectiveQuery = results?.correctedQuery || queryParam;
+  const best=results?selectBestSearchResult(results,effectiveQuery):undefined;
+  const topArtist=best?.type==='artist'?best.artist:undefined;
+  const topTrack=best?.type==='track'?best.track:undefined;
+  const topAlbum=best?.type==='album'?best.album:undefined;
+  const albums=results?.albums||[];
+  const isEmpty = !results || (results.tracks.length === 0 && results.artists.length === 0 && results.playlists.length === 0 && albums.length===0 && localMatches.tracks.length === 0 && localMatches.playlists.length===0);
+  const show = (tab: TabType) => activeTab === 'all' || activeTab === tab;
+  const loadMoreAlbums=async()=>{
+    const controller=abortControllerRef.current;
+    if(loadingAlbums||!controller||controller.signal.aborted)return;
+    setLoadingAlbums(true);setAlbumError('');
+    try{
+      const more=await apiClient.search(effectiveQuery,albumPage+1,25,controller.signal);
+      if(controller.signal.aborted)return;
+      setResults(current=>current?{...current,albums:[...new Map([...(current.albums||[]),...(more.albums||[])].map(album=>[album.id,album])).values()],pagination:{...current.pagination,sections:{...current.pagination.sections,albums:more.pagination.sections?.albums||{hasMore:false}}}}:current);
+      setAlbumPage(page=>page+1);
+    }catch(error){if(!controller.signal.aborted)setAlbumError(error instanceof Error?error.message:t('Не удалось загрузить альбомы','Could not load albums'));}
+    finally{if(!controller.signal.aborted)setLoadingAlbums(false);}
+  };
+
+  const tabs: Array<{ id: TabType; label: string; count?: number }> = [
+    { id: 'all', label: t('Все', 'All') },
+    { id: 'tracks', label: t('Треки', 'Tracks'), count: results?.tracks.length },
+    { id: 'artists', label: t('Исполнители', 'Artists'), count: results?.artists.length },
+    { id: 'albums', label: t('Альбомы', 'Albums'), count: albums.length },
+    { id: 'playlists', label: t('Плейлисты', 'Playlists'), count: results?.playlists.length },
+    { id: 'collection', label: t('В коллекции', 'In collection'), count: localMatches.tracks.length + localMatches.playlists.length },
+  ];
+
   return (
-    <div className="search-page max-w-6xl mx-auto space-y-8 pb-16 select-none pt-2">
-      {/* Search Header & Large Input (Section 4) */}
-      <div className="relative max-w-2xl mx-auto w-full search-shell" onFocus={()=>setFocused(true)} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}} onKeyDown={e=>{if(e.key==='Escape')setFocused(false);}}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSearch(inputVal);
-            setFocused(false);
-          }}
-          className="relative flex items-center group"
-        >
-          <Search
-            size={20}
-            className="absolute left-4 text-blue-600 transition-transform group-focus-within:scale-110"
-          />
-          <input
-            type="text"
-            autoFocus={window.matchMedia('(pointer: fine)').matches}
-            value={inputVal}
-            onChange={(e) => {
-              setInputVal(e.target.value);
-              // auto search on typing with slight debounce
-            }}
-            placeholder="Найти музыку..."
-            className="w-full bg-white/85 dark:bg-[#0c1320]/90 backdrop-blur-xl border border-blue-200/80 dark:border-slate-700/80 focus:border-blue-500 dark:focus:border-sky-400 rounded-2xl pl-12 pr-12 py-3.5 text-base text-[#162b50] dark:text-slate-100 placeholder-[#7188a3] dark:placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 dark:focus:ring-sky-500/20 shadow-[0_4px_24px_rgba(37,99,235,0.08)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all"
-          />
-          {inputVal && (
-            <button
-              type="button"
-              onClick={() => {
-                setInputVal('');
-                setSearchParams({});
-              }}
-              className="absolute right-4 p-1 rounded-full text-[#7188a3] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-white transition-colors cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </form>
-        {focused&&<SearchSuggestions query={inputVal} onChoose={()=>setFocused(false)}/>}
+    <div className="search-page">
+      <div className="search-hero">
+        <span className="eyebrow">{t('Поиск', 'Search')}</span>
+        <h1>{t('Найди свой', 'Find your')} <em>{t('осколок', 'shard')}</em></h1>
+        <div className="search-shell" onFocus={() => setFocused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false); }} onKeyDown={e => { if (e.key === 'Escape') setFocused(false); }}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSearch(inputVal); setFocused(false); }} className="search-field">
+            <Search size={20} aria-hidden="true" />
+            <input
+              type="search"
+              autoFocus={window.matchMedia('(pointer: fine)').matches}
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={(e) => { setComposing(false); setInputVal(e.currentTarget.value); }}
+              placeholder={t('Артист, трек, альбом или ссылка', 'Artist, track, album or link')}
+              aria-label={t('Поиск музыки', 'Search music')}
+            />
+            {inputVal && <button type="button" aria-label={t('Очистить', 'Clear')} onClick={() => { setInputVal(''); setSearchParams({}); }}><X size={16} /></button>}
+          </form>
+          {focused && !composing && <SearchSuggestions query={inputVal} onChoose={() => setFocused(false)} />}
+        </div>
+        {queryParam.trim() && <div className="search-tabs" role="tablist">
+          {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={activeTab === tab.id} onClick={() => {setFocused(false);setActiveTab(tab.id);}} className={activeTab === tab.id ? 'is-active' : ''}>
+            {tab.label}{tab.count ? <small>{tab.count}</small> : null}
+          </button>)}
+        </div>}
       </div>
 
-      {/* Category Tabs */}
-      {queryParam.trim() && (
-        <div className="search-tabs flex items-center justify-center gap-2 flex-wrap pt-1">
-          {[
-            { id: 'all', label: 'Все' },
-            { id: 'tracks', label: 'Треки' },
-            { id: 'artists', label: 'Исполнители' },
-            { id: 'playlists', label: 'Плейлисты' },
-            { id: 'collection', label: `В коллекции (${localMatches.tracks.length + localMatches.playlists.length})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabType)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 dark:bg-sky-500 text-white dark:text-slate-950 shadow-md shadow-blue-500/25 dark:shadow-[0_0_12px_rgba(56,189,248,0.4)] font-bold'
-                  : 'text-[#5a6e85] dark:text-slate-300 hover:text-[#162b50] dark:hover:text-white bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800 border border-blue-100/60 dark:border-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading ? (
-        <LoadingState label="Поиск среди осколков музыки…"/>
+      {loading && (!results || isEmpty) ? (
+        <LoadingSurface loading label={t('Ищем…', 'Searching…')} skeleton={<div className="search-skeleton"><div className="search-top"><div className="search-best crystal-slab"><SkeletonCards count={1} /></div><div className="search-top-tracks crystal-slab"><SkeletonRows rows={4} /></div></div></div>} />
       ) : errorMsg ? (
-        <div className="py-10 text-center text-red-600 bg-red-50/70 border border-red-100 rounded-2xl p-6 max-w-lg mx-auto">
-          {errorMsg}
-        </div>
+        <div className="search-message crystal-slab" role="alert">{errorMsg}<button className="text-button" onClick={() => handleSearch(queryParam)}>{t('Повторить', 'Retry')}</button></div>
       ) : !queryParam.trim() ? (
-        /* Empty State: Initial Search Welcome */
-        <><div className="search-welcome py-12 text-center space-y-4 max-w-md mx-auto">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-50 dark:bg-sky-500/15 border border-blue-100/80 dark:border-sky-500/30 flex items-center justify-center text-blue-600 dark:text-sky-400 shadow-sm">
-            <Search size={28} />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-xl font-semibold text-[#162b50] dark:text-slate-100">
-              Найдите музыку по душе
-            </h3>
-            <p className="text-xs text-[#5a6e85] dark:text-slate-400">
-              По умолчанию — каталог Spotify. Можно вставить ссылку на трек, альбом или плейлист.
-            </p>
-          </div>
-        </div><RecommendationShelf title="Собрано для вас"/></>
-      ) : !results ||
-        (results.tracks.length === 0 &&
-          results.artists.length === 0 &&
-          results.playlists.length === 0 &&
-          localMatches.tracks.length === 0) ? (
-        <div className="py-20 text-center text-[#7188a3] dark:text-slate-400 space-y-2">
-          <p className="text-lg font-semibold text-[#162b50] dark:text-slate-100">
-            Ничего не найдено по запросу «{queryParam}»
-          </p>
-          <p className="text-xs text-[#5a6e85] dark:text-slate-400">
-            Попробуйте изменить запрос или проверить написание
-          </p>
+        <div className="search-start">
+          <ConsentCard />
+          <HomeDailyMixes />
+          <RecommendationShelf title={t('Собрано для вас', 'Picked for you')} />
+        </div>
+      ) : isEmpty || !results ? (
+        <div className="search-message crystal-slab">
+          <strong>{t('Ничего не нашлось по запросу', 'Nothing found for')} «{queryParam}»</strong>
+          <span>{t('Проверьте написание или попробуйте только имя артиста.', 'Check the spelling or try just the artist name.')}</span>
         </div>
       ) : (
-        /* Results View */
-        <div className="space-y-10">
-          {results.catalogSource && <p className="text-xs text-[#5a6e85] dark:text-slate-400 px-1" role="status">
-            {results.catalogSource === 'spotify'
-              ? 'Каталог Spotify · звук подбирается из доступных источников'
-              : results.catalogFallbackReason === 'not_configured'
-                ? 'Каталог Deezer · для Spotify администратору нужно настроить ключи приложения'
-                : 'Каталог Deezer · Spotify временно недоступен'}
-          </p>}
-          {/* Local Collection Matches Section */}
-          {(activeTab === 'all' || activeTab === 'collection') &&
-            localMatches.tracks.length > 0 && (
-              <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-blue-600 dark:text-sky-400" />
-                  <h3 className="text-sm font-bold tracking-wide uppercase text-[#233a59] dark:text-slate-300">
-                    Найдено в вашей коллекции
-                  </h3>
-                </div>
-                <div className="space-y-1">
-                  {localMatches.tracks.map((track, idx) => (
-                    <TrackRow
-                      key={`local-${track.id}`}
-                      track={track}
-                      index={idx}
-                      collection={localMatches.tracks}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
+        <div className={`search-results${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
+          {results.correctedQuery && <p className="search-corrected" role="status"><Sparkles size={14} />{t('Показаны результаты для', 'Showing results for')} «{results.correctedQuery}»</p>}
 
-          {/* Tracks Section */}
-          {(activeTab === 'all' || activeTab === 'tracks') && results.tracks.length > 0 && (
-            <section className="space-y-3">
-              <h3 className="text-sm font-bold tracking-wide uppercase text-[#233a59] dark:text-slate-300">
-                Треки
-              </h3>
-              <div className="space-y-1">
-                {results.tracks.map((track, idx) => (
-                  <TrackRow
-                    key={track.id}
-                    track={track}
-                    index={idx}
-                    collection={results.tracks}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+          {activeTab === 'all' && best && <section className={`search-top ${results.tracks.length?'':'search-top--solo'}`}>
+            <div className="search-best crystal-slab">
+              <span className="eyebrow">{t('Лучший результат', 'Top result')}</span>
+              {topArtist ? <NavLink to={`/artist/${encodeURIComponent(topArtist.id)}`} className="search-best-link shard-hover">
+                <ShardArtwork src={topArtist.avatarUrl} alt={topArtist.name} index={4} portrait />
+                <div><h2>{topArtist.name}</h2><p>{t('Исполнитель', 'Artist')}{topArtist.followersCount ? ` · ${new Intl.NumberFormat().format(topArtist.followersCount)} ${t('подписчиков', 'followers')}` : ''}</p></div>
+                <ArrowUpRight size={20} className="search-best-go" />
+              </NavLink> : topAlbum?<NavLink to={`/release/${encodeURIComponent(topAlbum.id)}`} className="search-best-link shard-hover">
+                <ArtworkImage src={topAlbum.artworkUrl} alt={topAlbum.title} className="search-best-album"/>
+                <div><h2>{topAlbum.title}</h2><p>{t('Альбом','Album')}{topAlbum.artist?` · ${topAlbum.artist.name}`:''}</p></div>
+                <ArrowUpRight size={20} className="search-best-go" aria-hidden="true"/>
+              </NavLink>:topTrack && <button type="button" className="search-best-link shard-hover" onClick={() => playCollection(results.tracks, Math.max(0,results.tracks.findIndex(track=>track.id===topTrack.id)))}>
+                <ShardArtwork src={topTrack.artworkUrl} alt={topTrack.title} index={0} />
+                <div><h2>{topTrack.title}</h2><p>{t('Трек', 'Track')} · {topTrack.artist.name}</p></div>
+                <span className="search-best-play"><Play size={20} fill="currentColor" /></span>
+              </button>}
+              {(topTrack || topArtist || topAlbum?.artist) && <QueryVibeButton key={effectiveQuery} query={effectiveQuery}
+                seed={topTrack ? { kind: 'track', track: topTrack } : { kind: 'artist', name: (topArtist?.name || topAlbum?.artist?.name)!, tracks: results.tracks }} />}
+            </div>
+            {results.tracks.length>0&&<div className="search-top-tracks crystal-slab">
+              <h3>{t('Треки', 'Tracks')}</h3>
+              {results.tracks.slice(0, 4).map((track, idx) => <TrackRow key={track.id} track={track} index={idx} collection={results.tracks} />)}
+            </div>}
+          </section>}
 
-          {/* Artists Section */}
-          {(activeTab === 'all' || activeTab === 'artists') && results.artists.length > 0 && (
-            <section className="space-y-4">
-              <h3 className="text-sm font-bold tracking-wide uppercase text-[#233a59] dark:text-slate-300">
-                Исполнители
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {results.artists.map((artist) => (
-                  <NavLink
-                    key={artist.id}
-                    to={`/artist/${encodeURIComponent(artist.id)}`}
-                    className="group flex flex-col items-center text-center p-4 bg-white/60 dark:bg-slate-900/50 hover:bg-white/90 dark:hover:bg-slate-800/80 border border-blue-100/60 dark:border-slate-800 hover:border-blue-200/80 dark:hover:border-slate-700 rounded-2xl transition-all shadow-xs hover:shadow-md"
-                  >
-                    <ArtworkImage
-                      src={artist.avatarUrl}
-                      alt={artist.name}
-                      className="w-20 h-20 rounded-full mb-3 object-cover shadow-sm group-hover:scale-105 transition-transform"
-                    />
-                    <div className="font-semibold text-xs text-[#162b50] dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-sky-400 truncate w-full">
-                      {artist.name}
-                    </div>
-                    <div className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">Исполнитель</div>
-                  </NavLink>
-                ))}
-              </div>
-            </section>
-          )}
+          {show('collection') && localMatches.tracks.length > 0 && <section className="search-section">
+            <h3><Sparkles size={15} />{t('В вашей коллекции', 'In your collection')}</h3>
+            <div className="crystal-slab search-list">{localMatches.tracks.map((track, idx) => <TrackRow key={`local-${track.id}`} track={track} index={idx} collection={localMatches.tracks} />)}</div>
+          </section>}
+          {activeTab === 'collection' && localMatches.playlists.length > 0 && <section className="search-section">
+            <h3>{t('Ваши плейлисты', 'Your playlists')}</h3>
+            <div className="search-playlists">{localMatches.playlists.map((pl, i) => <NavLink key={pl.id} to={`/playlist/${encodeURIComponent(pl.id)}`} className="search-playlist crystal-slab shard-hover"><ShardArtwork src={pl.artworkUrl || pl.tracks?.[0]?.track.artworkUrl} alt={pl.title} index={i} small /><span><strong>{pl.title}</strong><small>{pl.trackCount || pl.tracks?.length || 0} {t('треков', 'tracks')}</small></span></NavLink>)}</div>
+          </section>}
 
-          {/* Playlists Section */}
-          {(activeTab === 'all' || activeTab === 'playlists') && results.playlists.length > 0 && (
-            <section className="space-y-4">
-              <h3 className="text-sm font-bold tracking-wide uppercase text-[#233a59] dark:text-slate-300">
-                Плейлисты
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {results.playlists.map((playlist) => (
-                  <NavLink
-                    key={playlist.id}
-                    to={`/playlist/${encodeURIComponent(playlist.id)}`}
-                    className="group flex items-center gap-3 p-3 bg-white/60 dark:bg-slate-900/50 hover:bg-white/90 dark:hover:bg-slate-800/80 border border-blue-100/60 dark:border-slate-800 hover:border-blue-200/80 dark:hover:border-slate-700 rounded-2xl transition-all shadow-xs hover:shadow-md"
-                  >
-                    <ArtworkImage
-                      src={playlist.artworkUrl}
-                      alt={playlist.title}
-                      className="w-14 h-14 rounded-xl object-cover shadow-xs group-hover:scale-105 transition-transform shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-xs text-[#162b50] dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-sky-400 truncate">
-                        {playlist.title}
-                      </div>
-                      <div className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">
-                        {playlist.trackCount || 0} треков
-                      </div>
-                    </div>
-                  </NavLink>
-                ))}
-              </div>
-            </section>
-          )}
+          {show('tracks') && results.tracks.length > (activeTab === 'all' ? 4 : 0) && <section className="search-section">
+            <h3>{activeTab === 'all' ? t('Ещё треки', 'More tracks') : t('Треки', 'Tracks')}</h3>
+            <div className="crystal-slab search-list">{results.tracks.slice(activeTab === 'all' ? 4 : 0).map((track, idx) => <TrackRow key={track.id} track={track} index={idx + (activeTab === 'all' ? 4 : 0)} collection={results.tracks} />)}</div>
+          </section>}
+
+          {UNRELEASED_OPEN && show('tracks') && <UnreleasedSearchResults query={queryParam} />}
+          {show('artists') && results.artists.length > 0 && <section className="search-section">
+            <h3>{t('Исполнители', 'Artists')}</h3>
+            <div className="search-artists">{results.artists.map((artist, i) => <NavLink key={artist.id} to={`/artist/${encodeURIComponent(artist.id)}`} className="search-artist shard-hover">
+              <ShardArtwork src={artist.avatarUrl} alt={artist.name} index={i + 2} portrait />
+              <strong>{artist.name}</strong><small>{t('Исполнитель', 'Artist')}</small>
+            </NavLink>)}</div>
+          </section>}
+
+          {show('albums') && albums.length>0 && <section className="search-section">
+            <h3><Disc3 size={16} aria-hidden="true"/>{t('Альбомы','Albums')}</h3>
+            <div className="search-albums">{albums.map(album=><NavLink key={album.id} to={`/release/${encodeURIComponent(album.id)}`} className="search-album">
+              <div className="search-album-cover"><ArtworkImage src={album.artworkUrl} alt={album.title} className="search-album-art"/><ArrowUpRight size={18} aria-hidden="true"/></div>
+              <strong title={album.title}>{album.title}</strong>
+              <small>{[album.artist?.name,album.date?.slice(0,4)].filter(Boolean).join(' · ')||t('Альбом','Album')}</small>
+            </NavLink>)}</div>
+            {results.pagination.sections?.albums?.hasMore&&<button type="button" className="secondary-button search-more-albums" disabled={loadingAlbums} onClick={()=>void loadMoreAlbums()}>{loadingAlbums?t('Загружаем…','Loading…'):t('Ещё альбомы','More albums')}</button>}
+            {albumError&&<p className="search-album-error" role="alert">{albumError}</p>}
+          </section>}
+          {activeTab==='albums'&&albums.length===0&&<p className="search-message crystal-slab">{t('Альбомы не найдены. Попробуйте название альбома или имя исполнителя.','No albums found. Try an album title or artist name.')}</p>}
+
+          {show('playlists') && results.playlists.length > 0 && <section className="search-section">
+            <h3>{t('Плейлисты', 'Playlists')}</h3>
+            <div className="search-playlists">{results.playlists.map((playlist, i) => <NavLink key={playlist.id} to={`/playlist/${encodeURIComponent(playlist.id)}`} className="search-playlist crystal-slab shard-hover">
+              <ShardArtwork src={playlist.artworkUrl} alt={playlist.title} index={i} small />
+              <span><strong>{playlist.title}</strong><small>{playlist.trackCount || 0} {t('треков', 'tracks')}</small></span>
+            </NavLink>)}</div>
+          </section>}
         </div>
       )}
     </div>

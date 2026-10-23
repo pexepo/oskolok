@@ -1,0 +1,127 @@
+[
+  {
+    "path": "/api/health",
+    "method": "GET",
+    "status": 200,
+    "ms": 82
+  },
+  {
+    "path": "/api/profile",
+    "method": "GET",
+    "status": 401,
+    "ms": 28
+  },
+  {
+    "path": "/api/admin/health",
+    "method": "GET",
+    "status": 401,
+    "ms": 3
+  },
+  {
+    "path": "/api/profile",
+    "method": "GET",
+    "status": 200,
+    "ms": 16
+  },
+  {
+    "path": "/api/profile",
+    "method": "PATCH",
+    "status": 200,
+    "ms": 104
+  },
+  {
+    "path": "/api/profile",
+    "method": "PATCH",
+    "status": 200,
+    "ms": 10
+  },
+  {
+    "path": "/api/imports/preview",
+    "method": "POST",
+    "status": 400,
+    "ms": 6
+  },
+  {
+    "path": "/api/playlists",
+    "method": "POST",
+    "status": 201,
+    "ms": 5
+  },
+  {
+    "path": "/api/playlists/3f282cfd-6cef-4902-b5c5-56c5970028c4",
+    "method": "DELETE",
+    "status": 200,
+    "ms": 8
+  },
+  {
+    "path": "/api/profile/customization",
+    "method": "PATCH",
+    "status": 200,
+    "ms": 6
+  },
+  {
+    "path": "/api/users/telegram:900000009",
+    "method": "GET",
+    "status": 200,
+    "ms": 3
+  },
+  {
+    "path": "/api/users/telegram:900000009/summary",
+    "method": "GET",
+    "status": 200,
+    "ms": 2
+  },
+  {
+    "path": "/api/users/telegram:900000009/lyrics",
+    "method": "GET",
+    "status": 200,
+    "ms": 2
+  },
+  {
+    "path": "/api/search?q=Daft%20Punk%20One%20More%20Time&limit=5",
+    "method": "GET",
+    "status": 200,
+    "ms": 667
+  },
+  {
+    "searchTracks": 10
+  },
+  {
+    "path": "/api/liked",
+    "method": "POST",
+    "status": 201,
+    "ms": 6
+  },
+  {
+    "path": "/api/liked/spotify%3A0DiWol3AO6WpXZgp0goxAV",
+    "method": "DELETE",
+    "status": 200,
+    "ms": 6
+  },
+  {
+    "path": "/api/tracks/spotify%3A0DiWol3AO6WpXZgp0goxAV",
+    "method": "GET",
+    "status": 200,
+    "ms": 3
+  },
+  {
+    "path": "/api/tracks/spotify%3A0DiWol3AO6WpXZgp0goxAV/playback",
+    "method": "GET",
+    "status": 200,
+    "ms": 3
+  },
+  {
+    "path": "/api/lyrics/spotify%3A0DiWol3AO6WpXZgp0goxAV",
+    "method": "GET",
+    "status": 200,
+    "ms": 6
+  },
+  {
+    "streamStatus": 206,
+    "type": "audio/mpeg",
+    "range": "bytes 0-65535/5161377",
+    "bytes": 65536,
+    "source": "cache",
+    "ms": 6
+  }
+]

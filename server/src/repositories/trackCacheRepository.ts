@@ -10,11 +10,11 @@ export class TrackCacheRepository {
     if (!cached) return null;
 
     if (new Date() > cached.expiresAt) {
-      // Expired metadata
-      return null;
+      // Durable metadata remains useful offline; transient stream URLs are discarded below.
     }
 
     const track = JSON.parse(cached.trackData) as Track;
+    if (new Date() > cached.expiresAt) delete track.streamUrl;
     // Strip stale Deezer/CDN preview URLs baked into old cache entries
     if (
       track.streamUrl &&

@@ -20,14 +20,14 @@ function signedInitData() {
   return params.toString();
 }
 
-function mutation(origin: string, authorization?: string, host = '127.0.0.1:5001') {
+function mutation(origin: string, authorization?: string, host = '127.0.0.1:5001', options: {method?:string; contentType?:string; length?:string} = {}) {
   const status = vi.fn().mockReturnThis();
   const json = vi.fn();
   const next = vi.fn() as NextFunction;
   const req = {
-    method: 'PUT', protocol: 'http',
-    get: (name: string) => ({ Origin: origin, Authorization: authorization, host })[name as 'Origin' | 'Authorization' | 'host'],
-    is: (type: string) => type === 'application/json',
+    method: options.method || 'PUT', protocol: 'http',
+    get: (name: string) => ({ Origin: origin, Authorization: authorization, host, 'Content-Length': options.length } as Record<string,string|undefined>)[name],
+    is: (type: string) => type === (options.contentType ?? 'application/json'),
   } as unknown as Request;
   requireTrustedMutation(req, { status, json } as unknown as Response, next);
   return { status, json, next };
@@ -55,5 +55,17 @@ describe('trusted mutation origin', () => {
   it('accepts the public HTTPS host through a tunnel without accepting HTTP downgrade', () => {
     expect(mutation('https://test.lhr.life', undefined, 'test.lhr.life').next).toHaveBeenCalledOnce();
     expect(mutation('http://test.lhr.life', undefined, 'test.lhr.life').status).toHaveBeenCalledWith(403);
+  });
+});
+
+describe('bodyless DELETE mutations', () => {
+  it('allows removing a like or playlist without a JSON body', () => {
+    expect(mutation('https://oskolok.example', undefined, undefined, {method:'DELETE', contentType:''}).next).toHaveBeenCalledOnce();
+  });
+  it('still rejects cross-origin deletion', () => {
+    expect(mutation('https://attacker.example', undefined, undefined, {method:'DELETE', contentType:''}).status).toHaveBeenCalledWith(403);
+  });
+  it('rejects a non-JSON DELETE body', () => {
+    expect(mutation('https://oskolok.example', undefined, undefined, {method:'DELETE', contentType:'text/plain',length:'7'}).status).toHaveBeenCalledWith(415);
   });
 });

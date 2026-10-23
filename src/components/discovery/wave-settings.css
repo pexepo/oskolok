@@ -1,0 +1,91 @@
+/* «Настроить Резонанс»: a side sheet in the manner of Yandex «Настроить Мою волну» — translucent,
+   docked to the bottom-right on desktop, a bottom sheet on phones; the living orb sits on top. */
+.wave-panel-root{--wp-bg:#f4f7fdeb;--wp-solid:#f4f7fd;--wp-ink:#14284a;--wp-muted:#5f7393;--wp-line:#d3ddee;--wp-chip:#ffffffb3;--wp-chip-hover:#ffffff;--wp-accent:#2563eb;--wp-accent-ink:#fff;--wp-accent-soft:#2563eb1f;position:fixed;inset:0;z-index:90;font-family:var(--sg-sans,system-ui,sans-serif)}
+.wave-panel-root.is-dark{--wp-bg:#0b1120e6;--wp-solid:#0b1120;--wp-ink:#e3ebfb;--wp-muted:#8d9cb9;--wp-line:#1f2b45;--wp-chip:#ffffff0d;--wp-chip-hover:#ffffff17;--wp-accent:#a8c6ff;--wp-accent-ink:#0b1426;--wp-accent-soft:#a8c6ff1f}
+.wave-panel-backdrop{position:absolute;inset:0;background:#02040c59;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.wave-sheet{position:absolute;right:clamp(12px,2.2vw,32px);bottom:clamp(12px,2.2vh,24px);width:min(440px,calc(100vw - 24px));height:min(780px,calc(100dvh - 24px));display:flex;flex-direction:column;background:var(--wp-bg);color:var(--wp-ink);border:1px solid var(--wp-line);border-radius:24px;box-shadow:0 24px 80px #0007,0 2px 10px #0003;backdrop-filter:blur(48px) saturate(160%);-webkit-backdrop-filter:blur(48px) saturate(160%);overflow:hidden;outline:none}
+
+.wave-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 8px 22px}
+.wave-sheet-head h2{margin:0;font-size:19px;font-weight:700;letter-spacing:-.015em}
+.wave-sheet-head-actions{display:flex;gap:8px}
+.wave-icon-button{width:36px;height:36px;display:grid;place-items:center;border-radius:999px;border:0;background:var(--wp-chip);color:var(--wp-ink);cursor:pointer;transition:background .18s,transform .18s,opacity .18s}
+.wave-icon-button.is-outline{background:transparent;box-shadow:inset 0 0 0 1px var(--wp-line)}
+.wave-icon-button:hover:not(:disabled){background:var(--wp-chip-hover)}
+.wave-icon-button:disabled{opacity:.35;cursor:default}
+
+.wave-sheet-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 18px 18px;display:grid;align-content:start;gap:22px;scrollbar-width:thin;scrollbar-color:var(--wp-line) transparent}
+
+.wave-hero{position:relative;height:clamp(170px,26vh,230px);margin:0 -18px;overflow:hidden}
+.wave-hero-orb,.wave-hero-orb canvas,.resonance-orb-fallback{position:absolute;inset:0;width:100%;height:100%;display:block}
+.resonance-orb-fallback{filter:blur(1px)}
+.wave-hero-caption{position:absolute;left:22px;right:22px;bottom:8px;z-index:1;display:grid;gap:2px}
+.wave-hero-caption p{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.wave-hero-caption small{font-size:12px;color:var(--wp-muted)}
+
+.wave-group{display:grid;gap:10px}
+.wave-group h3{margin:0;font-size:12px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--wp-muted)}
+.wave-chips{display:flex;flex-wrap:wrap;gap:8px}
+.wave-chip{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:8px 15px;border:0;border-radius:999px;background:var(--wp-chip);box-shadow:inset 0 0 0 1px var(--wp-line);color:var(--wp-ink);font:inherit;font-size:14px;font-weight:550;cursor:pointer;transition:background .18s,color .18s,box-shadow .18s,transform .15s}
+.wave-chip:hover{background:var(--wp-chip-hover)}
+.wave-chip:active,.wave-card:active,.wave-mood:active,.wave-segment:active{transform:scale(.97)}
+.wave-chip.is-active{background:var(--wp-accent);color:var(--wp-accent-ink);box-shadow:none}
+.wave-chips--scroll{flex-wrap:nowrap;overflow-x:auto;margin:0 -18px;padding:2px 18px 4px;scrollbar-width:none;scroll-snap-type:x proximity}
+.wave-chips--scroll::-webkit-scrollbar{display:none}
+.wave-chips--scroll .wave-chip{flex-shrink:0;scroll-snap-align:start}
+.wave-chip svg{opacity:.75}
+.wave-chip.is-active svg{opacity:1}
+.wave-chip-code{font-size:11px;font-weight:700;letter-spacing:.06em;opacity:.6}
+
+.wave-segments{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:18px;background:var(--wp-chip);box-shadow:inset 0 0 0 1px var(--wp-line)}
+.wave-segment{display:grid;gap:2px;padding:10px 12px;border:0;border-radius:14px;background:transparent;color:var(--wp-ink);font:inherit;text-align:left;cursor:pointer;transition:background .2s,box-shadow .2s}
+.wave-segment b{font-size:14px;font-weight:650}
+.wave-segment small{font-size:11.5px;line-height:1.3;color:var(--wp-muted)}
+.wave-segment.is-active{background:var(--wp-solid);box-shadow:0 2px 10px #0000001f,inset 0 0 0 1px var(--wp-line)}
+
+.wave-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.wave-card{display:grid;align-content:start;gap:4px;min-height:104px;padding:13px 12px;border:0;border-radius:18px;background:var(--wp-chip);box-shadow:inset 0 0 0 1px var(--wp-line);color:var(--wp-ink);font:inherit;text-align:left;cursor:pointer;transition:background .18s,box-shadow .18s,color .18s,transform .15s}
+.wave-card svg{color:var(--wp-accent);margin-bottom:4px}
+.wave-card b{font-size:14px;font-weight:650;line-height:1.2}
+.wave-card small{font-size:11.5px;line-height:1.3;color:var(--wp-muted)}
+.wave-card:hover{background:var(--wp-chip-hover)}
+.wave-card.is-active{background:var(--wp-accent);color:var(--wp-accent-ink);box-shadow:0 8px 24px var(--wp-accent-soft)}
+.wave-card.is-active svg,.wave-card.is-active small{color:inherit}
+.wave-card.is-active small{opacity:.78}
+
+/* Moods as glowing swatches, like the coloured circles of Yandex «Под настроение». */
+.wave-moods{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px 4px}
+.wave-mood{display:grid;justify-items:center;gap:7px;min-width:0;padding:6px 2px;hyphens:auto;overflow-wrap:anywhere;border:0;background:none;color:var(--wp-ink);font:inherit;font-size:12.5px;font-weight:550;text-align:center;cursor:pointer;border-radius:16px;transition:transform .15s}
+.wave-mood-swatch{width:54px;height:54px;border-radius:50%;background:conic-gradient(from 90deg,#5b8cff,#9b7bff,#35d0d8,#5b8cff);box-shadow:inset 0 -6px 14px #0003,inset 0 4px 10px #fff4;transition:transform .3s cubic-bezier(.34,1.5,.5,1),box-shadow .3s}
+.wave-mood:hover .wave-mood-swatch{transform:scale(1.06)}
+.wave-mood.is-active .wave-mood-swatch{transform:scale(1.08);box-shadow:0 0 0 3px var(--wp-solid),0 0 0 5px var(--wp-accent),0 8px 22px #0004}
+.wave-mood.is-active{font-weight:700}
+
+.wave-note{margin:0;font-size:12.5px;line-height:1.5;color:var(--wp-muted)}
+.wave-warning{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:12px 14px;border-radius:14px;font-size:13.5px;line-height:1.45;background:color-mix(in srgb,#f59e0b 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,#f59e0b 35%,transparent)}
+.wave-warning .text-button{font-weight:600;color:var(--wp-accent)}
+.wave-skeleton{display:grid;gap:18px}
+.wave-skeleton>div{display:grid;gap:10px}
+.wave-skeleton>div>div{display:flex;flex-wrap:wrap;gap:8px}
+.wave-skeleton .skeleton-line{display:block;width:120px;height:11px;border-radius:6px;background:var(--wp-line)}
+.wave-skeleton .skeleton-chip{display:block;width:84px;height:40px;border-radius:999px;background:var(--wp-line);opacity:.6}
+
+.wave-sheet-foot{display:flex;align-items:center;gap:14px;padding:12px 16px 16px 22px;border-top:1px solid var(--wp-line)}
+.wave-sheet-foot p{flex:1;margin:0;font-size:12.5px;line-height:1.4;color:var(--wp-muted)}
+.wave-primary{display:inline-flex;align-items:center;gap:8px;flex-shrink:0;border:0;border-radius:999px;padding:11px 22px;background:var(--wp-accent);color:var(--wp-accent-ink);font:inherit;font-size:14px;font-weight:650;cursor:pointer;box-shadow:0 10px 26px var(--wp-accent-soft);transition:transform .18s,opacity .18s}
+.wave-primary:hover:not(:disabled){transform:translateY(-1px)}
+.wave-primary:disabled{opacity:.7;cursor:progress}
+
+.wave-chip:focus-visible,.wave-card:focus-visible,.wave-segment:focus-visible,.wave-icon-button:focus-visible,.wave-primary:focus-visible{outline:2px solid var(--wp-accent);outline-offset:2px}
+.wave-mood:focus-visible{outline:none}
+.wave-mood:focus-visible .wave-mood-swatch{box-shadow:0 0 0 3px var(--wp-solid),0 0 0 5px var(--wp-accent)}
+
+@media (max-width:640px){
+  .wave-sheet{left:0;right:0;bottom:0;width:100%;height:min(92dvh,820px);border-radius:24px 24px 0 0;border-bottom:0}
+  .wave-sheet::before{content:'';position:absolute;top:7px;left:50%;width:44px;height:4px;margin-left:-22px;border-radius:4px;background:var(--wp-muted);opacity:.45}
+  .wave-sheet-head{padding-top:20px}
+  .wave-cards{grid-template-columns:1fr;gap:6px}
+  .wave-card{grid-template-columns:auto 1fr;min-height:0;column-gap:10px;align-items:center}
+  .wave-card svg{grid-row:span 2;margin:0}
+  .wave-sheet-foot{padding-bottom:max(16px,env(safe-area-inset-bottom))}
+}
+@media (prefers-reduced-motion:reduce){.wave-chip,.wave-card,.wave-mood,.wave-mood-swatch,.wave-segment,.wave-primary,.wave-icon-button{transition:none}}

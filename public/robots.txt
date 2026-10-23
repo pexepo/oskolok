@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /beta/status
+Disallow: /downloads/
+
+Sitemap: https://oskolok.lol/sitemap.xml

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ListMusic, Plus, Music } from 'lucide-react';
+import { ListMusic, Plus, Music, ArrowDownToLine } from 'lucide-react';
 import { usePlaylistStore } from '../stores/usePlaylistStore.js';
 import { Modal } from '../components/common/Modal.js';
 import { ArtworkImage } from '../components/common/ArtworkImage.js';
 
+import { useTranslation } from '../stores/useLanguageStore.js';
 export const PlaylistsPage: React.FC = () => {
+  const t = useTranslation();
   const { playlists, createPlaylist } = usePlaylistStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -23,8 +25,8 @@ export const PlaylistsPage: React.FC = () => {
   return (
     <div className="space-y-8 pb-12 select-none">
       <div>
-        <h1 className="text-3xl font-extrabold text-[#162b50] dark:text-slate-100 tracking-tight">Мои Плейлисты</h1>
-        <p className="text-sm text-[#5a6e85] dark:text-slate-400 mt-1">Персональные подборки треков</p>
+        <h1 className="text-3xl font-extrabold text-[#162b50] dark:text-slate-100 tracking-tight">{t('Мои Плейлисты', 'My playlists')}</h1>
+        <p className="text-sm text-[#5a6e85] dark:text-slate-400 mt-1">{t('Персональные подборки треков', 'Your personal track collections')}</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -38,11 +40,22 @@ export const PlaylistsPage: React.FC = () => {
           </div>
           <div className="mt-2.5 flex flex-col justify-start">
             <h4 className="font-bold text-xs text-[#162b50] dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
-              Новый плейлист
+              {t('Новый плейлист', 'New playlist')}
             </h4>
-            <p className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">Создать</p>
+            <p className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">{t('Создать', 'Create')}</p>
           </div>
         </button>
+
+        {/* Transfer from another platform: its own flow with a preview before anything is created */}
+        <NavLink to="/playlists/import" className="group text-left focus:outline-none cursor-pointer flex flex-col h-full">
+          <div className="w-full aspect-square rounded-xl bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border-2 border-dashed border-blue-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-sky-400 transition-all flex items-center justify-center text-[#7188a3] dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-sky-400">
+            <ArrowDownToLine size={30} strokeWidth={1.8} />
+          </div>
+          <div className="mt-2.5 flex flex-col justify-start">
+            <h4 className="font-bold text-xs text-[#162b50] dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">{t('Перенести плейлист', 'Transfer a playlist')}</h4>
+            <p className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">{t('Spotify, SoundCloud, файл', 'Spotify, SoundCloud, file')}</p>
+          </div>
+        </NavLink>
 
         {/* Existing Playlists */}
         {playlists.map((pl) => (
@@ -63,31 +76,31 @@ export const PlaylistsPage: React.FC = () => {
               <h4 className="font-bold text-xs text-[#162b50] dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
                 {pl.title}
               </h4>
-              <p className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">{pl.trackCount || 0} треков</p>
+              <p className="text-[11px] text-[#7188a3] dark:text-slate-400 mt-0.5">{t(`${pl.trackCount || 0} треков`, `${pl.trackCount || 0} tracks`)}</p>
             </div>
           </NavLink>
         ))}
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Создать новый плейлист">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('Создать новый плейлист', 'Create a new playlist')}>
         <form onSubmit={handleCreate} className="space-y-4 pt-1">
           <div>
-            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-300 mb-1">Название *</label>
+            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-300 mb-1">{t('Название *', 'Title *')}</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Мой плейлист"
+              placeholder={t('Мой плейлист', 'My playlist')}
               required
               className="w-full bg-white dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-[#162b50] dark:text-slate-100 placeholder-[#7188a3] dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 dark:focus:border-sky-400"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-300 mb-1">Описание</label>
+            <label className="block text-xs font-semibold text-[#7188a3] dark:text-slate-300 mb-1">{t('Описание', 'Description')}</label>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="Описание..."
+              placeholder={t('Описание...', 'Description...')}
               rows={3}
               className="w-full bg-white dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-[#162b50] dark:text-slate-100 placeholder-[#7188a3] dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 dark:focus:border-sky-400 resize-none"
             />
@@ -98,13 +111,13 @@ export const PlaylistsPage: React.FC = () => {
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 rounded-xl text-xs font-medium text-[#7188a3] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-200 hover:bg-blue-50 dark:hover:bg-slate-800 cursor-pointer"
             >
-              Отмена
+              {t('Отмена', 'Cancel')}
             </button>
             <button
               type="submit"
               className="px-5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 shadow-xs cursor-pointer"
             >
-              Создать
+              {t('Создать', 'Create')}
             </button>
           </div>
         </form>

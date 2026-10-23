@@ -113,6 +113,21 @@ export class QueueManager {
     }
   }
 
+  /** Long sessions (the endless wave) keep only `keep` played tracks behind the cursor, so memory stays flat. */
+  public trimPlayed(keep: number): void {
+    const extra = this.state.currentIndex - Math.max(0, keep);
+    if (extra <= 0) return;
+    const removed = this.state.playbackQueue.splice(0, extra);
+    this.state.currentIndex -= extra;
+    const left = new Set(this.state.playbackQueue.map(t => t.id)), gone = new Set(removed.map(t => t.id).filter(id => !left.has(id)));
+    this.state.sourceQueue = this.state.sourceQueue.filter(t => !gone.has(t.id));
+  }
+
+  /** Remove upcoming tracks (after the current one) that `drop` selects; the current track keeps playing. */
+  public dropUpcoming(drop: (track: Track) => boolean): void {
+    for (let i = this.state.playbackQueue.length - 1; i > this.state.currentIndex; i--) if (drop(this.state.playbackQueue[i])) this.removeFromQueue(i);
+  }
+
   public clearQueue(): void {
     this.state.sourceQueue = [];
     this.state.playbackQueue = [];

@@ -1,5 +1,10 @@
+import {useQuery} from '@tanstack/react-query';
+import { usePerformance } from '../../utils/performance.js';
+import {apiClient} from '../../api/apiClient.js';
+import {ShardArtwork} from '../tracks/ShardArtwork.js';
 import React, { useEffect, useState, useMemo } from 'react';
-import { motion, useMotionValue, useSpring, useReducedMotion } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useReducedMotion, useTransform, type MotionValue } from 'framer-motion';
+import { StarfieldBackdrop } from './StarfieldBackdrop.js';
 import { useThemeStore } from '../../stores/useThemeStore.js';
 
 export type ShardsDensity = 'full' | 'medium' | 'subtle';
@@ -277,10 +282,16 @@ const SHARDS_DATA: ShardConfig[] = [
   },
 ];
 
+// Phones: four big cover shards framing the hero; static shadows only (iOS
+// WebKit rasterises animated filters badly), movement via transform.
+const MOBILE_MASKS = ['/shards/shard_tl.png', '/shards/shard_tr.png', '/shards/shard_bl.png', '/shards/shard_br.png'];
+
 export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
   density = 'full',
   showCenterWave = true,
 }) => {
+  const recommendations=useQuery({queryKey:['home-shard-releases'],queryFn:()=>apiClient.getRecommendations(),staleTime:10*60*1000});
+  const covers=[...new Map((recommendations.data||[]).filter(track=>track.artworkUrl).map(track=>[track.release?.id||track.id,track.artworkUrl!])).values()].slice(0,4);
   const prefersReducedMotion = useReducedMotion();
   const [isTouch, setIsTouch] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse), (max-width: 700px)').matches);
 
@@ -301,89 +312,63 @@ export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
     return () => media.removeEventListener('change', update);
   }, []);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  // One constant set of shards for every tab: switching density moves the
+  // "camera" (zoom, blur, fade) instead of popping crystals in and out.
+  const activeShards = useMemo(() => SHARDS_DATA.filter(s=>s.depth===3||['shard_mini_top','shard_mini_cl','shard_mini_mr'].includes(s.id)), []);
+  const camera = density === 'full'
+    ? { scale: 1, opacity: 1, filter: 'blur(0px)' }
+    : density === 'medium'
+    ? { scale: 1.12, opacity: 0.5, filter: 'blur(3px)' }
+    : { scale: 1.2, opacity: 0.3, filter: 'blur(7px)' };
+  const still = density !== 'full';
+
+  useEffect(() => {
     if (isTouch || prefersReducedMotion) return;
-    const { innerWidth, innerHeight } = window;
-    const normX = (e.clientX / innerWidth - 0.5) * 2;
-    const normY = (e.clientY / innerHeight - 0.5) * 2;
-    rawMouseX.set(normX);
-    rawMouseY.set(normY);
-  };
-
-  const handleMouseLeave = () => {
-    rawMouseX.set(0);
-    rawMouseY.set(0);
-  };
-
-  // Filter shards based on density
-  const activeShards = useMemo(() => {
-    if (density === 'subtle') {
-      // Keep the two large glass shards. The old depth PNGs were visibly
-      // pixelated at the viewport edges and are intentionally excluded.
-      return SHARDS_DATA.filter((s) => ['shard_tl', 'shard_br'].includes(s.id));
-    }
-    if (density === 'medium') {
-      // Keep 4 main shards + 3 satellites
-      return SHARDS_DATA.filter((s) =>
-        ['shard_tl', 'shard_bl', 'shard_tr', 'shard_br', 'shard_mini_top', 'shard_mini_cl', 'shard_mini_mr'].includes(s.id)
-      );
-    }
-    return SHARDS_DATA.filter((s) => s.id !== 'shard_depth_left' && s.id !== 'shard_depth_right');
-  }, [density]);
+    const move = (e: MouseEvent) => {
+      rawMouseX.set((e.clientX / window.innerWidth - 0.5) * 2);
+      rawMouseY.set((e.clientY / window.innerHeight - 0.5) * 2);
+    };
+    window.addEventListener('mousemove', move, { passive: true });
+    return () => window.removeEventListener('mousemove', move);
+  }, [isTouch, prefersReducedMotion, rawMouseX, rawMouseY]);
 
   const { isDark } = useThemeStore();
-  const densityOpacity = density === 'full' ? 1 : density === 'medium' ? 0.65 : 0.4;
+  const level = usePerformance(s => s.level);
+
+  // Economy mode: no layers, no images, no animation — just the page colour.
+  if (level === 'lite') return <div className="shards-stage shards-stage--lite absolute inset-0 pointer-events-none" aria-hidden="true" />;
 
   // iOS WebKit may rasterize animated SVG filters and large blur layers as
   // opaque rectangles. Keep the crystalline identity with static CSS facets.
-  if (isTouch) return <div className={`mobile-shards-backdrop mobile-shards-backdrop--${density} absolute inset-0 pointer-events-none`} aria-hidden="true">
-    <i className="mobile-shard mobile-shard--left" />
-    <i className="mobile-shard mobile-shard--right" />
-    {density !== 'subtle' && <>
-      <i className="mobile-shard mobile-shard--lower" />
-      <i className="mobile-shard mobile-shard--spark" />
-    </>}
-  </div>;
+  if (isTouch) return <>
+    <StarfieldBackdrop className={`starfield--${density}`} />
+    <div className={`mobile-shards-backdrop mobile-cover-stage mobile-cover-stage--${density} absolute inset-0 pointer-events-none`} aria-hidden="true">
+      {MOBILE_MASKS.map((mask, i) => <div key={mask} className={`mobile-cover-shard mobile-cover-shard--${i}`}>
+        <ShardArtwork src={covers[i]} alt="" mask={mask} natural index={i} className="shard-artwork--hero" />
+      </div>)}
+    </div>
+  </>;
 
   return (
     <div
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0"
+      className={`shards-stage shards-stage--${density} absolute inset-0 pointer-events-none overflow-hidden select-none z-0`}
       style={{
         background: isDark
-          ? 'radial-gradient(ellipse at 50% 50%, #0c1c38 0%, #080f1e 40%, #050912 80%, #03060c 100%)'
+          ? 'radial-gradient(ellipse at 50% 46%, #0d1a33 0%, #0a1222 38%, #070b14 72%, #04060b 100%)'
           : 'radial-gradient(ellipse at 50% 46%, #f5f8fc 0%, #edf3f9 45%, #e6eff7 100%)',
         transition: 'background 0.4s ease',
       }}
     >
-      {/* Ambient Blue Halo Blurs behind Shards */}
-      <div
-        className={`absolute top-[12%] left-[12%] w-[320px] h-[320px] rounded-full pointer-events-none transition-all duration-500 ${
-          isDark ? 'bg-blue-600/30 blur-[100px]' : 'bg-blue-400/10 blur-[80px]'
-        }`}
-      />
-      <div
-        className={`absolute bottom-[10%] left-[12%] w-[340px] h-[340px] rounded-full pointer-events-none transition-all duration-500 ${
-          isDark ? 'bg-blue-600/30 blur-[100px]' : 'bg-blue-400/10 blur-[80px]'
-        }`}
-      />
-      <div
-        className={`absolute top-[12%] right-[12%] w-[320px] h-[320px] rounded-full pointer-events-none transition-all duration-500 ${
-          isDark ? 'bg-blue-600/30 blur-[100px]' : 'bg-blue-400/10 blur-[80px]'
-        }`}
-      />
-      <div
-        className={`absolute bottom-[10%] right-[12%] w-[340px] h-[340px] rounded-full pointer-events-none transition-all duration-500 ${
-          isDark ? 'bg-blue-600/30 blur-[100px]' : 'bg-blue-400/10 blur-[80px]'
-        }`}
-      />
+      {/* Night sky: painted once, only a few sparkles animate. Replaces the
+          old blur(100px) halos, which cost a full-screen filter each. */}
+      <StarfieldBackdrop className={`starfield--${density}`} />
 
-      {/* Center ambient glow in dark mode */}
-      {isDark && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[360px] rounded-full bg-blue-600/20 blur-[110px] pointer-events-none" />
-      )}
-
+      <motion.div
+        className="shards-camera absolute inset-0"
+        initial={false}
+        animate={camera}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
+      >
       {/* SVG Orbital Curves & Center Line */}
       <svg
         className="original-orbits absolute inset-0 w-full h-full pointer-events-none"
@@ -418,7 +403,7 @@ export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
         </defs>
 
         {/* Left Orbital Curve */}
-        {density !== 'subtle' && (
+        {(
           <motion.path
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
@@ -435,7 +420,7 @@ export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
         )}
 
         {/* Right Orbital Curve */}
-        {density !== 'subtle' && (
+        {(
           <motion.path
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
@@ -472,7 +457,7 @@ export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
       </svg>
 
       {/* Shards Container scaled relative to aspect */}
-      <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: densityOpacity }}>
+      <div className="absolute inset-0 w-full h-full pointer-events-none">
         {activeShards.map((shard) => {
           const depthMultiplier =
             shard.depth === 1 ? 5 : shard.depth === 2 ? 9 : shard.depth === 3 ? 16 : 22;
@@ -481,51 +466,44 @@ export const ShardsBackground: React.FC<ShardsBackgroundProps> = ({
             <ShardElement
               key={shard.id}
               config={shard}
+              cover={covers[['shard_tl','shard_bl','shard_tr','shard_br'].indexOf(shard.id)]}
               depthMultiplier={depthMultiplier}
               smoothMouseX={smoothMouseX}
               smoothMouseY={smoothMouseY}
-              prefersReducedMotion={Boolean(prefersReducedMotion)}
+              prefersReducedMotion={Boolean(prefersReducedMotion) || still}
               isDark={isDark}
             />
           );
         })}
       </div>
+      </motion.div>
     </div>
   );
 };
 
 interface ShardElementProps {
   config: ShardConfig;
+  cover?: string;
   depthMultiplier: number;
-  smoothMouseX: any;
-  smoothMouseY: any;
+  smoothMouseX: MotionValue<number>;
+  smoothMouseY: MotionValue<number>;
   prefersReducedMotion: boolean;
   isDark: boolean;
 }
 
 const ShardElement: React.FC<ShardElementProps> = ({
   config,
+  cover,
   depthMultiplier,
   smoothMouseX,
   smoothMouseY,
   prefersReducedMotion,
   isDark,
 }) => {
-  const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 });
-
-  useEffect(() => {
-    if (prefersReducedMotion) return;
-    const unsubX = smoothMouseX.on('change', (v: number) => {
-      setParallaxOffset((prev) => ({ ...prev, x: v * depthMultiplier }));
-    });
-    const unsubY = smoothMouseY.on('change', (v: number) => {
-      setParallaxOffset((prev) => ({ ...prev, y: v * depthMultiplier }));
-    });
-    return () => {
-      unsubX();
-      unsubY();
-    };
-  }, [smoothMouseX, smoothMouseY, depthMultiplier, prefersReducedMotion]);
+  // Parallax is bound straight to motion values: the transform updates on the
+  // compositor without re-rendering React on every mouse move.
+  const parallaxX = useTransform(smoothMouseX, (v: number) => (prefersReducedMotion ? 0 : v * depthMultiplier));
+  const parallaxY = useTransform(smoothMouseY, (v: number) => (prefersReducedMotion ? 0 : v * depthMultiplier));
 
   const introVariants = {
     initial: {
@@ -585,8 +563,8 @@ const ShardElement: React.FC<ShardElementProps> = ({
         top: config.top,
         width: config.width,
         zIndex: config.depth === 3 ? 10 : config.depth === 4 ? 20 : 5,
-        transform: `translate(${parallaxOffset.x}px, ${parallaxOffset.y}px)`,
-        transition: 'transform 0.1s ease-out',
+        x: parallaxX,
+        y: parallaxY,
       }}
     >
       <motion.div
@@ -599,7 +577,7 @@ const ShardElement: React.FC<ShardElementProps> = ({
           transition={idleTransition}
         >
           <div className="original-reactive-shard relative">
-            <img src={config.src} alt="" className={`original-shard-core ${config.depth === 3 ? 'original-shard-core--glass' : ''} w-full h-auto object-contain select-none pointer-events-none`} style={{ filter: shardGlow }} draggable={false}/>
+            {config.depth===3&&cover?<ShardArtwork src={cover} alt="" mask={config.src} index={config.id.length} className="shard-artwork--hero" natural/>:<img src={config.src} alt="" className={`original-shard-core ${config.depth === 3 ? 'original-shard-core--glass' : ''} w-full h-auto object-contain select-none pointer-events-none`} style={{ filter: shardGlow }} draggable={false}/>}
           </div>
         </motion.div>
       </motion.div>

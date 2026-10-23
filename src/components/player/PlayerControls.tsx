@@ -1,9 +1,11 @@
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1 } from 'lucide-react';
+import { Shuffle, Repeat, Repeat1 } from 'lucide-react';
+import { PlayerIcon } from './PlayerIcon.js';
 import { RepeatMode } from '../../types/index.js';
 import { clsx } from 'clsx';
 import LumaSpin from '../ui/luma-spin.js';
 
+import { useTranslation } from '../../stores/useLanguageStore.js';
 interface PlayerControlsProps {
   isPlaying: boolean;
   isBuffering: boolean;
@@ -29,10 +31,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onChangeRepeatMode,
   size = 'md',
 }) => {
+  const t = useTranslation();
   const iconSizes = {
-    sm: { main: 18, sub: 16, playBtn: 'w-8 h-8' },
-    md: { main: 20, sub: 18, playBtn: 'w-10 h-10' },
-    lg: { main: 28, sub: 22, playBtn: 'w-14 h-14' },
+    sm: { main: 18, sub: 16, play: 32, playBtn: 'w-8 h-8' },
+    md: { main: 22, sub: 18, play: 40, playBtn: 'w-10 h-10' },
+    lg: { main: 30, sub: 22, play: 58, playBtn: 'w-16 h-16' },
   }[size];
 
   const renderRepeatIcon = () => {
@@ -58,7 +61,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             ? 'text-blue-600 dark:text-sky-400 bg-blue-50 dark:bg-slate-800'
             : 'text-[#5a6e85] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-100 hover:bg-blue-50/70 dark:hover:bg-slate-800/60'
         )}
-        title={shuffle ? 'Перемешивание включено' : 'Перемешивание выключено'}
+        title={shuffle ? t('Перемешивание включено', 'Shuffle on') : t('Перемешивание выключено', 'Shuffle off')}
       >
         <Shuffle size={iconSizes.sub} />
         {shuffle && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 dark:bg-sky-400 rounded-full" />}
@@ -68,9 +71,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       <button
         onClick={onPrevious}
         className="p-2 rounded-full text-[#5a6e85] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-100 hover:bg-blue-50/70 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-        title="Предыдущий трек (P)"
+        title={t('Предыдущий трек (P)', 'Previous track (P)')}
       >
-        <SkipBack size={iconSizes.main} />
+        <PlayerIcon name="prev" size={iconSizes.main} />
       </button>
 
       {/* Play/Pause Button */}
@@ -78,17 +81,15 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         onClick={onTogglePlay}
         disabled={isBuffering}
         className={clsx(
-          'rounded-full bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-600 hover:brightness-105 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 dark:shadow-[0_0_20px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer',
+          'player-shard-play flex items-center justify-center hover:scale-105 active:scale-95 transition-transform duration-150 cursor-pointer',
           iconSizes.playBtn
         )}
-        title={isPlaying ? 'Пауза (Space)' : 'Воспроизвести (Space)'}
+        title={isPlaying ? t('Пауза (Space)', 'Pause (Space)') : t('Воспроизвести (Space)', 'Play (Space)')}
       >
         {isBuffering ? (
-          <LumaSpin size="md" label="Буферизация трека" />
-        ) : isPlaying ? (
-          <Pause size={iconSizes.main} className="fill-white" />
+          <LumaSpin size="md" label={t('Буферизация трека', 'Buffering track')} />
         ) : (
-          <Play size={iconSizes.main} className="fill-white ml-0.5" />
+          <PlayerIcon name={isPlaying ? 'pause' : 'play'} size={iconSizes.play} />
         )}
       </button>
 
@@ -96,9 +97,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       <button
         onClick={onNext}
         className="p-2 rounded-full text-[#5a6e85] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-100 hover:bg-blue-50/70 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-        title="Следующий трек (N)"
+        title={t('Следующий трек (N)', 'Next track (N)')}
       >
-        <SkipForward size={iconSizes.main} />
+        <PlayerIcon name="next" size={iconSizes.main} />
       </button>
 
       {/* Repeat Button */}
@@ -110,7 +111,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             ? 'text-blue-600 dark:text-sky-400 bg-blue-50 dark:bg-slate-800'
             : 'text-[#5a6e85] dark:text-slate-400 hover:text-[#162b50] dark:hover:text-slate-100 hover:bg-blue-50/70 dark:hover:bg-slate-800/60'
         )}
-        title={`Повтор: ${repeatMode}`}
+        title={repeatMode === 'off' ? t('Повтор выключен', 'Repeat off') : repeatMode === 'one' ? t('Повтор одного трека', 'Repeat one') : t('Повтор всех треков', 'Repeat all')}
       >
         {renderRepeatIcon()}
         {repeatMode !== 'off' && (

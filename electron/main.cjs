@@ -137,7 +137,25 @@ function createWindow() {
     tryLoadServer();
   }
 
+  // App links (profiles opened from lyrics) become a second app window that
+  // shares this session; everything else goes to the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    let internal = false;
+    try {
+      const target = new URL(url), current = new URL(mainWindow.webContents.getURL());
+      internal = target.protocol === 'file:' ? current.protocol === 'file:' : target.origin === current.origin;
+    } catch {}
+    if (internal) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 1100,
+          height: 800,
+          backgroundColor: '#080e1b',
+          autoHideMenuBar: true,
+        },
+      };
+    }
     shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -157,6 +175,13 @@ async function ensureBackendServer() {
       return;
     }
 
+    // Source launches must share the configured database with web and Mini App.
+    if (!app.isPackaged) {
+      const sourceServer=path.join(__dirname,'../dist-server/server.js');
+      await import(pathToFileURL(sourceServer).href);
+      logServerMessage('[Main] Started server using the project database');
+      return;
+    }
     const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR;
     const dataDir = isPortable
       ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'Oskolok-Data')

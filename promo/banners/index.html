@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Осколок — баннеры v3</title>
+    <style>
+      @font-face { font-family: "Onest Oskolok"; src: url(../oskolok-drop/assets/fonts/onest-cyr.woff2) format("woff2"); font-weight: 100 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Onest Oskolok"; src: url(../oskolok-drop/assets/fonts/onest-lat.woff2) format("woff2"); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: "Unbounded Oskolok"; src: url(../oskolok-drop/assets/fonts/unbounded-cyr.woff2) format("woff2"); font-weight: 200 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Unbounded Oskolok"; src: url(../oskolok-drop/assets/fonts/unbounded-lat.woff2) format("woff2"); font-weight: 200 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: "Cormorant Oskolok"; src: url(../oskolok-drop/assets/fonts/cormorant-cyr-500.woff2) format("woff2"); font-weight: 500; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Cormorant Oskolok"; src: url(../oskolok-drop/assets/fonts/cormorant-lat-500.woff2) format("woff2"); font-weight: 500; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      :root { --ink: #f2f8ff; --muted: #a9c3e8; --accent: #8fd3ff; --edge: rgba(170, 215, 255, 0.28); --rim: rgba(220, 240, 255, 0.5);
+        --sans: "Onest Oskolok", system-ui, sans-serif; --display: "Unbounded Oskolok", sans-serif; --serif: "Cormorant Oskolok", Georgia, serif; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { background: #061848; overflow: hidden; }
+      body { font-family: var(--sans); color: var(--ink); }
+      .bn { display: none; position: relative; overflow: hidden; background: radial-gradient(120% 95% at 50% 0%, #3a7cf0 0%, #1a4cc0 35%, #0c2a7a 70%, #061848 100%); }
+      .bn:target { display: block; }
+      .sq { width: 1080px; height: 1350px; } .wide { width: 1920px; height: 1080px; } .tall { width: 1080px; height: 1920px; }
+      .abs { position: absolute; }
+      .layer { position: absolute; left: 0; top: 0; pointer-events: none; }
+      .blob { position: absolute; border-radius: 50%; }
+      .glass { background: linear-gradient(130deg, rgba(80, 140, 230, 0.5), rgba(20, 50, 120, 0.45) 48%, rgba(60, 120, 220, 0.5)); border: 1px solid var(--edge); border-top-color: var(--rim);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 1px rgba(140, 210, 255, 0.18), 0 24px 70px rgba(0, 20, 80, 0.45); }
+      .ico { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .ico.fill { fill: currentColor; stroke: none; }
+      .disp { font-family: var(--display); font-weight: 900; letter-spacing: -0.045em; line-height: 1.08; white-space: nowrap; }
+      .grad { background: linear-gradient(180deg, #ffffff 30%, #bfe6ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .stroke { color: rgba(190, 228, 255, 0.13); background: none; }
+      .acc { background: linear-gradient(90deg, #8fd8ff, #ffffff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .band { position: absolute; white-space: nowrap; font-family: var(--display); font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
+      .brand { position: absolute; left: 60px; top: 54px; display: flex; align-items: center; gap: 14px; z-index: 20; }
+      .brand img { width: 58px; height: 58px; filter: drop-shadow(0 0 18px rgba(90, 160, 255, 0.6)); }
+      .brand b { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: -0.03em; }
+      .num { position: absolute; right: 60px; top: 70px; font-size: 20px; font-weight: 700; letter-spacing: 0.24em; color: #cfe6ff; z-index: 20; }
+      .kick { position: absolute; left: 62px; top: 168px; font-size: 22px; font-weight: 700; letter-spacing: 0.32em; color: var(--accent); z-index: 20; }
+      .h { position: absolute; left: 58px; top: 206px; font-size: 94px; z-index: 20; }
+      .hl { position: relative; display: block; }
+      .sub { position: absolute; left: 62px; font-size: 30px; line-height: 1.38; color: #dbeeff; z-index: 20; }
+      .url { position: absolute; left: 60px; bottom: 52px; height: 70px; padding: 0 30px; border-radius: 35px; display: flex; align-items: center; gap: 12px; font-size: 29px; font-weight: 650; z-index: 20; }
+      .url .ico { width: 26px; height: 26px; color: var(--accent); }
+      .chip { display: inline-flex; align-items: center; gap: 12px; height: 62px; padding: 0 26px 0 20px; border-radius: 31px; font-size: 24px; font-weight: 650; white-space: nowrap; }
+      .chip i { display: block; width: 15px; height: 15px; border-radius: 50%; }
+      .stage { position: absolute; left: 0; top: 0; width: 100%; height: 100%; perspective: 2200px; z-index: 10; }
+      .mascot { position: absolute; object-fit: contain; filter: drop-shadow(0 30px 60px rgba(0, 20, 70, 0.45)); z-index: 6; }
+      .orb { position: absolute; filter: drop-shadow(0 0 70px rgba(90, 160, 255, 0.85)); z-index: 8; }
+      .wm { font-family: var(--display); font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; white-space: nowrap; }
+      .callout { position: absolute; display: flex; align-items: center; white-space: nowrap; z-index: 12; }
+      .callout b { font-size: 22px; font-weight: 650; padding: 9px 16px; border-radius: 13px; border: 1px solid var(--edge); background: rgba(16, 50, 130, 0.88); }
+      .callout i { display: block; width: 70px; height: 2px; background: linear-gradient(90deg, #8fd3ff, rgba(143, 211, 255, 0.2)); }
+      .callout s { display: block; width: 11px; height: 11px; border-radius: 50%; background: #8fd3ff; box-shadow: 0 0 14px #8fd3ff; }
+      .lap { position: absolute; width: 1000px; height: 640px; transform-style: preserve-3d; }
+      .lap .lid { position: absolute; left: 0; top: 0; width: 1000px; height: 640px; transform-origin: 50% 100%; transform-style: preserve-3d; }
+      .lap .lf { position: absolute; left: 0; top: 0; width: 1000px; height: 640px; border-radius: 30px 30px 10px 10px; background: #06102a; transform: translateZ(1.5px); backface-visibility: hidden; box-shadow: inset 0 0 0 2px rgba(170, 210, 255, 0.4), 0 0 140px rgba(110, 190, 255, 0.4); }
+      .lap .lb { position: absolute; left: 0; top: 0; width: 1000px; height: 640px; border-radius: 30px 30px 10px 10px; transform: rotateY(180deg) translateZ(1.5px); backface-visibility: hidden; background: linear-gradient(160deg, #e3ecfa, #a8b8d4 50%, #eef3fb); }
+      .lap .scr { position: absolute; left: 18px; top: 18px; width: 964px; height: 592px; border-radius: 10px; overflow: hidden; background: linear-gradient(160deg, #1a3a8a, #0d2260 60%, #173a90); }
+      .lap .notch { position: absolute; left: 445px; top: 0; width: 110px; height: 20px; border-radius: 0 0 10px 10px; background: #06102a; }
+      .lap .base { position: absolute; left: 0; top: 640px; width: 1000px; height: 660px; transform-origin: 50% 0; transform: rotateX(90deg); transform-style: preserve-3d; }
+      .lap .deck { position: absolute; left: 0; top: 0; width: 1000px; height: 660px; border-radius: 8px 8px 34px 34px; background: linear-gradient(180deg, #d6e0f0, #aebbd4); }
+      .lap .edge { position: absolute; left: 0; top: 0; width: 1000px; height: 660px; border-radius: 8px 8px 34px 34px; background: #8494b4; }
+      .lap .kb { position: absolute; left: 60px; top: 40px; width: 880px; height: 330px; border-radius: 12px; background: #34405c; display: grid; grid-template-columns: repeat(14, 1fr); gap: 6px; padding: 10px; }
+      .lap .kb i { display: block; border-radius: 6px; background: #1a2238; }
+      .lap .tp { position: absolute; left: 320px; top: 400px; width: 360px; height: 220px; border-radius: 18px; background: linear-gradient(180deg, #c3cee2, #a9b6cf); }
+      .w-head { position: absolute; left: 0; top: 0; width: 964px; height: 64px; display: flex; align-items: center; padding: 0 24px; gap: 12px; }
+      .w-head img { width: 34px; height: 34px; } .w-head b { font-family: var(--display); font-size: 22px; font-weight: 700; }
+      .w-nav { position: absolute; left: 352px; top: 12px; width: 260px; height: 42px; border-radius: 21px; display: flex; align-items: center; justify-content: space-around; font-size: 15px; color: #d6e8ff; }
+      .w-search { position: absolute; left: 120px; top: 96px; width: 724px; height: 78px; border-radius: 39px; display: flex; align-items: center; gap: 18px; padding: 0 30px; font-size: 36px; font-weight: 500; }
+      .w-search .ico { width: 32px; height: 32px; color: var(--accent); }
+      .w-row { display: flex; align-items: center; gap: 18px; height: 88px; padding: 0 22px 0 12px; border-radius: 22px; margin-bottom: 12px; }
+      .w-row img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; }
+      .w-row .m { flex: 1; } .w-row .t { font-size: 25px; font-weight: 650; white-space: nowrap; } .w-row .a { font-size: 17px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+      .badge { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 17px; font-size: 16px; font-weight: 600; border: 1px solid var(--edge); background: rgba(10, 18, 36, 0.5); }
+      .badge i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+      .phone { position: absolute; width: 380px; height: 800px; transform-style: preserve-3d; }
+      .phone .slab { position: absolute; left: 0; top: 0; width: 380px; height: 800px; border-radius: 64px; background: linear-gradient(135deg, #7f97c8, #2a3c6c 40%, #93acdc 62%, #2b3e70); }
+      .phone .back { position: absolute; left: 0; top: 0; width: 380px; height: 800px; border-radius: 64px; transform: translateZ(-20px) rotateY(180deg); backface-visibility: hidden; background: linear-gradient(150deg, #3c7af0, #1a3e9c 60%, #4c8cf8); }
+      .phone .front { position: absolute; left: 0; top: 0; width: 380px; height: 800px; border-radius: 64px; background: #050c22; transform: translateZ(1px); transform-style: preserve-3d; box-shadow: inset 0 0 0 2px rgba(190, 220, 255, 0.55), 0 0 110px rgba(110, 190, 255, 0.4); }
+      .phone .scr { position: absolute; left: 14px; top: 14px; width: 352px; height: 772px; transform-style: preserve-3d; }
+      .phone .sbg { position: absolute; left: 0; top: 0; width: 352px; height: 772px; border-radius: 50px; background: linear-gradient(180deg, #2a5ad0 0%, #143a98 45%, #0b2462 100%); }
+      .phone .island { position: absolute; left: 128px; top: 12px; width: 96px; height: 30px; border-radius: 15px; background: #000; }
+      .phone .glare { position: absolute; left: 0; top: 0; width: 352px; height: 772px; border-radius: 50px; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.13) 45%, transparent 60%); }
+      .m-status { position: absolute; left: 34px; top: 16px; width: 284px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 650; }
+      .m-top { position: absolute; left: 26px; top: 64px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; letter-spacing: 0.14em; color: #e0efff; }
+      .m-top .ico { width: 20px; height: 20px; }
+      .L { position: absolute; left: 0; width: 352px; }
+      .m-cover { left: 26px; top: 104px; width: 300px; height: 300px; border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 20, 70, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.3); }
+      .m-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .m-prog { top: 428px; display: flex; align-items: center; gap: 10px; padding: 0 26px; font-size: 14px; color: var(--muted); }
+      .m-bar { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); }
+      .m-bar i { position: absolute; left: 0; top: 0; width: 21%; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #8fd3ff, #ffffff); }
+      .m-title { top: 466px; text-align: center; font-size: 34px; font-weight: 750; letter-spacing: -0.02em; }
+      .m-artist { top: 512px; text-align: center; font-size: 21px; color: #c4dcf8; }
+      .m-ctrl { top: 560px; height: 90px; }
+      .m-ctrl .b { position: absolute; top: 18px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; color: #eef6ff; }
+      .m-ctrl .b .ico { width: 28px; height: 28px; }
+      .m-ctrl .pp { top: 0; width: 90px; height: 90px; border-radius: 50%; color: #12357f; background: radial-gradient(circle at 35% 28%, #ffffff, rgba(190, 230, 255, 0.95) 40%, rgba(90, 170, 255, 0.95)); box-shadow: 0 12px 30px rgba(10, 40, 120, 0.5), 0 0 40px rgba(140, 210, 255, 0.6); }
+      .m-ctrl .pp .ico { width: 38px; height: 38px; }
+      .m-act { top: 670px; height: 54px; display: flex; justify-content: center; gap: 16px; }
+      .m-act .a { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #eef6ff; }
+      .m-act .a .ico { width: 24px; height: 24px; }
+      .m-lyr .tabs { position: absolute; left: 22px; top: 100px; width: 308px; height: 52px; border-radius: 26px; display: flex; padding: 4px; }
+      .m-lyr .tabs span { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 650; border-radius: 22px; color: #dbeaff; }
+      .m-lyr .tabs span.on { background: #f3f9ff; color: #12306c; }
+      .m-lyr .ln { position: absolute; left: 26px; width: 310px; font-size: 30px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.15; color: rgba(140, 158, 192, 0.6); }
+      .tg-ava { position: absolute; left: 106px; top: 90px; width: 140px; height: 140px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255, 255, 255, 0.15); }
+      .tg-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .tg-name { position: absolute; left: 0; top: 248px; width: 352px; text-align: center; font-size: 27px; font-weight: 650; }
+      .tg-st { position: absolute; left: 0; top: 288px; width: 352px; text-align: center; font-size: 18px; color: #9fdcff; }
+      .tg-music { position: absolute; left: 18px; top: 336px; width: 316px; height: 86px; border-radius: 20px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: linear-gradient(90deg, rgba(42, 171, 238, 0.38), rgba(42, 171, 238, 0.12)); border: 1px solid rgba(94, 181, 247, 0.55); box-shadow: 0 0 50px rgba(42, 171, 238, 0.6); }
+      .tg-music .pl { width: 50px; height: 50px; border-radius: 50%; background: #2aabee; display: flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+      .tg-music .pl .ico { width: 20px; height: 20px; margin-left: 3px; }
+      .tg-music .mt { flex: 1; font-size: 20px; font-weight: 650; white-space: nowrap; } .tg-music .ma { font-size: 15px; color: #c8e8ff; margin-top: 3px; font-weight: 450; }
+      .tg-eq { display: flex; gap: 4px; align-items: flex-end; height: 30px; } .tg-eq i { display: block; width: 5px; border-radius: 3px; background: #9fdcff; }
+      .tg-row { position: absolute; left: 18px; width: 316px; height: 62px; border-radius: 16px; background: rgba(255, 255, 255, 0.05); }
+      .card { position: absolute; width: 220px; height: 290px; border-radius: 26px; padding: 13px; z-index: 9; }
+      .card .art { width: 194px; height: 194px; border-radius: 17px; }
+      .card .ct { margin-top: 13px; font-size: 21px; font-weight: 650; line-height: 1.2; } .card .cs { margin-top: 5px; font-size: 16px; color: var(--muted); }
+      .toast { position: absolute; border-radius: 28px; padding: 26px 30px; background: linear-gradient(150deg, rgba(40, 90, 200, 0.96), rgba(16, 44, 120, 0.97)); border: 1px solid rgba(190, 225, 255, 0.4); box-shadow: 0 40px 100px rgba(0, 20, 70, 0.6); z-index: 14; }
+      .pb { position: absolute; height: 60px; padding: 0 24px 0 16px; border-radius: 30px; display: flex; align-items: center; gap: 11px; font-size: 24px; font-weight: 650; white-space: nowrap; z-index: 12; }
+      .pb .ico { width: 26px; height: 26px; color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <section class="bn wide" id="hero-16x9" data-focus="470,330" data-seed="1">
+      <div class="band stroke" style="left: -120px; top: 20px; font-size: 130px; transform: rotate(-5deg)">ОСКОЛОК ✦ ВАША МУЗЫКА ✦ ОСКОЛОК ✦ ВАШИ ГРАНИ ✦ ОСКОЛОК</div>
+      <div class="band" style="left: -80px; top: 930px; font-size: 110px; color: rgba(120, 160, 255, 0.14); transform: rotate(3deg)">DEEZER ✦ SPOTIFY ✦ SOUNDCLOUD ✦ YOUTUBE ✦ ЯНДЕКС МУЗЫКА ✦ DEEZER</div>
+      <img class="orb" src="../oskolok-drop/assets/logo.png" alt="" style="left: 330px; top: 180px; width: 280px" />
+      <div class="abs echoT" style="left: 110px; top: 480px; z-index: 20"><span class="wm grad" style="font-size: 176px">Осколок</span></div>
+      <div class="abs" style="left: 120px; top: 690px; font-family: var(--serif); font-size: 62px; color: #dcefff; z-index: 20">ваша музыка, ваши грани</div>
+      <div class="abs" style="left: 116px; top: 800px; display: flex; gap: 12px; z-index: 20"><span class="chip glass">Все каталоги в одном поиске</span><span class="chip glass">Текст по слогам</span><span class="chip glass">«Моя волна»</span><span class="chip glass">Трек в Telegram</span></div>
+      <img class="mascot" src="../oskolok-drop/assets/mascot-cheer-still.png" alt="" style="left: 1250px; top: 40px; height: 1030px" />
+      <div class="url glass" style="left: 116px; bottom: 70px"><span>oskolok.lol</span><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg></div>
+    </section>
+
+    <section class="bn tall" id="hero-9x16" data-focus="540,330" data-seed="2">
+      <div class="band stroke" style="left: -200px; top: 700px; font-size: 150px; transform: rotate(-8deg)">ОСКОЛОК ✦ ОСКОЛОК ✦ ОСКОЛОК ✦ ОСКОЛОК</div>
+      <div class="band" style="left: -200px; top: 1640px; font-size: 120px; color: rgba(120, 160, 255, 0.14); transform: rotate(6deg)">ВАША МУЗЫКА ✦ ВАШИ ГРАНИ ✦ ВАША МУЗЫКА</div>
+      <img class="orb" src="../oskolok-drop/assets/logo.png" alt="" style="left: 395px; top: 190px; width: 290px" />
+      <div class="abs echoT" style="left: 0; width: 1080px; text-align: center; top: 520px; z-index: 20"><span class="wm grad" style="font-size: 152px">Осколок</span></div>
+      <div class="abs" style="left: 0; width: 1080px; text-align: center; top: 712px; font-family: var(--serif); font-size: 60px; color: #dcefff; z-index: 20">ваша музыка, ваши грани</div>
+      <img class="mascot" src="../oskolok-drop/assets/mascot-cheer-still.png" alt="" style="left: 90px; top: 770px; height: 1060px" />
+      <div class="url glass" style="left: 315px; bottom: 70px; width: 450px; justify-content: center"><span>oskolok.lol</span><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg></div>
+    </section>
+
+    <section class="bn sq" id="f1-search" data-focus="540,900" data-seed="3">
+      <div class="band stroke" style="left: -100px; top: 560px; font-size: 120px; transform: rotate(-6deg)">DEEZER ✦ SPOTIFY ✦ SOUNDCLOUD ✦ YOUTUBE ✦</div>
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">01 / 07</div>
+      <div class="kick">ПОИСК</div>
+      <div class="h disp echoT"><span class="hl grad">ОДИН ПОИСК —</span><span class="hl acc">ВСЕ КАТАЛОГИ</span></div>
+      <div class="sub" style="top: 440px; width: 900px">Deezer, Spotify, SoundCloud, YouTube и Яндекс Музыка — одна строка.</div>
+      <div class="stage" style="perspective-origin: 540px 700px"><div class="lap" data-screen="search" style="left: 40px; top: 560px; transform: rotateX(-16deg) rotateY(-10deg) scale(0.86)"></div></div>
+      <div class="abs" style="left: 40px; top: 1040px; z-index: 12"><span class="chip glass" style="transform: rotate(-6deg)"><i style="background: #a238ff"></i>Deezer</span></div>
+      <div class="abs" style="left: 760px; top: 640px; z-index: 12"><span class="chip glass" style="transform: rotate(5deg)"><i style="background: #1ed760"></i>Spotify</span></div>
+      <div class="abs" style="left: 790px; top: 1090px; z-index: 12"><span class="chip glass" style="transform: rotate(4deg)"><i style="background: #ff5500"></i>SoundCloud</span></div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <section class="bn sq" id="f2-lyrics" data-focus="300,700" data-seed="4">
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">02 / 07</div>
+      <div class="kick">ТЕКСТЫ</div>
+      <div class="abs" style="left: 58px; top: 210px; z-index: 20; font-weight: 850; letter-spacing: -0.035em; font-size: 104px; line-height: 1.12">
+        <div style="color: rgba(120, 140, 180, 0.4); filter: blur(1.5px)">Текст по словам</div>
+        <div><span style="color: #f6f9ff; text-shadow: 0 0 40px rgba(150, 220, 255, 0.7)">и по сло</span><span style="color: rgba(190, 220, 255, 0.4)">гам</span></div>
+        <div class="disp grad" style="font-size: 104px; font-weight: 900">ПЕРЕВОД —</div>
+        <div style="font-size: 34px; font-weight: 450; color: #cfe6ff; letter-spacing: 0; margin-top: 12px">translation — in one tap</div>
+      </div>
+      <div class="sub" style="top: 760px; width: 470px">Синхронный текст по словам и слогам, перевод и пояснения Genius.</div>
+      <div class="stage" style="perspective-origin: 780px 900px"><div class="phone" data-screen="lyrics" style="left: 590px; top: 490px; transform: rotateY(-22deg) rotateX(6deg) rotateZ(4deg) scale(0.86)"></div></div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <section class="bn sq" id="f3-wave" data-focus="700,820" data-seed="5">
+      <div class="abs" style="left: 330px; top: 470px; width: 720px; height: 720px; border-radius: 50%; background: conic-gradient(from 40deg, #3d9bff, #7ad8ff, #b9f0ff, #6fb0ff, #4d7dff, #3d9bff); filter: blur(26px); opacity: 0.85; z-index: 5"></div>
+      <div class="abs" style="left: 395px; top: 535px; width: 590px; height: 590px; border-radius: 50%; z-index: 5; background: radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.35), rgba(30, 80, 190, 0.9) 42%, rgba(12, 40, 120, 0.96) 70%); box-shadow: inset 0 0 70px rgba(170, 230, 255, 0.6)"></div>
+      <canvas class="layer waves" width="1080" height="1350" style="z-index: 7"></canvas>
+      <img class="mascot" src="../oskolok-drop/assets/mascot-still.png" alt="" style="left: 440px; top: 420px; height: 880px" />
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">03 / 07</div>
+      <div class="kick">РЕКОМЕНДАЦИИ</div>
+      <div class="h disp echoT"><span class="hl grad">МОЯ</span><span class="hl acc">ВОЛНА</span></div>
+      <div class="sub" style="top: 440px; width: 560px">Бесконечный поток, который подстраивается под тебя — с каждым треком точнее.</div>
+      <div class="card glass" style="left: 50px; top: 690px; transform: rotate(-5deg)"><div class="art" style="background: radial-gradient(circle at 30% 30%, #9ff0ff, #3d8bff 60%, #12357f)"></div><div class="ct">Похоже на «глупыйсвин»</div><div class="cs">ева киллер и не только</div></div>
+      <div class="card glass" style="left: 220px; top: 870px; transform: rotate(4deg)"><div class="art" style="background: radial-gradient(circle at 70% 20%, #ffffff, #7fd4ff 45%, #2054d6)"></div><div class="ct">Новое для тебя</div><div class="cs">свежие релизы</div></div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <section class="bn sq" id="f4-player" data-focus="760,850" data-seed="6">
+      <div class="band stroke" style="left: -100px; top: 560px; font-size: 140px; transform: rotate(-7deg)">ПЛЕЕР ✦ ПЛЕЕР ✦ ПЛЕЕР ✦</div>
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">04 / 07</div>
+      <div class="kick">ПЛЕЕР</div>
+      <div class="h disp echoT" style="font-size: 88px"><span class="hl grad">ПЛЕЕР, КОТОРЫЙ</span><span class="hl grad">ЧУВСТВУЕТ <span style="display: inline-block; padding: 0 18px; border-radius: 16px; background: linear-gradient(90deg, #3d9bff, #6fd0ff); -webkit-text-fill-color: #fff">БИТ.</span></span></div>
+      <div class="sub" style="top: 430px; width: 920px">И помнит, где ты остановился — продолжит с той же секунды.</div>
+      <div class="stage" style="perspective-origin: 760px 900px"><div class="phone exploded" data-screen="player" style="left: 560px; top: 520px; transform: rotateY(-34deg) rotateX(8deg) scale(0.86)"></div></div>
+      <div class="callout" style="left: 120px; top: 640px"><b>Обложки из каталога</b><i></i><s></s></div>
+      <div class="callout" style="left: 150px; top: 840px"><b>Таймкод до секунды</b><i></i><s></s></div>
+      <div class="callout" style="left: 60px; top: 990px"><b>Очередь · повтор · перемешка</b><i></i><s></s></div>
+      <div class="toast" style="left: 60px; top: 1100px; width: 560px; transform: rotate(-3deg)">
+        <div style="font-size: 25px; font-weight: 650">Продолжим с того же места?</div>
+        <div style="display: flex; align-items: center; gap: 16px; margin-top: 14px"><div style="height: 50px; padding: 0 22px; border-radius: 25px; display: flex; align-items: center; font-size: 20px; font-weight: 650; color: #12357f; background: linear-gradient(180deg, #ffffff, #cfeaff)">Продолжить с 0:23</div><span style="font-size: 18px; color: #cfe2ff">ева киллер — глупыйсвин</span></div>
+      </div>
+    </section>
+
+    <section class="bn sq" id="f5-telegram" data-focus="760,800" data-seed="7">
+      <div class="band stroke" style="left: -100px; top: 1080px; font-size: 130px; transform: rotate(-5deg)">TELEGRAM ✦ TELEGRAM ✦ TELEGRAM</div>
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">05 / 07</div>
+      <div class="kick">TELEGRAM</div>
+      <div class="h disp echoT"><span class="hl grad">ТВОЙ ТРЕК —</span><span class="hl grad">В ПРОФИЛЕ</span><span class="hl" style="color: #6fd2ff; text-shadow: 0 0 40px rgba(110, 210, 255, 0.6)">TELEGRAM</span></div>
+      <div class="sub" style="top: 560px; width: 440px">Друзья видят, что играет прямо сейчас. Плюс Mini App в мессенджере.</div>
+      <div class="stage" style="perspective-origin: 780px 900px"><div class="phone" data-screen="tg" style="left: 600px; top: 500px; transform: rotateY(-20deg) rotateX(5deg) rotateZ(-3deg) scale(0.9)"></div></div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <section class="bn sq" id="f6-transfer" data-focus="760,900" data-seed="8">
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">06 / 07</div>
+      <div class="kick">ПЕРЕНОС</div>
+      <div class="h disp echoT"><span class="hl grad">ПЕРЕНЕСИ</span><span class="hl acc">СВОЮ МУЗЫКУ</span></div>
+      <div class="sub" style="top: 440px; width: 920px">Плейлисты из Spotify, Яндекс Музыки и SoundCloud — по ссылке или файлом CSV.</div>
+      <div class="abs" style="left: 440px; top: 620px; width: 580px; height: 580px; z-index: 9">
+        <div style="position: absolute; inset: 0; clip-path: polygon(0% 30%, 40% 3%, 96% 20%, 84% 86%, 25% 100%); background: linear-gradient(140deg, rgba(190, 235, 255, 0.85), rgba(80, 150, 255, 0.7) 55%, rgba(150, 210, 255, 0.7))"></div>
+        <div style="position: absolute; inset: 3px; clip-path: polygon(0% 30%, 40% 3%, 96% 20%, 84% 86%, 25% 100%); background: linear-gradient(160deg, rgba(30, 80, 190, 0.95), rgba(16, 46, 130, 0.97))"></div>
+        <div style="position: absolute; left: 130px; top: 220px; font-size: 42px; font-weight: 700">Моя коллекция</div>
+        <div style="position: absolute; left: 130px; top: 280px; font-size: 27px; color: var(--accent)">+1 248 треков</div>
+        <div style="position: absolute; left: 130px; top: 334px; display: flex; gap: 12px">
+          <div style="width: 80px; height: 80px; border-radius: 14px; overflow: hidden"><img src="../oskolok-drop/assets/cover.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover" /></div>
+          <div style="width: 80px; height: 80px; border-radius: 14px; background: radial-gradient(circle at 30% 30%, #7fd4ff, #2054d6)"></div>
+          <div style="width: 80px; height: 80px; border-radius: 14px; background: radial-gradient(circle at 30% 30%, #b6fff0, #2fc6d8)"></div>
+        </div>
+      </div>
+      <div class="abs" style="left: 60px; top: 660px; display: flex; flex-direction: column; gap: 30px; z-index: 12">
+        <span class="chip glass" style="height: 72px; font-size: 28px; transform: rotate(-4deg)"><i style="background: #1ed760; box-shadow: 0 0 16px #1ed760"></i>Spotify</span>
+        <span class="chip glass" style="height: 72px; font-size: 28px; margin-left: 50px; transform: rotate(3deg)"><i style="background: #ffcc00; box-shadow: 0 0 16px #ffcc00"></i>Яндекс Музыка</span>
+        <span class="chip glass" style="height: 72px; font-size: 28px; margin-left: 10px; transform: rotate(-2deg)"><i style="background: #ff5500; box-shadow: 0 0 16px #ff5500"></i>SoundCloud</span>
+      </div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <section class="bn sq" id="f7-platforms" data-focus="540,880" data-seed="9">
+      <div class="band stroke" style="left: -100px; top: 560px; font-size: 130px; transform: rotate(-6deg)">WINDOWS ✦ MACOS ✦ ANDROID ✦ ВЕБ ✦</div>
+      <div class="brand"><img src="../oskolok-drop/assets/logo.png" alt="" /><b>Осколок</b></div><div class="num">07 / 07</div>
+      <div class="kick">ПЛАТФОРМЫ</div>
+      <div class="h disp echoT"><span class="hl grad">ВЕЗДЕ,</span><span class="hl acc">ГДЕ ТЫ</span></div>
+      <div class="sub" style="top: 440px; width: 920px">Windows, macOS, Android, веб и Telegram. Обновления приходят сами — без переустановки.</div>
+      <div class="stage" style="perspective-origin: 540px 900px">
+        <div class="lap" data-screen="home" style="left: -40px; top: 590px; transform: rotateX(-15deg) rotateY(14deg) scale(0.72)"></div>
+        <div class="phone" data-screen="player" style="left: 690px; top: 600px; transform: rotateY(-24deg) rotateX(4deg) scale(0.74)"></div>
+      </div>
+      <div class="pb glass" style="left: 60px; top: 600px"><svg class="ico" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>Windows</div>
+      <div class="pb glass" style="left: 350px; top: 560px"><svg class="ico" viewBox="0 0 24 24"><rect width="20" height="13" x="2" y="4" rx="2" /><path d="M1 20h22" /></svg>macOS</div>
+      <div class="pb glass" style="left: 820px; top: 560px"><svg class="ico" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" /><path d="M12 18h.01" /></svg>Android</div>
+      <div class="pb glass" style="left: 640px; top: 1160px"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>Веб</div>
+      <div class="pb glass" style="left: 820px; top: 1240px"><svg class="ico" viewBox="0 0 24 24" style="color: #9fdcff"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Telegram</div>
+      <div class="url glass"><span>oskolok.lol</span></div>
+    </section>
+
+    <script>
+      function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+      var A = "../oskolok-drop/assets/";
+      var ICO = {
+        shuf: '<svg class="ico" viewBox="0 0 24 24"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>',
+        prev: '<svg class="ico fill" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><rect x="4" y="5" width="2.4" height="14" rx="1"/></svg>',
+        pause: '<svg class="ico fill" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>',
+        next: '<svg class="ico fill" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><rect x="17.6" y="5" width="2.4" height="14" rx="1"/></svg>',
+        rep: '<svg class="ico" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>',
+        heart: '<svg class="ico" viewBox="0 0 24 24" style="color:#7fe0ff;fill:#7fe0ff"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+        plus: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>',
+        radio: '<svg class="ico" viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>',
+        chev: '<svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+        search: '<svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+        play: '<svg class="ico fill" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
+      };
+      var status = '<div class="m-status"><span>12:05</span><span>●●● ▮</span></div>';
+      var SCREENS = {
+        player: function (exploded) {
+          var z = exploded ? [220, 160, 130, 110, 80, 40] : [0, 0, 0, 0, 0, 0];
+          var tz = function (i) { return z[i] ? ' style="transform: translateZ(' + z[i] + 'px)"' : ""; };
+          return status + '<div class="m-top">' + ICO.chev + 'СВЕРНУТЬ</div><div class="L m-cover"' + tz(0) + '><img src="' + A + 'cover.jpg" alt="" /></div>' +
+            '<div class="L m-prog"' + tz(1) + '><span>0:23</span><div class="m-bar"><i></i></div><span>1:49</span></div><div class="L m-title"' + tz(2) + '>глупыйсвин</div><div class="L m-artist"' + tz(3) + '>ева киллер</div>' +
+            '<div class="L m-ctrl"' + tz(4) + '><div class="b" style="left:22px">' + ICO.shuf + '</div><div class="b" style="left:80px">' + ICO.prev + '</div><div class="b pp" style="left:131px">' + ICO.pause + '</div><div class="b" style="left:228px">' + ICO.next + '</div><div class="b" style="left:280px">' + ICO.rep + '</div></div>' +
+            '<div class="L m-act"' + tz(5) + '><div class="a glass">' + ICO.heart + '</div><div class="a glass">' + ICO.plus + '</div><div class="a glass">' + ICO.radio + '</div></div>';
+        },
+        lyrics: function () {
+          return status + '<div class="m-top">' + ICO.chev + 'СВЕРНУТЬ</div><div class="m-lyr"><div class="tabs glass"><span>Инфо</span><span class="on">Текст</span></div>' +
+            '<div class="ln" style="top:200px">Текст по словам</div><div class="ln" style="top:290px;color:#f6f9ff">и по слогам</div><div class="ln" style="top:380px">Перевод —</div><div class="ln" style="top:470px">в один тап</div><div class="ln" style="top:560px;font-size:20px;font-weight:450">translation — in one tap</div></div>';
+        },
+        tg: function () {
+          return status + '<div class="tg-ava"><img src="' + A + 'mascot-face.png" alt="" /></div><div class="tg-name">Слушатель Осколка</div><div class="tg-st">в сети</div>' +
+            '<div class="tg-music"><div class="pl">' + ICO.play + '</div><div class="mt">глупыйсвин<div class="ma">ева киллер</div></div><div class="tg-eq"><i style="height:14px"></i><i style="height:28px"></i><i style="height:20px"></i><i style="height:25px"></i></div></div>' +
+            '<div class="tg-row" style="top:450px"></div><div class="tg-row" style="top:526px"></div><div class="tg-row" style="top:602px"></div><div class="tg-row" style="top:678px"></div>';
+        },
+        search: function () {
+          var head = '<div class="w-head"><img src="' + A + 'logo.png" alt="" /><b>Осколок</b></div><div class="w-nav glass"><span>Главная</span><span style="color:#8fd3ff">Поиск</span><span>Коллекция</span></div>';
+          return head + '<div class="w-search glass">' + ICO.search + '<span>глупыйсвин</span><i style="display:inline-block;width:3px;height:40px;background:#8fd3ff;border-radius:2px"></i></div>' +
+            '<div style="position:absolute;left:120px;top:200px;width:724px">' +
+            '<div class="w-row glass" style="border-color:rgba(156,190,255,.95);box-shadow:0 0 34px rgba(90,150,255,.6)"><img src="' + A + 'cover.jpg" alt="" /><div class="m"><div class="t">глупыйсвин</div><div class="a">ева киллер · капуста хаус</div></div><div class="badge"><i style="background:#a238ff"></i>Deezer</div></div>' +
+            '<div class="w-row glass"><img src="' + A + 'cover.jpg" alt="" style="filter:grayscale(1) brightness(.8)" /><div class="m"><div class="t">глупыйсвин (Instrumental)</div><div class="a">ева киллер, ника кабина, мая койка</div></div><div class="badge"><i style="background:#ff0033"></i>YouTube</div></div>' +
+            '<div class="w-row glass"><img src="' + A + 'cover.jpg" alt="" style="filter:sepia(1) hue-rotate(-30deg) saturate(2) brightness(.8)" /><div class="m"><div class="t">глупыйсвин snippet</div><div class="a">ева киллер</div></div><div class="badge"><i style="background:#ff5500"></i>SoundCloud</div></div></div>';
+        },
+        home: function () {
+          var head = '<div class="w-head"><img src="' + A + 'logo.png" alt="" /><b>Осколок</b></div><div class="w-nav glass"><span style="color:#8fd3ff">Главная</span><span>Поиск</span><span>Коллекция</span></div>';
+          return head + '<div style="position:absolute;left:40px;top:90px;width:884px;height:250px;border-radius:24px;background:linear-gradient(120deg,#3d9bff,#6fd0ff 55%,#b9f0ff);padding:34px 40px"><div style="font-family:var(--display);font-weight:900;font-size:58px;letter-spacing:-0.04em">Моя волна</div><div style="font-size:22px;margin-top:10px;opacity:.85">подобрано под тебя · 24/7</div></div>' +
+            '<div style="position:absolute;left:40px;top:370px;display:flex;gap:22px"><div style="width:200px;height:200px;border-radius:18px;overflow:hidden"><img src="' + A + 'cover.jpg" alt="" style="width:100%;height:100%;object-fit:cover" /></div><div style="width:200px;height:200px;border-radius:18px;background:radial-gradient(circle at 30% 30%,#ffffff,#2054d6)"></div><div style="width:200px;height:200px;border-radius:18px;background:radial-gradient(circle at 30% 30%,#9ff0ff,#3d8bff)"></div><div style="width:200px;height:200px;border-radius:18px;background:radial-gradient(circle at 30% 30%,#b6fff0,#2fc6d8)"></div></div>';
+        }
+      };
+      document.querySelectorAll(".phone").forEach(function (el) {
+        var slabs = ""; for (var i = 1; i <= 9; i++) slabs += '<div class="slab" style="transform: translateZ(' + (-i * 2.1).toFixed(1) + 'px)"></div>';
+        el.innerHTML = slabs + '<div class="back"></div><div class="front"><div class="scr"><div class="sbg"></div>' + SCREENS[el.dataset.screen](el.classList.contains("exploded")) + '<div class="island"></div><div class="glare"></div></div></div>';
+      });
+      document.querySelectorAll(".lap").forEach(function (el) {
+        var keys = ""; for (var k = 0; k < 84; k++) keys += "<i></i>";
+        var edges = ""; for (var e = 1; e <= 5; e++) edges += '<div class="edge" style="transform: translateZ(' + -e * 3 + 'px)"></div>';
+        el.innerHTML = '<div class="base">' + edges + '<div class="deck"><div class="kb">' + keys + '</div><div class="tp"></div></div></div><div class="lid" style="transform: rotateX(12deg)"><div class="lb"></div><div class="lf"><div class="scr">' + SCREENS[el.dataset.screen]() + '</div><div class="notch"></div></div></div>';
+      });
+      function shard(c, r, x, y, s, rot, al) {
+        var n = 4 + Math.floor(r() * 3), p = [], a0 = r() * 6.28, el = 0.45 + r() * 0.4;
+        for (var k = 0; k < n; k++) { var a = a0 + (k / n) * 6.283 + (r() - 0.5) * 0.7, rr = 0.55 + r() * 0.45; p.push([Math.cos(a) * rr * el, Math.sin(a) * rr]); }
+        c.save(); c.translate(x, y); c.rotate(rot); c.scale(s, s); c.globalAlpha = al;
+        var g = c.createLinearGradient(-1, -1, 1, 1); g.addColorStop(0, "rgba(240,247,255,0.95)"); g.addColorStop(0.45, "rgba(170,225,255,0.6)"); g.addColorStop(1, "rgba(90,160,255,0.28)");
+        c.beginPath(); c.moveTo(p[0][0], p[0][1]); for (var i = 1; i < n; i++) c.lineTo(p[i][0], p[i][1]); c.closePath(); c.fillStyle = g; c.fill();
+        c.lineJoin = "round"; c.lineWidth = 1.8 / s; c.strokeStyle = "rgba(240,248,255,0.95)"; c.stroke();
+        c.beginPath(); c.moveTo(p[0][0], p[0][1]); c.lineTo(p[2][0], p[2][1]); c.lineWidth = 1.2 / s; c.strokeStyle = "rgba(255,255,255,0.6)"; c.stroke();
+        c.restore();
+      }
+      function prim(c, r, x, y, s, al) {
+        var T = ["ring", "plus", "tri", "dot", "sq", "zig", "star", "line"], ty = T[Math.floor(r() * T.length)];
+        var col = ["#bfe6ff", "#ffffff", "#5fb4ff", "#8fd8ff", "#d8f2ff"][Math.floor(r() * 5)];
+        c.save(); c.translate(x, y); c.rotate(r() * 6.28); c.globalAlpha = al; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = Math.max(1.8, s * 0.12); c.lineCap = "round"; c.beginPath();
+        if (ty === "ring") { c.arc(0, 0, s / 2, 0, 6.283); c.stroke(); } else if (ty === "plus") { c.moveTo(-s / 2, 0); c.lineTo(s / 2, 0); c.moveTo(0, -s / 2); c.lineTo(0, s / 2); c.stroke(); }
+        else if (ty === "tri") { c.moveTo(0, -s / 2); c.lineTo(s * 0.45, s * 0.35); c.lineTo(-s * 0.45, s * 0.35); c.closePath(); c.stroke(); } else if (ty === "dot") { c.arc(0, 0, s * 0.18, 0, 6.283); c.fill(); }
+        else if (ty === "sq") { c.rect(-s * 0.35, -s * 0.35, s * 0.7, s * 0.7); c.stroke(); } else if (ty === "zig") { c.moveTo(-s / 2, 0); for (var z = 1; z <= 4; z++) c.lineTo(-s / 2 + z * s / 4, z % 2 ? -s * 0.2 : s * 0.2); c.stroke(); }
+        else if (ty === "star") { for (var q = 0; q < 4; q++) { c.moveTo(0, 0); c.lineTo(Math.cos(q * 1.5708) * s * 0.6, Math.sin(q * 1.5708) * s * 0.6); } c.stroke(); } else { c.moveTo(-s * 0.7, 0); c.lineTo(s * 0.7, 0); c.stroke(); }
+        c.restore();
+      }
+      document.querySelectorAll(".bn").forEach(function (bn) {
+        var W = bn.classList.contains("wide") ? 1920 : 1080, H = bn.classList.contains("wide") ? 1080 : bn.classList.contains("tall") ? 1920 : 1350;
+        var r = mulberry32(100 + parseInt(bn.dataset.seed || "1")), f = (bn.dataset.focus || "540,675").split(",").map(Number);
+        var b1 = document.createElement("div"); b1.className = "blob"; b1.style.cssText = "left:" + (-W * 0.3) + "px;top:" + (H * 0.4) + "px;width:" + W * 1.1 + "px;height:" + W * 1.1 + "px;background:radial-gradient(closest-side,rgba(70,200,255,.34),transparent)";
+        var b2 = document.createElement("div"); b2.className = "blob"; b2.style.cssText = "left:" + (W * 0.35) + "px;top:" + (-H * 0.15) + "px;width:" + W + "px;height:" + W + "px;background:radial-gradient(closest-side,rgba(110,170,255,.38),transparent)";
+        var cf = document.createElement("canvas"); cf.width = W; cf.height = H; cf.className = "layer";
+        bn.insertBefore(cf, bn.firstChild); bn.insertBefore(b2, cf); bn.insertBefore(b1, b2);
+        var c = cf.getContext("2d"), cols = Math.round(W / 120) + 1, rows = Math.round(H / 115) + 1, P = [];
+        for (var j = 0; j < rows; j++) for (var i = 0; i < cols; i++) { var e = i === 0 || j === 0 || i === cols - 1 || j === rows - 1; P.push([-40 + i * (W + 80) / (cols - 1) + (e ? 0 : (r() - 0.5) * 80), -40 + j * (H + 80) / (rows - 1) + (e ? 0 : (r() - 0.5) * 70)]); }
+        for (var jj = 0; jj < rows - 1; jj++) for (var ii = 0; ii < cols - 1; ii++) {
+          var a = jj * cols + ii, q = [a, a + 1, a + cols, a + cols + 1], tris = r() > 0.5 ? [[q[0], q[1], q[3]], [q[0], q[3], q[2]]] : [[q[0], q[1], q[2]], [q[1], q[3], q[2]]];
+          tris.forEach(function (t) {
+            var A1 = P[t[0]], B = P[t[1]], C = P[t[2]], cx = (A1[0] + B[0] + C[0]) / 3, cy = (A1[1] + B[1] + C[1]) / 3, d = Math.hypot(cx - f[0], cy - f[1]);
+            var lit = Math.pow(0.5 + 0.5 * Math.cos(r() * 6.28), 3), rip = 0.8 * Math.exp(-Math.pow((d - 420) / 170, 2)) + 0.35 * Math.exp(-Math.pow((d - 900) / 200, 2)), mix = r();
+            var L = 0.7 * (0.05 + 0.13 * lit) + rip * 0.3;
+            c.beginPath(); c.moveTo(A1[0], A1[1]); c.lineTo(B[0], B[1]); c.lineTo(C[0], C[1]); c.closePath();
+            c.fillStyle = "rgba(" + Math.round(120 + 70 * mix) + "," + Math.round(200 + 40 * mix) + ",255," + Math.min(0.8, L).toFixed(3) + ")"; c.fill();
+            c.strokeStyle = "rgba(210,238,255," + (0.035 + rip * 0.35).toFixed(3) + ")"; c.lineWidth = 1; c.stroke();
+          });
+        }
+        var cs = document.createElement("canvas"); cs.width = W; cs.height = H; cs.className = "layer"; cs.style.zIndex = 4; cf.after(cs);
+        var g = cs.getContext("2d"), M = Math.max(W, H);
+        for (var k = 0; k < 70; k++) { var ang = r() * 6.283, rad = 160 + Math.pow(r(), 0.7) * M * 0.55, x = f[0] + Math.cos(ang) * rad, y = f[1] + Math.sin(ang) * rad * 0.8, s = 34 * (1 - rad / (M * 0.9)) + 8, al = 0.9 - rad / (M * 0.9);
+          if (al <= 0.1) continue; if (r() < 0.3) shard(g, r, x, y, s * 1.6, r() * 6.28, al); else prim(g, r, x, y, s, al); }
+        g.save(); g.strokeStyle = "#d4efff"; g.lineWidth = 2;
+        [260, 340, 470].forEach(function (rr, i) { g.globalAlpha = 0.3 - i * 0.07; g.setLineDash(i % 2 ? [6, 14] : []); g.beginPath(); g.arc(f[0], f[1], rr, 0, 6.283); g.stroke(); });
+        g.setLineDash([]); g.restore();
+        g.fillStyle = "#d4efff"; for (var gx = 0; gx < 3; gx++) for (var gy = 0; gy < 12; gy++) { g.globalAlpha = 0.15 + 0.35 * Math.abs(Math.sin(gy * 0.7 + gx)); g.beginPath(); g.arc(W - 46 - gx * 30, H * 0.3 + gy * 30, 2.4, 0, 6.283); g.fill(); }
+        g.globalAlpha = 0.7; g.strokeStyle = "#e6f6ff"; g.lineWidth = 2;
+        [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(function (p) { g.beginPath(); g.moveTo(p[0] - 14, p[1]); g.lineTo(p[0] + 14, p[1]); g.moveTo(p[0], p[1] - 14); g.lineTo(p[0], p[1] + 14); g.stroke(); });
+        var gr = document.createElement("div"); gr.className = "layer"; gr.style.cssText = "width:" + W + "px;height:" + H + "px;background-image:url(" + A + "art/glass-grain.svg);background-size:200px;opacity:.07;mix-blend-mode:overlay;z-index:40"; bn.appendChild(gr);
+        var vg = document.createElement("div"); vg.className = "layer"; vg.style.cssText = "width:" + W + "px;height:" + H + "px;background:radial-gradient(80% 80% at 50% 50%,transparent 60%,rgba(4,16,60,.5) 100%);z-index:39"; bn.appendChild(vg);
+      });
+      document.querySelectorAll("canvas.waves").forEach(function (cv) {
+        var c = cv.getContext("2d");
+        for (var wv = 0; wv < 7; wv++) {
+          var g = c.createLinearGradient(0, 0, 1080, 0); g.addColorStop(0, "rgba(160,220,255,0)"); g.addColorStop(0.3, "rgba(200,240,255,0.95)"); g.addColorStop(0.65, "rgba(120,200,255,0.95)"); g.addColorStop(1, "rgba(200,240,255,0.1)");
+          c.strokeStyle = g; c.lineWidth = 5 - wv * 0.55; c.globalAlpha = 1 - wv * 0.11; c.beginPath();
+          for (var x = -20; x <= 1100; x += 20) { var y = 1180 + wv * 9 + Math.sin(x * 0.006 + wv * 0.7) * 60 * (1 - wv * 0.08) + Math.sin(x * 0.015 - wv) * 14; if (x === -20) c.moveTo(x, y); else c.lineTo(x, y); }
+          c.stroke();
+        }
+      });
+    </script>
+  </body>
+</html>

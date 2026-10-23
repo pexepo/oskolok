@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Осколок — промо</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Onest Oskolok"; src: url(assets/fonts/onest-cyr.woff2) format("woff2"); font-weight: 100 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Onest Oskolok"; src: url(assets/fonts/onest-lat.woff2) format("woff2"); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: "Unbounded Oskolok"; src: url(assets/fonts/unbounded-cyr.woff2) format("woff2"); font-weight: 200 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Unbounded Oskolok"; src: url(assets/fonts/unbounded-lat.woff2) format("woff2"); font-weight: 200 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: "Cormorant Oskolok"; src: url(assets/fonts/cormorant-cyr-500.woff2) format("woff2"); font-weight: 500; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+      @font-face { font-family: "Cormorant Oskolok"; src: url(assets/fonts/cormorant-lat-500.woff2) format("woff2"); font-weight: 500; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+      :root {
+        --ink: #e9f0ff;
+        --muted: #8b9bb8;
+        --accent: #9cbeff;
+        --edge: rgba(152, 179, 232, 0.2);
+        --rim: rgba(208, 232, 255, 0.38);
+        --sans: "Onest Oskolok", system-ui, sans-serif;
+        --display: "Unbounded Oskolok", "Onest Oskolok", sans-serif;
+        --serif: "Cormorant Oskolok", Georgia, serif;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #03050d; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: var(--sans); color: var(--ink); }
+      .full { position: absolute; inset: 0; }
+      .abs { position: absolute; display: block; }
+      .scene { position: absolute; inset: 0; visibility: hidden; }
+      .glass {
+        background: linear-gradient(130deg, rgba(52, 74, 122, 0.55), rgba(16, 26, 50, 0.42) 48%, rgba(40, 58, 102, 0.5));
+        border: 1px solid var(--edge);
+        border-top-color: var(--rim);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 1px rgba(120, 170, 255, 0.12), 0 30px 80px rgba(0, 0, 0, 0.45);
+      }
+      .ico { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .ico.fill { fill: currentColor; stroke: none; }
+      .mascot { position: absolute; width: 560px; height: 840px; background-image: url(assets/mascot-turn.png); background-size: 4480px 5040px; background-repeat: no-repeat; opacity: 0; }
+
+      /* background */
+      #bg { background: radial-gradient(120% 90% at 70% 10%, #121c3f 0%, #070b1d 45%, #02040b 100%); }
+      #bg-nebula { position: absolute; left: -200px; top: -200px; width: 2320px; height: 1480px;
+        background: radial-gradient(40% 35% at 25% 70%, rgba(80, 60, 200, 0.22), transparent 70%), radial-gradient(35% 30% at 80% 30%, rgba(40, 110, 255, 0.2), transparent 70%); }
+      #bg-crystal { position: absolute; left: 0; top: 0; width: 1920px; height: 1280px; object-fit: cover; opacity: 0; }
+      #stars { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+
+      /* fx */
+      #vig { background: radial-gradient(75% 75% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.75) 100%); }
+      #vig-close { background: radial-gradient(60% 60% at 50% 50%, transparent 20%, #000 85%); opacity: 0; }
+      #grain { background-image: url(assets/art/glass-grain.svg); background-size: 200px 200px; opacity: 0.07; mix-blend-mode: overlay; }
+      #flash { background: radial-gradient(circle at 50% 50%, #fff 0%, #dbe9ff 60%, #9cbeff 100%); opacity: 0; }
+      #black { background: #000; opacity: 0; }
+
+      /* S1 intro */
+      #s1 { visibility: visible; }
+      #s1-line { left: 460px; top: 538px; width: 1000px; height: 4px; border-radius: 2px; box-shadow: 0 0 24px rgba(140, 190, 255, 0.9); background: linear-gradient(90deg, transparent, #9cbeff 30%, #fff 50%, #9cbeff 70%, transparent); opacity: 0; }
+      #s1-shard { left: 860px; top: 440px; width: 200px; height: 200px; opacity: 0; filter: drop-shadow(0 0 30px rgba(140, 190, 255, 0.8)); }
+      #s1-shard img { width: 100%; height: 100%; object-fit: contain; display: block; }
+      .s1-mini { width: 40px; height: 40px; left: 940px; top: 520px; opacity: 0; object-fit: contain; }
+      .word { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; align-items: center; justify-content: center; }
+      .word span.w { display: block; font-family: var(--display); font-weight: 800; font-size: 190px; letter-spacing: -0.04em; line-height: 1.1; opacity: 0;
+        background: linear-gradient(180deg, #ffffff 20%, #b9d2ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s1-music { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; align-items: center; justify-content: center; perspective: 900px; }
+      #s1-music .ch, #s1-shine span { display: inline-block; font-family: var(--display); font-weight: 800; font-size: 230px; letter-spacing: -0.045em; line-height: 1.1; }
+      #s1-music .ch { opacity: 0; background: linear-gradient(180deg, #ffffff 25%, #a9c8ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s1-shine { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; align-items: center; justify-content: center; }
+      #s1-shine span { background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%); background-size: 300% 100%; background-position: 100% 0;
+        -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s1-sub { left: 0; top: 700px; width: 1920px; text-align: center; font-size: 36px; font-weight: 500; letter-spacing: 0.02em; color: #b7c8e8; opacity: 0; }
+      .chip { position: absolute; display: flex; align-items: center; gap: 14px; height: 70px; padding: 0 30px 0 22px; border-radius: 35px; font-size: 28px; font-weight: 600; white-space: nowrap; color: #eef3ff; opacity: 0; }
+      .chip i { display: block; width: 18px; height: 18px; border-radius: 50%; }
+
+      /* S2 search */
+      #s2-label { left: 0; top: 232px; width: 1920px; text-align: center; font-size: 22px; font-weight: 600; letter-spacing: 0.32em; color: var(--accent); opacity: 0; }
+      #s2-bar { left: 410px; top: 290px; width: 1100px; height: 116px; border-radius: 58px; display: flex; align-items: center; gap: 26px; padding: 0 44px; opacity: 0; }
+      #s2-bar .ico { width: 46px; height: 46px; color: var(--accent); flex: none; }
+      #s2-text { font-size: 54px; font-weight: 500; letter-spacing: -0.01em; color: #f4f8ff; white-space: nowrap; }
+      #s2-text span { display: none; }
+      #s2-caret { display: inline-block; width: 4px; height: 58px; background: var(--accent); vertical-align: middle; margin-left: 4px; border-radius: 2px; }
+      #s2-results { left: 410px; top: 450px; width: 1100px; }
+      .row { position: relative; display: flex; align-items: center; gap: 28px; height: 124px; padding: 0 30px 0 18px; border-radius: 28px; margin-bottom: 16px; opacity: 0; }
+      .row img.th { width: 88px; height: 88px; border-radius: 16px; object-fit: cover; flex: none; }
+      .row .meta { flex: 1; min-width: 0; }
+      .row .t { font-size: 36px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+      .row .a { font-size: 24px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+      .badge { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 18px; border-radius: 23px; font-size: 21px; font-weight: 600; border: 1px solid var(--edge); background: rgba(10, 18, 36, 0.5); }
+      .badge i { display: block; width: 12px; height: 12px; border-radius: 50%; }
+      .row .dur { width: 80px; text-align: right; font-size: 24px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      #s2-hl { position: absolute; left: 0; top: 0; width: 1100px; height: 124px; border-radius: 28px; border: 2px solid rgba(156, 190, 255, 0.9);
+        box-shadow: 0 0 40px rgba(90, 150, 255, 0.55), inset 0 0 30px rgba(90, 150, 255, 0.25); opacity: 0; }
+      .cursor { position: absolute; left: 0; top: 0; width: 58px; height: 62px; opacity: 0; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6)); }
+      .ripple { position: absolute; width: 80px; height: 80px; border-radius: 50%; border: 3px solid #cfe2ff; opacity: 0; }
+
+      /* S3 build */
+      #s3-stage { position: absolute; inset: 0; perspective: 1400px; }
+      #s3-cover { left: 700px; top: 280px; width: 520px; height: 520px; border-radius: 34px; overflow: hidden; opacity: 0;
+        box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.25); }
+      #s3-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .outline { position: absolute; top: 455px; font-family: var(--display); font-weight: 900; font-size: 150px; line-height: 1.1; letter-spacing: -0.03em;
+        color: rgba(160, 195, 255, 0.1); -webkit-text-stroke: 2.5px rgba(176, 206, 255, 0.9); opacity: 0; white-space: nowrap; }
+      #s3-L { right: 1300px; }
+      #s3-R { left: 1300px; }
+      #s3-play { left: 880px; top: 460px; width: 160px; height: 160px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0;
+        background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), rgba(120, 170, 255, 0.35) 45%, rgba(30, 60, 140, 0.55));
+        border: 1px solid rgba(255, 255, 255, 0.55); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 60px rgba(100, 160, 255, 0.6); }
+      #s3-play .ico { width: 64px; height: 64px; color: #fff; margin-left: 8px; }
+      .bshard, .xshard, .oshard { position: absolute; left: 0; top: 0; opacity: 0; object-fit: contain; }
+      .bshard { filter: drop-shadow(0 0 8px rgba(130, 180, 255, 0.5)); }
+      .xshard { filter: drop-shadow(0 0 8px rgba(140, 190, 255, 0.55)); }
+      .oshard { filter: drop-shadow(0 0 14px rgba(140, 190, 255, 0.6)); }
+
+      /* S4 drop */
+      #s4-stage { position: absolute; inset: 0; perspective: 1200px; }
+      #s4-halo { left: 260px; top: -160px; width: 1400px; height: 1400px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(90, 150, 255, 0.55) 0%, rgba(70, 90, 230, 0.2) 35%, transparent 65%); opacity: 0; }
+      .ring { position: absolute; left: 810px; top: 390px; width: 300px; height: 300px; border-radius: 50%; border: 5px solid #d8e8ff; opacity: 0;
+        box-shadow: 0 0 40px rgba(140, 190, 255, 0.8), inset 0 0 40px rgba(140, 190, 255, 0.6); }
+      .ray { position: absolute; left: 960px; top: 539px; width: 700px; height: 3px; transform-origin: 0 50%;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff 30%, rgba(156, 190, 255, 0)); opacity: 0; }
+      #s4-orb { left: 660px; top: 240px; width: 600px; height: 600px; opacity: 0; }
+      #s4-lock { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; align-items: center; justify-content: center; gap: 46px; perspective: 900px; }
+      #s4-ph { width: 252px; height: 252px; flex: none; }
+      #s4-word { display: flex; }
+      #s4-word .ch, #s10-word .ch { display: inline-block; font-family: var(--display); font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; opacity: 0;
+        background: linear-gradient(180deg, #ffffff 30%, #bcd3ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s4-word .ch { font-size: 196px; }
+      #s4-tag { left: 0; top: 730px; width: 1920px; display: flex; justify-content: center; gap: 22px; font-family: var(--serif); font-size: 70px; color: #c3d5f7; }
+      #s4-tag .m { display: block; overflow: hidden; padding: 0 2px 10px; }
+      #s4-tag .m span { display: block; }
+
+      /* S5 player */
+      #s5-stage { position: absolute; inset: 0; perspective: 1600px; }
+      #s5-brand { left: 64px; top: 46px; display: flex; align-items: center; gap: 16px; opacity: 0; }
+      #s5-brand img { width: 58px; height: 58px; }
+      #s5-brand b { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: -0.03em; }
+      #s5-nav { left: 730px; top: 38px; width: 460px; height: 70px; border-radius: 35px; display: flex; align-items: center; justify-content: space-around; padding: 0 18px; opacity: 0; }
+      #s5-nav div { display: flex; align-items: center; gap: 10px; font-size: 21px; color: #c8d5ee; }
+      #s5-nav div.on { color: var(--accent); }
+      #s5-nav .ico { width: 24px; height: 24px; }
+      .hbtn { position: absolute; top: 46px; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #c8d5ee; opacity: 0; }
+      .hbtn .ico { width: 26px; height: 26px; }
+      #s5-panel { left: 48px; top: 134px; width: 1824px; height: 906px; border-radius: 40px; opacity: 0;
+        background: linear-gradient(160deg, rgba(60, 68, 92, 0.6), rgba(18, 22, 36, 0.78) 40%, rgba(8, 10, 18, 0.88)); }
+      #s5-col { position: absolute; left: 1060px; top: 160px; width: 600px; height: 880px; transform-style: preserve-3d; }
+      .layer { position: absolute; left: 0; width: 600px; transform-style: preserve-3d; }
+      #s5-cover { left: 80px; top: 30px; width: 440px; height: 440px; border-radius: 26px; overflow: hidden; opacity: 0;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.22); }
+      #s5-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #s5-cshine { position: absolute; left: 0; top: 0; width: 440px; height: 440px; background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%); }
+      #s5-prog { top: 498px; height: 30px; display: flex; align-items: center; gap: 18px; opacity: 0; }
+      #s5-prog .tm { width: 64px; font-size: 20px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
+      #s5-track { position: relative; flex: 1; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); }
+      #s5-fill { position: absolute; left: 0; top: 0; width: 100%; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #6fa4ff, #e7f0ff); transform-origin: 0 50%; transform: scaleX(0.13); }
+      #s5-knob { position: absolute; top: -6px; left: 0; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 0 18px rgba(156, 190, 255, 0.9); }
+      #s5-title { top: 548px; height: 70px; text-align: center; font-size: 58px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+      #s5-title .ch { display: inline-block; opacity: 0; }
+      #s5-artist { top: 624px; text-align: center; font-size: 32px; color: #a8b6cf; opacity: 0; }
+      #s5-ctrl { top: 690px; height: 110px; }
+      .cb { position: absolute; top: 15px; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; color: #dfe8fb; opacity: 0; }
+      .cb .ico { width: 40px; height: 40px; }
+      #cb-play { top: 0; width: 110px; height: 110px; border-radius: 50%;
+        background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), rgba(160, 196, 255, 0.75) 40%, rgba(60, 110, 230, 0.85));
+        box-shadow: 0 16px 40px rgba(20, 50, 140, 0.6), 0 0 50px rgba(110, 160, 255, 0.55), inset 0 2px 2px rgba(255, 255, 255, 0.8); color: #0f2a6b; }
+      #cb-play .ico { width: 48px; height: 48px; }
+      #s5-act { top: 816px; height: 64px; }
+      .ab { position: absolute; top: 0; width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #dfe8fb; opacity: 0; }
+      .ab .ico { width: 28px; height: 28px; }
+      #ab-vol { left: 316px; width: 230px; border-radius: 32px; justify-content: flex-start; gap: 16px; padding: 0 20px; }
+      #ab-vol .bar { position: relative; flex: 1; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); }
+      #vol-fill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4f8dff, #8fd0ff); transform-origin: 0 50%; box-shadow: 0 0 14px rgba(110, 180, 255, 0.8); }
+      .spark { position: absolute; left: 29px; top: 29px; width: 6px; height: 6px; border-radius: 50%; background: #cfe2ff; box-shadow: 0 0 10px #9cbeff; opacity: 0; }
+      .callout { position: absolute; display: flex; align-items: center; opacity: 0; white-space: nowrap; }
+      .callout b { font-size: 25px; font-weight: 600; color: #e6eeff; padding: 10px 18px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(14, 22, 42, 0.85); }
+      .callout i { display: block; width: 110px; height: 2px; background: linear-gradient(90deg, #9cbeff, rgba(156, 190, 255, 0.2)); transform-origin: 0 50%; }
+      .callout s { display: block; width: 12px; height: 12px; border-radius: 50%; background: #9cbeff; box-shadow: 0 0 14px #9cbeff; }
+      #s5-head { left: 130px; top: 330px; width: 860px; }
+      #s5-head h2 { font-family: var(--display); font-weight: 800; font-size: 200px; letter-spacing: -0.05em; line-height: 1.1; opacity: 0;
+        background: linear-gradient(180deg, #fff 20%, #9fbfff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s5-head p { font-family: var(--serif); font-size: 58px; color: #b9cbec; margin-top: 18px; opacity: 0; }
+      #ly-top { left: 120px; top: 186px; opacity: 0; }
+      #ly-top .c { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; letter-spacing: 0.14em; color: #cfdbf2; }
+      #ly-top .c .ico { width: 26px; height: 26px; }
+      #ly-top .l1 { margin-top: 34px; margin-left: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.16em; color: #c3cee4; }
+      #ly-top .l2 { margin-top: 8px; margin-left: 4px; font-size: 18px; color: var(--muted); }
+      #ly-tr { left: 740px; top: 240px; height: 54px; padding: 0 22px; border-radius: 27px; display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 600; color: #d6e2f8; opacity: 0; }
+      #ly-tr .ico { width: 26px; height: 26px; }
+      #ly-wrap { left: 120px; top: 360px; width: 900px; height: 620px; overflow: hidden;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 78%, transparent 100%); mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 78%, transparent 100%); }
+      #ly-lines { position: absolute; left: 0; top: 0; width: 900px; opacity: 0; }
+      .ll { font-size: 76px; font-weight: 750; letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 38px; white-space: nowrap; transform-origin: 0 50%; opacity: 0.35; }
+      .ll .syl { display: inline-block; white-space: pre;
+        background-image: linear-gradient(90deg, #f6f9ff 0%, #f6f9ff 46%, rgba(118, 136, 170, 0.75) 54%, rgba(118, 136, 170, 0.75) 100%);
+        background-size: 220% 100%; background-position: 100% 0; -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .ll .trn { display: block; font-size: 32px; font-weight: 450; letter-spacing: 0; color: #92a6c9; margin-top: 10px; opacity: 0; }
+
+      /* S7 wave */
+      #s7-bubble { left: 1060px; top: 60px; width: 900px; height: 900px; opacity: 0; -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 70%); mask-image: radial-gradient(circle, #000 60%, transparent 70%); }
+      #s7-waves { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+      #s7-waves path { fill: none; stroke-linecap: round; }
+      #s7-title { left: 120px; top: 170px; display: flex; perspective: 800px; }
+      #s7-title .ch { display: inline-block; font-family: var(--display); font-weight: 800; font-size: 150px; letter-spacing: -0.045em; line-height: 1.1; opacity: 0;
+        background: linear-gradient(180deg, #fff 25%, #b5c9ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #s7-title .sp { width: 44px; }
+      #s7-sub { left: 126px; top: 375px; width: 900px; font-size: 36px; color: #b9c8e6; opacity: 0; }
+      .card { position: absolute; left: 0; top: 520px; width: 230px; height: 310px; border-radius: 28px; padding: 14px; opacity: 0; }
+      .card .art { position: relative; width: 202px; height: 202px; border-radius: 18px; overflow: hidden; }
+      .card .art img { position: absolute; left: 31px; top: 31px; width: 140px; height: 140px; object-fit: contain; filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.6)); }
+      .card .ct { margin-top: 14px; font-size: 22px; font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; }
+      .card .cs { margin-top: 6px; font-size: 17px; color: var(--muted); }
+      #s7-m { left: 1290px; top: 160px; }
+      #s7-mshadow { left: 1380px; top: 960px; width: 380px; height: 60px; border-radius: 50%; background: radial-gradient(closest-side, rgba(80, 140, 255, 0.45), transparent); opacity: 0; }
+
+      /* S8 toast */
+      #s8-toast { left: 560px; top: 380px; width: 800px; height: 300px; border-radius: 34px; padding: 40px 46px; opacity: 0;
+        background: linear-gradient(150deg, rgba(36, 50, 86, 0.92), rgba(14, 22, 44, 0.95)); border: 1px solid rgba(152, 179, 232, 0.28); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7); }
+      #s8-toast .hd { display: flex; gap: 26px; align-items: flex-start; }
+      #s8-toast .hi { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(156, 190, 255, 0.14); color: var(--accent); flex: none; }
+      #s8-toast .hi .ico { width: 36px; height: 36px; }
+      #s8-toast h3 { font-size: 38px; font-weight: 650; letter-spacing: -0.01em; }
+      #s8-toast .sub { font-size: 28px; color: #b5c3dc; margin-top: 10px; }
+      #s8-toast .x { position: absolute; right: 36px; top: 34px; width: 30px; height: 30px; color: #8b9bb8; }
+      #s8-btns { display: flex; align-items: center; gap: 30px; margin-top: 34px; margin-left: 98px; }
+      #s8-go { position: relative; height: 76px; padding: 0 38px; border-radius: 38px; display: flex; align-items: center; font-size: 28px; font-weight: 650; color: #fff;
+        background: linear-gradient(180deg, #5b95ff, #2f66e8); box-shadow: 0 10px 30px rgba(47, 102, 232, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+      #s8-no { font-size: 24px; color: #9fb0cf; }
+      #s8-ripple { left: 0; top: 0; width: 100px; height: 100px; border-radius: 50%; opacity: 0; background: radial-gradient(circle, #3b74ff 0%, #1d3fb0 55%, #0b1840 100%); }
+
+      /* S9 everywhere */
+      #s9-strip { position: absolute; left: 0; top: 0; width: 5760px; height: 1080px; }
+      .pnl { position: absolute; top: 0; width: 1920px; height: 1080px; }
+      #p1 { left: 0; } #p2 { left: 1920px; } #p3 { left: 3840px; }
+      #tg-phone { left: 250px; top: 120px; width: 440px; height: 860px; border-radius: 64px; padding: 16px; background: #0b0d12; opacity: 0;
+        box-shadow: 0 0 0 2px rgba(180, 200, 240, 0.25), 0 50px 120px rgba(0, 0, 0, 0.7), 0 0 80px rgba(42, 171, 238, 0.25); }
+      #tg-screen { position: relative; width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: linear-gradient(180deg, #1c2a3a 0%, #17212b 45%, #0f161e 100%); }
+      #tg-ava { position: absolute; left: 124px; top: 90px; width: 160px; height: 160px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255, 255, 255, 0.15); background: #1d3263; }
+      #tg-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #tg-name { position: absolute; left: 0; top: 278px; width: 100%; text-align: center; font-size: 30px; font-weight: 650; }
+      #tg-st { position: absolute; left: 0; top: 322px; width: 100%; text-align: center; font-size: 21px; color: #5eb5f7; }
+      #tg-music { position: absolute; left: 22px; top: 380px; width: 364px; height: 96px; border-radius: 22px; display: flex; align-items: center; gap: 16px; padding: 0 18px;
+        background: linear-gradient(90deg, rgba(42, 171, 238, 0.35), rgba(42, 171, 238, 0.12)); border: 1px solid rgba(94, 181, 247, 0.5); opacity: 0; }
+      #tg-music .pl { width: 56px; height: 56px; border-radius: 50%; background: #2aabee; display: flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+      #tg-music .pl .ico { width: 24px; height: 24px; margin-left: 3px; }
+      #tg-music .mt { flex: 1; font-size: 23px; font-weight: 650; white-space: nowrap; }
+      #tg-music .ma { font-size: 18px; color: #9cc6ea; margin-top: 4px; font-weight: 450; }
+      #tg-eq { display: flex; gap: 5px; align-items: flex-end; height: 34px; }
+      #tg-eq i { display: block; width: 6px; height: 34px; border-radius: 3px; background: #5eb5f7; transform-origin: 50% 100%; }
+      .tg-rowsk { position: absolute; left: 22px; width: 364px; height: 70px; border-radius: 18px; background: rgba(255, 255, 255, 0.05); }
+      #p1-h { left: 820px; top: 300px; }
+      .hl { font-family: var(--display); font-weight: 800; font-size: 92px; letter-spacing: -0.04em; line-height: 1.15; white-space: nowrap; opacity: 0; }
+      .hl.tg { color: #2aabee; text-shadow: 0 0 40px rgba(42, 171, 238, 0.5); }
+      .psub { font-size: 34px; color: #b5c4e0; margin-top: 26px; opacity: 0; }
+      #p1-plane { left: 0; top: 0; width: 80px; height: 80px; color: #5eb5f7; opacity: 0; filter: drop-shadow(0 0 20px rgba(94, 181, 247, 0.9)); }
+      #p1-trail { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+      #p2-h { left: 150px; top: 330px; }
+      #p2-tile { left: 1180px; top: 270px; width: 560px; height: 560px; opacity: 0; }
+      #p2-tile .sh { position: absolute; inset: 0; clip-path: polygon(0% 30%, 40% 3%, 96% 20%, 84% 86%, 25% 100%);
+        background: linear-gradient(140deg, rgba(120, 160, 255, 0.45), rgba(30, 50, 110, 0.6) 55%, rgba(150, 120, 255, 0.4)); }
+      #p2-tile .sh2 { position: absolute; inset: 3px; clip-path: polygon(0% 30%, 40% 3%, 96% 20%, 84% 86%, 25% 100%); background: linear-gradient(160deg, rgba(20, 30, 60, 0.85), rgba(10, 16, 34, 0.92)); }
+      #p2-tile .lab { position: absolute; left: 120px; top: 230px; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+      #p2-tile .cnt { position: absolute; left: 120px; top: 290px; font-size: 26px; color: var(--accent); }
+      .mc { position: absolute; top: 640px; width: 74px; height: 74px; border-radius: 14px; overflow: hidden; opacity: 0; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5); }
+      .mc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .src { position: absolute; left: 0; top: 0; height: 74px; padding: 0 30px 0 22px; border-radius: 37px; display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 650; white-space: nowrap; opacity: 0; }
+      .src i { display: block; width: 18px; height: 18px; border-radius: 50%; }
+      #p3-h { left: 0; top: 190px; width: 1920px; text-align: center; }
+      #p3-h .hl { font-size: 120px; }
+      #p3-h .psub { margin-top: 20px; }
+      #p3-row { position: absolute; left: 0; top: 560px; width: 1920px; display: flex; justify-content: center; gap: 44px; }
+      .dev { width: 236px; height: 236px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; opacity: 0; }
+      .dev .ico { width: 84px; height: 84px; color: #dbe7ff; stroke-width: 1.6; }
+      .dev b { font-size: 26px; font-weight: 650; color: #dbe7ff; }
+
+      /* S10 end */
+      #s10-rays { left: 360px; top: -170px; width: 1200px; height: 1200px; border-radius: 50%; opacity: 0;
+        background: repeating-conic-gradient(from 0deg, rgba(150, 190, 255, 0.16) 0deg 4deg, transparent 4deg 15deg);
+        -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 65%); mask-image: radial-gradient(circle, #000 0%, transparent 65%); }
+      #s10-halo { left: 460px; top: -70px; width: 1000px; height: 1000px; border-radius: 50%; background: radial-gradient(circle, rgba(90, 150, 255, 0.6), rgba(70, 90, 230, 0.15) 40%, transparent 65%); opacity: 0; }
+      #s10-orb { left: 790px; top: 260px; width: 340px; height: 340px; opacity: 0; }
+      #s10-word { left: 0; top: 650px; width: 1920px; display: flex; justify-content: center; perspective: 900px; }
+      #s10-word .ch { font-size: 140px; }
+      #s10-url { left: 735px; top: 840px; width: 450px; height: 88px; border-radius: 44px; display: flex; align-items: center; justify-content: center; gap: 16px; overflow: hidden; opacity: 0;
+        font-size: 38px; font-weight: 650; letter-spacing: 0.01em; }
+      #s10-url .ico { width: 32px; height: 32px; color: var(--accent); }
+      #s10-url .sw { position: absolute; left: 0; top: 0; width: 160px; height: 88px; background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.55), transparent); }
+      #s10-plat { left: 0; top: 962px; width: 1920px; text-align: center; font-size: 24px; letter-spacing: 0.24em; color: #8fa2c6; opacity: 0; }
+      #s10-m { left: 1380px; top: 190px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="30" data-fps="24" data-width="1920" data-height="1080">
+      <div id="bg" class="full">
+        <div id="bg-nebula"></div>
+        <img id="bg-crystal" src="assets/art/crystal-refraction.png" alt="" />
+        <canvas id="stars" width="1920" height="1080"></canvas>
+      </div>
+
+      <div id="cam" class="full">
+        <div id="shake" class="full">
+          <!-- S1 · «вся твоя музыка» + catalogues -->
+          <section id="s1" class="scene">
+            <div id="s1-line" class="abs"></div>
+            <div id="s1-shard" class="abs"><img src="assets/shards/shard_tr.png" alt="" /></div>
+            <img class="s1-mini abs" src="assets/shards/shard_mini_fr.png" alt="" />
+            <img class="s1-mini abs" src="assets/shards/shard_mini_bc.png" alt="" />
+            <img class="s1-mini abs" src="assets/shards/shard_mini_tr.png" alt="" />
+            <img class="s1-mini abs" src="assets/shards/shard_mini_br2.png" alt="" />
+            <img class="s1-mini abs" src="assets/shards/shard_mini_top.png" alt="" />
+            <img class="s1-mini abs" src="assets/shards/shard_mini_ml.png" alt="" />
+            <div class="word" id="s1-w1"><span class="w">вся</span></div>
+            <div class="word" id="s1-w2"><span class="w">твоя</span></div>
+            <div id="s1-music"><span class="ch">м</span><span class="ch">у</span><span class="ch">з</span><span class="ch">ы</span><span class="ch">к</span><span class="ch">а</span></div>
+            <div id="s1-shine" data-layout-allow-occlusion><span>музыка</span></div>
+            <div id="s1-sub" class="abs">из всех каталогов — в одном плеере</div>
+            <div class="chip glass" id="ch-dz" style="left: 250px; top: 300px"><i style="background: #a238ff; box-shadow: 0 0 18px #a238ff"></i>Deezer</div>
+            <div class="chip glass" id="ch-sp" style="left: 1410px; top: 270px"><i style="background: #1ed760; box-shadow: 0 0 18px #1ed760"></i>Spotify</div>
+            <div class="chip glass" id="ch-sc" style="left: 210px; top: 770px"><i style="background: #ff5500; box-shadow: 0 0 18px #ff5500"></i>SoundCloud</div>
+            <div class="chip glass" id="ch-yt" style="left: 1440px; top: 790px"><i style="background: #ff0033; box-shadow: 0 0 18px #ff0033"></i>YouTube</div>
+            <div class="chip glass" id="ch-ya" style="left: 790px; top: 860px"><i style="background: #ffcc00; box-shadow: 0 0 18px #ffcc00"></i>Яндекс Музыка</div>
+          </section>
+
+          <!-- S2 · search -->
+          <section id="s2" class="scene">
+            <div id="s2-label" class="abs">ПОИСК ПО ВСЕМ КАТАЛОГАМ СРАЗУ</div>
+            <div id="s2-bar" class="abs glass">
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+              <div id="s2-text"><span>г</span><span>л</span><span>у</span><span>п</span><span>ы</span><span>й</span><span>с</span><span>в</span><span>и</span><span>н</span><i id="s2-caret"></i></div>
+            </div>
+            <div id="s2-results" class="abs">
+              <div id="s2-hl"></div>
+              <div class="row glass" id="r1">
+                <img class="th" id="r1-th" src="assets/cover.jpg" alt="" />
+                <div class="meta"><div class="t">глупыйсвин</div><div class="a">ева киллер · капуста хаус</div></div>
+                <div class="badge"><i style="background: #a238ff"></i>Deezer</div>
+                <div class="dur">1:49</div>
+              </div>
+              <div class="row glass" id="r2">
+                <img class="th" src="assets/cover.jpg" alt="" style="filter: grayscale(1) contrast(1.2) brightness(0.8)" />
+                <div class="meta"><div class="t">глупыйсвин (Instrumental)</div><div class="a">ева киллер, ника кабина, мая койка</div></div>
+                <div class="badge"><i style="background: #ff0033"></i>YouTube</div>
+                <div class="dur">1:51</div>
+              </div>
+              <div class="row glass" id="r3">
+                <img class="th" src="assets/cover.jpg" alt="" style="filter: sepia(1) hue-rotate(-30deg) saturate(2) brightness(0.8)" />
+                <div class="meta"><div class="t">глупыйсвин snippet</div><div class="a">ева киллер</div></div>
+                <div class="badge"><i style="background: #ff5500"></i>SoundCloud</div>
+                <div class="dur">0:20</div>
+              </div>
+            </div>
+            <div class="ripple" id="s2-rip" style="left: 432px; top: 472px"></div>
+            <svg class="cursor" id="s2-cur" viewBox="0 0 32 34"><path d="M5 3 L5 27 L11.5 21 L16 31 L20 29.3 L15.6 19.6 L24 19.6 Z" fill="#fff" stroke="#0b1430" stroke-width="1.6" stroke-linejoin="round" /></svg>
+          </section>
+
+          <!-- S3 · build-up -->
+          <section id="s3" class="scene">
+            <div id="s3-stage">
+              <div id="s3-shards"></div>
+              <div class="outline" id="s3-L">ОДИН</div>
+              <div class="outline" id="s3-R">ТАП</div>
+              <div id="s3-cover" class="abs" data-hf-motion-blur><img src="assets/cover.jpg" alt="" /></div>
+              <div id="s3-play" class="abs"><svg class="ico fill" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" /></svg></div>
+              <svg class="cursor" id="s3-cur" viewBox="0 0 32 34"><path d="M5 3 L5 27 L11.5 21 L16 31 L20 29.3 L15.6 19.6 L24 19.6 Z" fill="#fff" stroke="#0b1430" stroke-width="1.6" stroke-linejoin="round" /></svg>
+            </div>
+          </section>
+
+          <!-- S4 · DROP -->
+          <section id="s4" class="scene">
+            <div id="s4-stage">
+              <div id="s4-halo" class="abs"></div>
+              <div id="s4-rays"></div>
+              <div class="ring" id="s4-r1"></div>
+              <div class="ring" id="s4-r2"></div>
+              <div id="s4-shards"></div>
+              <div id="s4-lock"><div id="s4-ph"></div><div id="s4-word"><span class="ch">О</span><span class="ch">с</span><span class="ch">к</span><span class="ch">о</span><span class="ch">л</span><span class="ch">о</span><span class="ch">к</span></div></div>
+              <img id="s4-orb" class="abs" src="assets/logo.png" alt="" data-hf-motion-blur />
+              <div id="s4-tag" class="abs"><div class="m"><span>ваша</span></div><div class="m"><span>музыка,</span></div><div class="m"><span>ваши</span></div><div class="m"><span>грани</span></div></div>
+            </div>
+          </section>
+
+          <!-- S5 · player + lyrics -->
+          <section id="s5" class="scene">
+            <div id="s5-stage">
+              <div id="s5-panel" class="abs glass"></div>
+              <div id="s5-brand" class="abs" data-layout-allow-occlusion><img src="assets/logo.png" alt="" /><b>Осколок</b></div>
+              <div id="s5-nav" class="abs glass" data-layout-allow-occlusion>
+                <div><svg class="ico" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>Главная</div>
+                <div class="on"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>Поиск</div>
+                <div><svg class="ico" viewBox="0 0 24 24"><path d="m16 6 4 14" /><path d="M12 6v14" /><path d="M8 8v12" /><path d="M4 4v16" /></svg>Коллекция</div>
+              </div>
+              <div class="hbtn glass" id="hb1" style="left: 1660px"><svg class="ico" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></div>
+              <div class="hbtn glass" id="hb2" style="left: 1734px"><svg class="ico" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg></div>
+              <div class="hbtn glass" id="hb3" style="left: 1808px"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></svg></div>
+
+              <div id="s5-head" class="abs"><h2>Плеер</h2><p>в котором всё — на своих гранях</p></div>
+
+              <div id="ly-top" class="abs">
+                <div class="c"><svg class="ico" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>СВЕРНУТЬ</div>
+                <div class="l1">ТЕКСТ ПЕСНИ</div>
+                <div class="l2">по словам и слогам</div>
+              </div>
+              <div id="ly-tr" class="abs glass"><svg class="ico" viewBox="0 0 24 24"><path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" /></svg>Перевод</div>
+              <div id="ly-wrap" class="abs">
+                <div id="ly-lines">
+                  <div class="ll" id="ll0"><span class="syl" data-t="18.04" data-d="0.37">Текст</span><span class="syl" data-t="18.41" data-d="0.19"> по</span><span class="syl" data-t="18.60" data-d="0.17"> сло</span><span class="syl" data-t="18.77" data-d="0.38">вам</span></div>
+                  <div class="ll" id="ll1"><span class="syl" data-t="19.16" data-d="0.19">и</span><span class="syl" data-t="19.35" data-d="0.18"> по</span><span class="syl" data-t="19.53" data-d="0.19"> сло</span><span class="syl" data-t="19.72" data-d="0.4">гам</span></div>
+                  <div class="ll" id="ll2"><span class="syl" data-t="20.27" data-d="0.1">Пе</span><span class="syl" data-t="20.37" data-d="0.1">ре</span><span class="syl" data-t="20.47" data-d="0.18">вод</span><span class="syl" data-t="20.65" data-d="0.06"> —</span><span class="syl" data-t="20.71" data-d="0.09"> в о</span><span class="syl" data-t="20.80" data-d="0.09">дин</span><span class="syl" data-t="20.89" data-d="0.15"> тап</span><span class="trn">translation — in one tap</span></div>
+                </div>
+              </div>
+
+              <div id="s5-col">
+                <div class="layer" id="lay-cover" style="top: 0; height: 500px">
+                  <div id="s5-cover" class="abs"><img src="assets/cover.jpg" alt="" /><div id="s5-cshine"></div></div>
+                </div>
+                <div class="layer" id="s5-prog"><div class="tm" id="s5-time">0:14</div><div id="s5-track"><i id="s5-fill"></i><i id="s5-knob"></i></div><div class="tm">1:49</div></div>
+                <div class="layer" id="s5-title"></div>
+                <div class="layer" id="s5-artist">ева киллер</div>
+                <div class="layer" id="s5-ctrl">
+                  <div class="cb" id="cb-shuf" style="left: 60px"><svg class="ico" viewBox="0 0 24 24"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" /><path d="m18 2 4 4-4 4" /><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" /><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" /><path d="m18 14 4 4-4 4" /></svg></div>
+                  <div class="cb" id="cb-prev" style="left: 160px"><svg class="ico fill" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20" /><rect x="4" y="5" width="2.4" height="14" rx="1" /></svg></div>
+                  <div class="cb" id="cb-play" style="left: 245px"><svg class="ico fill" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" /></svg></div>
+                  <div class="cb" id="cb-next" style="left: 360px"><svg class="ico fill" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4" /><rect x="17.6" y="5" width="2.4" height="14" rx="1" /></svg></div>
+                  <div class="cb" id="cb-rep" style="left: 460px"><svg class="ico" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg></div>
+                </div>
+                <div class="layer" id="s5-act">
+                  <div class="ab glass" id="ab-like" style="left: 64px"><svg class="ico" id="heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.050 3 5.5l7 7Z" /></svg>
+                    <i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i>
+                  </div>
+                  <div class="ab glass" id="ab-add" style="left: 148px"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg></div>
+                  <div class="ab glass" id="ab-wave" style="left: 232px"><svg class="ico" viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" /><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" /><circle cx="12" cy="12" r="2" /><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" /><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" /></svg></div>
+                  <div class="ab glass" id="ab-vol"><svg class="ico" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg><div class="bar"><i id="vol-fill"></i></div></div>
+                </div>
+              </div>
+              <div class="callout" id="co1" style="left: 700px; top: 330px"><b>Обложки из каталога</b><i></i><s></s></div>
+              <div class="callout" id="co2" style="left: 640px; top: 640px"><b>Продолжит с той же секунды</b><i></i><s></s></div>
+              <div class="callout" id="co3" style="left: 680px; top: 860px"><b>Очередь · повтор · перемешка</b><i></i><s></s></div>
+              <div class="callout" id="co4" style="left: 560px; top: 965px"><b>Любимое · плейлисты · «Моя волна»</b><i></i><s></s></div>
+            </div>
+          </section>
+
+          <!-- S7 · Моя волна (+ mascot vibing) -->
+          <section id="s7" class="scene">
+            <img id="s7-bubble" class="abs" src="assets/art/wave-bubble.png" alt="" />
+            <svg id="s7-waves" viewBox="0 0 1920 1080">
+              <defs>
+                <linearGradient id="wg" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0" stop-color="#4f8dff" stop-opacity="0" />
+                  <stop offset="0.25" stop-color="#6aa6ff" />
+                  <stop offset="0.6" stop-color="#b48cff" />
+                  <stop offset="1" stop-color="#7fd4ff" stop-opacity="0.1" />
+                </linearGradient>
+              </defs>
+              <path id="wv0" stroke="url(#wg)" stroke-width="5" />
+              <path id="wv1" stroke="url(#wg)" stroke-width="3" opacity="0.7" />
+              <path id="wv2" stroke="url(#wg)" stroke-width="2.5" opacity="0.5" />
+              <path id="wv3" stroke="url(#wg)" stroke-width="2" opacity="0.35" />
+              <path id="wv4" stroke="url(#wg)" stroke-width="1.5" opacity="0.25" />
+            </svg>
+            <div id="s7-mshadow" class="abs"></div>
+            <div id="s7-m" class="mascot"></div>
+            <div id="s7-title" class="abs"><span class="ch">М</span><span class="ch">о</span><span class="ch">я</span><span class="ch sp"> </span><span class="ch">в</span><span class="ch">о</span><span class="ch">л</span><span class="ch">н</span><span class="ch">а</span></div>
+            <div id="s7-sub" class="abs">рекомендации, которые подстраиваются под тебя</div>
+            <div class="card glass" id="cd0"><div class="art" style="background: radial-gradient(circle at 30% 30%, #ff5d7a, #6a1fd1 60%, #12082e)"><img src="assets/shards/shard_tl.png" alt="" /></div><div class="ct">Похоже на «глупыйсвин»</div><div class="cs">ева киллер и не только</div></div>
+            <div class="card glass" id="cd1"><div class="art" style="background: radial-gradient(circle at 70% 20%, #7fd4ff, #2054d6 55%, #07103a)"><img src="assets/shards/shard_br.png" alt="" /></div><div class="ct">Новое для тебя</div><div class="cs">свежие релизы</div></div>
+            <div class="card glass" id="cd2"><div class="art" style="background: radial-gradient(circle at 40% 70%, #ffd36b, #ff4f8b 50%, #2a0b3a)"><img src="assets/shards/shard_depth_left.png" alt="" /></div><div class="ct">Волна по настроению</div><div class="cs">энергично · ночь</div></div>
+            <div class="card glass" id="cd3"><div class="art" style="background: radial-gradient(circle at 60% 40%, #b6ffda, #1aa38a 50%, #04261f)"><img src="assets/shards/shard_bl.png" alt="" /></div><div class="ct">Твои повторы</div><div class="cs">то, что крутишь чаще</div></div>
+          </section>
+
+          <!-- S8 · resume toast -->
+          <section id="s8" class="scene">
+            <div id="s8-toast" class="abs">
+              <div class="hd">
+                <div class="hi"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg></div>
+                <div><h3>Продолжим с того же места?</h3><div class="sub">ева киллер — глупыйсвин</div></div>
+              </div>
+              <svg class="ico x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              <div id="s8-btns"><div id="s8-go">Продолжить с 0:23</div><div id="s8-no">Не нужно</div></div>
+            </div>
+            <div id="s8-ripple" class="abs"></div>
+            <svg class="cursor" id="s8-cur" viewBox="0 0 32 34"><path d="M5 3 L5 27 L11.5 21 L16 31 L20 29.3 L15.6 19.6 L24 19.6 Z" fill="#fff" stroke="#0b1430" stroke-width="1.6" stroke-linejoin="round" /></svg>
+          </section>
+
+          <!-- S9 · Telegram · transfer · platforms -->
+          <section id="s9" class="scene">
+            <div id="s9-strip">
+              <div class="pnl" id="p1">
+                <svg id="p1-trail" viewBox="0 0 1920 1080"><path id="p1-path" d="M 640 420 C 700 160, 900 90, 1250 120" fill="none" stroke="#5eb5f7" stroke-width="3" stroke-dasharray="10 12" opacity="0" /></svg>
+                <div id="tg-phone" class="abs">
+                  <div id="tg-screen">
+                    <div id="tg-ava"><img src="assets/mascot-face.png" alt="" /></div>
+                    <div id="tg-name">Слушатель Осколка</div>
+                    <div id="tg-st">в сети</div>
+                    <div id="tg-music">
+                      <div class="pl"><svg class="ico fill" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" /></svg></div>
+                      <div class="mt">глупыйсвин<div class="ma">ева киллер</div></div>
+                      <div id="tg-eq"><i></i><i></i><i></i><i></i></div>
+                    </div>
+                    <div class="tg-rowsk" style="top: 500px"></div>
+                    <div class="tg-rowsk" style="top: 586px"></div>
+                    <div class="tg-rowsk" style="top: 672px"></div>
+                  </div>
+                </div>
+                <svg class="ico abs" id="p1-plane" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
+                <div id="p1-h" class="abs"><div class="hl">Твой трек —</div><div class="hl">в профиле</div><div class="hl tg">Telegram</div><div class="psub">друзья видят, что играет прямо сейчас</div></div>
+              </div>
+              <div class="pnl" id="p2">
+                <div id="p2-h" class="abs"><div class="hl">Перенеси</div><div class="hl">свою музыку</div><div class="psub">из Spotify, Яндекс Музыки и SoundCloud</div></div>
+                <div id="p2-tile" class="abs"><div class="sh"></div><div class="sh2"></div><div class="lab">Моя коллекция</div><div class="cnt" id="p2-cnt">+0 треков</div></div>
+                <div class="mc" id="mc0" style="left: 1300px"><img src="assets/cover.jpg" alt="" /></div>
+                <div class="mc" id="mc1" style="left: 1390px; background: radial-gradient(circle at 30% 30%, #7fd4ff, #2054d6)"></div>
+                <div class="mc" id="mc2" style="left: 1480px; background: radial-gradient(circle at 30% 30%, #ff5d7a, #6a1fd1)"></div>
+                <div class="mc" id="mc3" style="left: 1570px; background: radial-gradient(circle at 30% 30%, #ffd36b, #ff4f8b)"></div>
+                <div class="src glass" id="src0"><i style="background: #1ed760"></i>Spotify</div>
+                <div class="src glass" id="src1"><i style="background: #ffcc00"></i>Яндекс Музыка</div>
+                <div class="src glass" id="src2"><i style="background: #ff5500"></i>SoundCloud</div>
+              </div>
+              <div class="pnl" id="p3">
+                <div id="p3-h" class="abs"><div class="hl">Везде, где ты</div><div class="psub">обновления приходят сами — без переустановки</div></div>
+                <div id="p3-row">
+                  <div class="dev glass"><svg class="ico" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /><line x1="8" x2="16" y1="21" y2="21" /><line x1="12" x2="12" y1="17" y2="21" /></svg><b>Windows</b></div>
+                  <div class="dev glass"><svg class="ico" viewBox="0 0 24 24"><rect width="20" height="13" x="2" y="4" rx="2" /><path d="M1 20h22" /></svg><b>macOS</b></div>
+                  <div class="dev glass"><svg class="ico" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" /></svg><b>Android</b></div>
+                  <div class="dev glass"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg><b>Веб</b></div>
+                  <div class="dev glass"><svg class="ico" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg><b>Telegram</b></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- S10 · end card -->
+          <section id="s10" class="scene">
+            <div id="s10-rays" class="abs"></div>
+            <div id="s10-halo" class="abs"></div>
+            <div id="s10-shards"></div>
+            <div class="ring" id="s10-ring" style="left: 810px; top: 280px"></div>
+            <img id="s10-orb" class="abs" src="assets/logo.png" alt="" data-hf-motion-blur />
+            <div id="s10-m" class="mascot"></div>
+            <div id="s10-word" class="abs"><span class="ch">О</span><span class="ch">с</span><span class="ch">к</span><span class="ch">о</span><span class="ch">л</span><span class="ch">о</span><span class="ch">к</span></div>
+            <div id="s10-url" class="abs glass"><span>oskolok.lol</span><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg><i class="sw"></i></div>
+            <div id="s10-plat" class="abs">WINDOWS · MACOS · ANDROID · ВЕБ · TELEGRAM</div>
+          </section>
+        </div>
+      </div>
+
+      <div id="vig" class="full" data-layout-allow-occlusion></div>
+      <div id="vig-close" class="full" data-layout-allow-occlusion></div>
+      <div id="grain" class="full" data-layout-allow-occlusion></div>
+      <div id="flash" class="full" data-layout-allow-occlusion></div>
+      <div id="black" class="full" data-layout-allow-occlusion></div>
+
+      <audio id="bgm" src="assets/bgm.mp3" data-start="0" data-duration="30" data-track-index="11" data-volume="1"></audio>
+    </div>
+
+    <script src="assets/motion-blur.js"></script>
+    <script>
+      (function () {
+        function mulberry32(a) {
+          return function () {
+            a |= 0; a = (a + 0x6d2b79f5) | 0;
+            var t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+        var rnd = mulberry32(20261012);
+        var $ = function (s) { return document.querySelector(s); };
+        var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+        var W = 1920, H = 1080, CX = 960, CY = 540, F = 1 / 24;
+
+        // musical anchors (s): audiomap downbeats + sub-band 808 onsets
+        var A = {
+          hit0: 0.77, b1: 1.53, b2: 2.30, D1: 3.06, b4: 3.79, b5: 4.55, D2: 6.04, b9: 7.55, b10: 8.29, snare: 8.615,
+          D3: 9.06, b13: 9.80, b14: 10.54, b15: 11.29, DROP: 12.05, s808: 12.60, half: 12.79, k1: 13.56, k2: 13.90, D5: 15.03,
+          D6: 18.02, D7: 21.04, glitch: 22.87, low: 23.0, toast: 23.28, D8: 24.03, D9: 27.05, END: 30.0
+        };
+        var BEAT = 0.7435;
+
+        var shardSrc = ["shard_tl", "shard_tr", "shard_bl", "shard_br", "shard_depth_left", "shard_depth_right", "shard_mini_fr", "shard_mini_bc", "shard_mini_tr", "shard_mini_br2", "shard_mini_top", "shard_mini_br1", "shard_mini_ml", "shard_mini_bl", "shard_mini_cl", "shard_mini_mr"];
+        function mkShards(container, n, cls, minS, maxS) {
+          var out = [];
+          for (var i = 0; i < n; i++) {
+            var img = document.createElement("img");
+            img.className = cls; img.alt = "";
+            img.src = "assets/shards/" + shardSrc[i % shardSrc.length] + ".png";
+            var s = minS + rnd() * (maxS - minS);
+            img.style.width = s + "px"; img.style.height = s + "px";
+            container.appendChild(img);
+            out.push({ el: img, s: s, a: rnd() * Math.PI * 2, r: rnd(), spin: rnd() * 2 - 1, z: rnd() });
+          }
+          return out;
+        }
+        var buildShards = mkShards($("#s3-shards"), 14, "bshard", 70, 170);
+        var dropShards = mkShards($("#s4-shards"), 26, "xshard", 50, 190);
+        var orbitShards = mkShards($("#s10-shards"), 12, "oshard", 46, 120);
+        orbitShards.forEach(function (o, i) { o.a = (i / orbitShards.length) * Math.PI * 2 + (o.a - Math.PI) * 0.08; });
+        dropShards.forEach(function (o) { o.el.setAttribute("data-hf-motion-blur", '{"shutterAngle": 300}'); });
+        var rays = [];
+        for (var i = 0; i < 30; i++) {
+          var r = document.createElement("div"); r.className = "ray"; $("#s4-rays").appendChild(r);
+          rays.push({ el: r, a: (i / 30) * 360 + (rnd() - 0.5) * 8, len: 0.5 + rnd() * 0.8 });
+        }
+        "глупыйсвин".split("").forEach(function (c) {
+          var s = document.createElement("span"); s.className = "ch"; s.textContent = c; $("#s5-title").appendChild(s);
+        });
+
+        // ---------- starfield: speed curve integrated so any seek is exact ----------
+        var stars = [];
+        for (var k = 0; k < 520; k++) stars.push({ x: (rnd() - 0.5) * 2.4, y: (rnd() - 0.5) * 1.5, z: rnd(), b: 0.35 + rnd() * 0.65, c: rnd() });
+        function speedAt(t) {
+          var v = 0.025;
+          if (t >= 9.06 && t < 12.05) v += Math.pow((t - 9.06) / 2.99, 3) * 1.6;
+          if (t >= 12.05) v += 1.8 * Math.exp(-(t - 12.05) * 2.4);
+          if (t >= 13.9) v += 0.5 * Math.exp(-(t - 13.9) * 3);
+          if (t >= 18.02) v += 0.4 * Math.exp(-(t - 18.02) * 3);
+          if (t >= 22.87 && t < 24.03) v *= 0.15;
+          if (t >= 24.03) v += 0.9 * Math.exp(-(t - 24.03) * 2.5);
+          if (t >= 27.05) v += 1.2 * Math.exp(-(t - 27.05) * 2.2);
+          if (t >= 28.9 && t < 30) v += Math.pow((t - 28.9) / 1.1, 2) * 0.9;
+          return v;
+        }
+        var DT = 1 / 240, dist = [0];
+        for (var q = 1; q <= 30 / DT + 2; q++) dist.push(dist[q - 1] + speedAt(q * DT) * DT);
+        function distAt(t) { var i = Math.max(0, Math.min(dist.length - 2, Math.floor(t / DT))); var f = t / DT - i; return dist[i] + (dist[i + 1] - dist[i]) * f; }
+        var ctx = $("#stars").getContext("2d");
+        function drawStars(t) {
+          var d = distAt(t), v = speedAt(t);
+          ctx.clearRect(0, 0, W, H);
+          var streak = Math.min(0.45, v * 0.18);
+          for (var i = 0; i < stars.length; i++) {
+            var s = stars[i];
+            var z = 1 - ((s.z + d) % 1);
+            var zz = 0.04 + z * 0.96;
+            var px = CX + (s.x / zz) * 520, py = CY + (s.y / zz) * 520;
+            if (px < -50 || px > W + 50 || py < -50 || py > H + 50) continue;
+            var z2 = Math.min(1, zz + streak);
+            var qx = CX + (s.x / z2) * 520, qy = CY + (s.y / z2) * 520;
+            var a = s.b * Math.min(1, (1 - z) * 1.6) * (0.55 + Math.min(0.45, v));
+            var col = s.c > 0.8 ? "180,160,255" : s.c > 0.5 ? "170,205,255" : "235,242,255";
+            ctx.strokeStyle = "rgba(" + col + "," + a.toFixed(3) + ")";
+            ctx.lineWidth = Math.max(0.6, (1 - zz) * 3.2);
+            ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px + 0.01, py + 0.01); ctx.stroke();
+          }
+        }
+
+        // ---------- mascot turntable sprite: 48 frames, 7.5° apart, 8×6 sheet ----------
+        function mascotAngle(el, deg) {
+          var i = Math.round((((deg % 360) + 360) % 360) / 7.5) % 48;
+          el.style.backgroundPosition = -(i % 8) * 560 + "px " + -Math.floor(i / 8) * 840 + "px";
+        }
+        var m7 = $("#s7-m"), m10 = $("#s10-m");
+        function easeOut(x) { x = Math.min(1, Math.max(0, x)); return 1 - Math.pow(1 - x, 4); }
+
+        // ---------- per-frame procedural layer (every value derives from t) ----------
+        function fmt(t) { var s = Math.floor(t); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+        var timeEl = $("#s5-time"), fillEl = $("#s5-fill"), knobEl = $("#s5-knob");
+        var waves = [0, 1, 2, 3, 4].map(function (i) { return $("#wv" + i); });
+        var eq = $$("#tg-eq i");
+        var grain = $("#grain");
+        var kicks = [21.04, 21.59, 22.16, 22.53];
+        function wavePath(t, i, amp) {
+          var pts = [], ph = t * (2.2 + i * 0.35) + i * 0.9, y0 = 640 + i * 10;
+          for (var x = -40; x <= 1960; x += 40) {
+            var y = y0 + Math.sin(x * 0.0042 + ph) * amp * (1 - i * 0.12) + Math.sin(x * 0.011 - ph * 1.3) * amp * 0.25;
+            pts.push((x === -40 ? "M" : "L") + x + " " + y.toFixed(1));
+          }
+          return pts.join(" ");
+        }
+        function frame(t) {
+          drawStars(t);
+          var fi = Math.floor(t * 24);
+          grain.style.backgroundPosition = ((fi * 73) % 200) + "px " + ((fi * 131) % 200) + "px";
+          if (t > 13.5 && t < 21.5) {
+            timeEl.textContent = fmt(t);
+            var p = t / 109.5;
+            fillEl.style.transform = "scaleX(" + p.toFixed(4) + ")";
+            knobEl.style.transform = "translateX(" + (p * 382 - 10).toFixed(1) + "px)";
+          }
+          if (t >= 9.0 && t < 12.1) {
+            var u = Math.min(1, Math.max(0, (t - 9.06) / 2.95)), e = Math.pow(u, 2.6);
+            buildShards.forEach(function (o) {
+              var rad = 1150 - 860 * e - o.r * 120 * (1 - e);
+              var ang = o.a + e * Math.PI * 2.2 * (o.spin > 0 ? 1 : -1) + u * 0.6;
+              var x = CX + Math.cos(ang) * rad * 1.15 - o.s / 2, y = CY + Math.sin(ang) * rad * 0.62 - o.s / 2;
+              o.el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) rotate(" + (o.spin * 400 * e + o.a * 57).toFixed(1) + "deg) scale(" + (0.6 + o.z * 0.6).toFixed(3) + ")";
+              o.el.style.opacity = (Math.min(1, u * 4) * (0.55 + o.z * 0.45)).toFixed(3);
+            });
+          }
+          if (t >= 20.8 && t < 24.2) {
+            var amp = 46;
+            kicks.forEach(function (kk) { if (t >= kk) amp += 70 * Math.exp(-(t - kk) * 6); });
+            if (t >= 22.87) amp *= Math.max(0.15, 1 - (t - 22.87) * 1.6);
+            waves.forEach(function (w, i) { w.setAttribute("d", wavePath(t, i, amp)); });
+            // mascot: spins in on 21.04, then sways and bobs on the beat
+            var lt = t - A.D7;
+            var spin = 360 * (1 - easeOut(lt / 0.75));
+            var sway = 18 * Math.sin((lt / (2 * BEAT)) * Math.PI * 2) * easeOut((lt - 0.3) / 0.5);
+            mascotAngle(m7, spin + sway);
+            var bob = Math.abs(Math.sin((lt / BEAT) * Math.PI)) * 14;
+            m7.style.transform = "translateY(" + (-bob).toFixed(1) + "px) rotate(" + (sway * 0.08).toFixed(2) + "deg)";
+          }
+          if (t >= 24 && t < 25.8) {
+            eq.forEach(function (b, i) {
+              b.style.transform = "scaleY(" + (0.25 + 0.75 * Math.abs(Math.sin(t * (9 + i * 3.1) + i * 1.7))).toFixed(3) + ")";
+            });
+          }
+          if (t >= 26.9) {
+            var sp = t < 28.9 ? (t - 27.05) * 0.55 : (28.9 - 27.05) * 0.55 + Math.pow(t - 28.9, 2) * 1.4 + (t - 28.9) * 0.6;
+            var eg = easeOut((t - 27.05) / 0.5);
+            orbitShards.forEach(function (o) {
+              var ang = o.a + sp * (1 + o.r * 0.4);
+              var rx = (330 + o.r * 160) * eg, ry = (95 + o.r * 50) * eg;
+              var x = CX + Math.cos(ang) * rx, y = 430 + Math.sin(ang) * ry - Math.cos(ang) * 40;
+              var depth = Math.sin(ang);
+              var sc = (0.75 + depth * 0.3) * (0.7 + o.z * 0.5);
+              o.el.style.transform = "translate(" + (x - o.s / 2).toFixed(1) + "px," + (y - o.s / 2).toFixed(1) + "px) rotate(" + (ang * 57 * o.spin).toFixed(1) + "deg) scale(" + sc.toFixed(3) + ")";
+              o.el.style.zIndex = depth > 0 ? 3 : 0;
+              o.el.style.opacity = (eg * (0.55 + depth * 0.45)).toFixed(3);
+            });
+            // mascot: two fast turns on arrival, then she grooves to the riser
+            var lt2 = t - (A.D9 + 0.2);
+            var spin2 = -720 * (1 - easeOut(lt2 / 0.9));
+            var groove = 14 * Math.sin((lt2 / BEAT) * Math.PI * 2) * easeOut((lt2 - 0.6) / 0.4);
+            mascotAngle(m10, spin2 + groove);
+          }
+        }
+
+        // ---------- timeline ----------
+        var tl = gsap.timeline({ paused: true });
+        function vis(sel, a, b) { tl.set(sel, { visibility: "visible" }, a); if (b != null) tl.set(sel, { visibility: "hidden" }, b); }
+        function shake(t0, dur, amp) {
+          var n = Math.round(dur * 24);
+          for (var i = 0; i < n; i++) {
+            var k = Math.pow(1 - i / n, 1.6);
+            tl.to("#shake", { x: (rnd() * 2 - 1) * amp * k, y: (rnd() * 2 - 1) * amp * k, rotation: (rnd() * 2 - 1) * amp * 0.03 * k, duration: F, ease: "none" }, t0 + i * F);
+          }
+          tl.to("#shake", { x: 0, y: 0, rotation: 0, duration: F, ease: "none" }, t0 + n * F);
+        }
+        function flash(t0, peak, dur) { tl.fromTo("#flash", { opacity: peak }, { opacity: 0, duration: dur, ease: "expo.out", immediateRender: false }, t0); }
+        // tween that blurs out from a sharp state (GSAP can't interpolate from filter:none)
+        function blurOut(sel, t0, vars) { vars.immediateRender = false; tl.fromTo(sel, { filter: "blur(0px)" }, vars, t0); }
+
+        var drv = { t: 0 };
+        tl.to(drv, { t: 30, duration: 30, ease: "none", onUpdate: function () { frame(drv.t); } }, 0);
+
+        // ===== S1 · 0 → 6.4 =====
+        vis("#s1", 0, 6.45);
+        tl.fromTo("#s1-line", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.67, ease: "power2.in" }, 0.1);
+        tl.to("#s1-line", { scaleY: 26, opacity: 0, duration: 0.3, ease: "expo.out" }, A.hit0);
+        tl.fromTo("#s1-shard", { opacity: 0, scale: 0.2, rotation: -70 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.54, ease: "back.out(2.2)" }, A.hit0);
+        tl.to("#s1-shard", { x: -560, y: -300, scale: 0.42, opacity: 0.55, rotation: 60, duration: 0.7, ease: "power3.inOut" }, A.b1 - 0.2);
+        tl.to("#s1-shard", { x: -700, y: -380, rotation: 130, opacity: 0, duration: 4.2, ease: "none" }, A.b1 + 0.5);
+        $$(".s1-mini").forEach(function (m, i) {
+          var ang = (i / 6) * Math.PI * 2 + 0.4, rad = 260 + i * 60;
+          tl.fromTo(m, { opacity: 0, x: 0, y: 0, scale: 0.4 }, { opacity: 0.85, x: Math.cos(ang) * rad, y: Math.sin(ang) * rad * 0.7, scale: 1.4, rotation: 180 + i * 50, duration: 1.4, ease: "expo.out" }, A.hit0 + i * 0.02);
+          tl.to(m, { x: Math.cos(ang) * rad * 1.35, y: Math.sin(ang) * rad * 0.95, rotation: 360 + i * 70, opacity: 0.35, duration: 3.6, ease: "none" }, A.hit0 + 1.4);
+          tl.to(m, { opacity: 0, duration: 0.3 }, A.D2 - 0.2);
+        });
+        var w1 = "#s1-w1 .w", w2 = "#s1-w2 .w";
+        tl.fromTo(w1, { opacity: 0, y: 130, scale: 1.3, filter: "blur(18px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, A.b1);
+        tl.to(w1, { y: -230, scale: 0.6, opacity: 0.3, filter: "blur(3px)", duration: 0.45, ease: "expo.out" }, A.b2);
+        tl.fromTo(w2, { opacity: 0, y: 130, scale: 1.3, filter: "blur(18px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, A.b2);
+        tl.to(w1, { y: -420, scale: 0.45, opacity: 0, filter: "blur(8px)", duration: 0.45, ease: "expo.out" }, A.D1);
+        tl.to(w2, { y: -250, scale: 0.55, opacity: 0.28, filter: "blur(3px)", duration: 0.45, ease: "expo.out" }, A.D1);
+        tl.to(w2, { y: -420, opacity: 0, filter: "blur(10px)", duration: 0.5, ease: "power2.in" }, A.b4);
+        tl.fromTo("#s1-music .ch", { opacity: 0, y: 170, rotationX: -85, scale: 1.2 }, { opacity: 1, y: 0, rotationX: 0, scale: 1, duration: 0.6, ease: "expo.out", stagger: 0.045 }, A.D1);
+        tl.fromTo("#s1-shine span", { backgroundPosition: "100% 0" }, { backgroundPosition: "0% 0", duration: 0.7, ease: "power2.inOut" }, A.b4);
+        tl.fromTo("#s1-music", { scale: 1 }, { scale: 0.93, duration: 2.0, ease: "sine.inOut" }, A.b4);
+        tl.fromTo("#s1-sub", { opacity: 0, y: 30, scale: 1.06 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "expo.out" }, A.b5);
+        var chips = ["#ch-dz", "#ch-sp", "#ch-sc", "#ch-yt", "#ch-ya"], chipT = [4.55, 4.92, 5.29, 5.48, 5.67];
+        chips.forEach(function (c, i) {
+          tl.fromTo(c, { opacity: 0, scale: 0, rotation: i % 2 ? 18 : -18 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2.6)" }, chipT[i]);
+          tl.to(c, { y: (i % 2 ? -1 : 1) * 16, duration: 0.9, ease: "sine.inOut" }, chipT[i] + 0.5);
+        });
+        blurOut("#s1-music, #s1-shine", A.D2 - 0.26, { y: -40, opacity: 0, filter: "blur(16px)", scale: 0.86, duration: 0.32, ease: "power3.in" });
+        blurOut("#s1-sub", A.D2 - 0.26, { y: 30, opacity: 0, filter: "blur(10px)", duration: 0.3, ease: "power3.in" });
+        chips.forEach(function (c, i) {
+          var el = $(c), l = parseFloat(el.style.left), tp = parseFloat(el.style.top);
+          tl.to(c, { x: CX - 120 - l, y: 313 - tp, scale: 0.25, opacity: 0, rotation: 0, duration: 0.42, ease: "expo.in" }, A.D2 - 0.3 + i * 0.03);
+        });
+
+        // ===== S2 · search 6.04 → 9.5 =====
+        vis("#s2", A.D2 - 0.05, 9.55);
+        tl.fromTo("#s2-bar", { opacity: 0, scaleX: 0.22, scaleY: 0.6 }, { opacity: 1, scaleX: 1, scaleY: 1, duration: 0.55, ease: "expo.out" }, A.D2);
+        tl.fromTo("#s2-label", { opacity: 0, y: 14, scale: 1.08 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "expo.out" }, A.D2 + 0.1);
+        $$("#s2-text span").forEach(function (s, i) { tl.set(s, { display: "inline" }, 6.42 + i * 0.093); });
+        for (var cb = 0; cb < 8; cb++) tl.set("#s2-caret", { opacity: cb % 2 ? 1 : 0 }, 7.38 + cb * 0.186);
+        ["#r1", "#r2", "#r3"].forEach(function (r, i) {
+          tl.fromTo(r, { opacity: 0, y: 50, filter: "blur(10px)", scale: 0.96 }, { opacity: 1, y: 0, filter: "blur(0px)", scale: 1, duration: 0.55, ease: "expo.out" }, A.b9 + i * 0.09);
+        });
+        tl.fromTo("#s2-hl", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" }, A.b10);
+        tl.to("#r2, #r3", { opacity: 0.45, duration: 0.3 }, A.b10);
+        tl.fromTo("#s2-cur", { opacity: 0, x: 1500, y: 980 }, { opacity: 1, duration: 0.01 }, 7.9);
+        tl.to("#s2-cur", { x: 463, y: 506, duration: 0.62, ease: "power3.inOut" }, 7.92);
+        tl.to("#s2-cur", { scale: 0.8, duration: 0.07, ease: "power2.in" }, A.snare - 0.07);
+        tl.to("#s2-cur", { scale: 1, duration: 0.2, ease: "back.out(3)" }, A.snare);
+        tl.to("#r1", { scale: 0.985, duration: 0.07 }, A.snare - 0.07);
+        tl.to("#r1", { scale: 1, duration: 0.25, ease: "back.out(3)" }, A.snare);
+        tl.fromTo("#s2-rip", { opacity: 0.9, scale: 0.3 }, { opacity: 0, scale: 3.2, duration: 0.6, ease: "expo.out", immediateRender: false }, A.snare);
+        tl.set("#r1-th", { opacity: 0 }, A.D3);
+        tl.to("#s2-cur", { opacity: 0, y: 700, duration: 0.3, ease: "power2.in" }, A.D3 - 0.1);
+        blurOut("#s2-bar, #s2-label", A.D3 - 0.05, { y: -120, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" });
+        tl.to("#r1, #s2-hl", { x: 160, opacity: 0, filter: "blur(10px)", duration: 0.4, ease: "power3.in" }, A.D3);
+        tl.to("#r2", { y: 120, opacity: 0, filter: "blur(10px)", duration: 0.4, ease: "power3.in" }, A.D3 + 0.04);
+        tl.to("#r3", { y: 200, opacity: 0, filter: "blur(10px)", duration: 0.4, ease: "power3.in" }, A.D3 + 0.08);
+
+        // ===== S3 · build 9.06 → 12.05 =====
+        vis("#s3", A.D3, A.DROP);
+        tl.fromTo("#s3-cover", { opacity: 1, x: 472 - CX, y: 512 - CY, scale: 88 / 520, rotationY: 0, borderRadius: 90 }, { opacity: 1, x: 0, y: 0, scale: 1, rotationY: -8, borderRadius: 34, duration: 0.62, ease: "expo.inOut" }, A.D3);
+        tl.to("#s3-cover", { scale: 1.1, rotationY: 8, rotationX: 4, duration: 11.66 - 9.7, ease: "sine.in" }, 9.7);
+        tl.to("#s3-cover", { scale: 1.03, rotationY: 0, rotationX: 0, duration: 0.36, ease: "power4.in" }, 11.66);
+        tl.fromTo("#s3-L", { opacity: 0, x: -260, filter: "blur(20px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.45, ease: "expo.out" }, A.b13);
+        tl.fromTo("#s3-R", { opacity: 0, x: 260, filter: "blur(20px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.45, ease: "expo.out" }, A.b14);
+        tl.to("#s3-L", { color: "rgba(200,220,255,0.95)", duration: 0.12, yoyo: true, repeat: 1 }, A.b13);
+        tl.to("#s3-R", { color: "rgba(200,220,255,0.95)", duration: 0.12, yoyo: true, repeat: 1 }, A.b14);
+        tl.to("#s3-L", { x: 220, opacity: 0, filter: "blur(10px)", duration: 0.6, ease: "power3.in" }, A.b15);
+        tl.to("#s3-R", { x: -220, opacity: 0, filter: "blur(10px)", duration: 0.6, ease: "power3.in" }, A.b15);
+        tl.fromTo("#s3-play", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.36, ease: "back.out(3)" }, A.b15);
+        tl.fromTo("#s3-cur", { opacity: 0, x: 1560, y: 980 }, { opacity: 1, duration: 0.01 }, 10.9);
+        tl.to("#s3-cur", { x: 952, y: 534, duration: 0.6, ease: "power3.out" }, 10.92);
+        tl.to("#s3-cur", { scale: 0.78, duration: 0.12, ease: "power2.in" }, 11.66);
+        tl.to("#s3-play", { scale: 0.84, boxShadow: "0 10px 30px rgba(0,0,0,.5), 0 0 140px rgba(140,190,255,1)", duration: 0.39, ease: "power2.in" }, 11.66);
+        tl.to("#vig-close", { opacity: 0.85, duration: 0.39, ease: "power3.in" }, 11.66);
+        tl.to("#cam", { scale: 0.95, duration: 0.39, ease: "power4.in" }, 11.66);
+        shake(10.9, 1.15, 3);
+
+        // ===== S4 · DROP 12.05 =====
+        vis("#s4", A.DROP, 14.4);
+        tl.set("#vig-close", { opacity: 0 }, A.DROP);
+        tl.set("#cam", { scale: 1.06 }, A.DROP);
+        tl.to("#cam", { scale: 1, duration: 0.9, ease: "expo.out" }, A.DROP);
+        flash(A.DROP, 1, 0.42);
+        flash(A.s808, 0.45, 0.3);
+        shake(A.DROP, 0.75, 26);
+        shake(A.s808, 0.35, 10);
+        tl.fromTo("#s4-halo", { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1, duration: 0.8, ease: "expo.out" }, A.DROP);
+        tl.to("#s4-halo", { opacity: 0.55, scale: 0.9, duration: 1.0, ease: "sine.inOut" }, A.DROP + 0.8);
+        tl.fromTo("#s4-r1", { opacity: 1, scale: 0.2 }, { opacity: 0, scale: 7.5, duration: 1.0, ease: "expo.out" }, A.DROP);
+        tl.fromTo("#s4-r2", { opacity: 0.8, scale: 0.4 }, { opacity: 0, scale: 5, duration: 0.8, ease: "expo.out", immediateRender: false }, A.s808);
+        rays.forEach(function (ry) {
+          var rad = (ry.a * Math.PI) / 180;
+          tl.fromTo(ry.el, { opacity: 1, rotation: ry.a, x: 0, y: 0, scaleX: 0 }, { opacity: 0, x: Math.cos(rad) * 500 * ry.len, y: Math.sin(rad) * 500 * ry.len, scaleX: ry.len, duration: 0.7, ease: "expo.out" }, A.DROP);
+        });
+        tl.fromTo("#s4-orb", { opacity: 0, scale: 0.04, rotation: -340, z: -800, filter: "drop-shadow(0 0 0px rgba(90,160,255,0)) blur(10px)" },
+          { opacity: 1, scale: 1.16, rotation: 8, z: 0, filter: "drop-shadow(0 0 90px rgba(90,160,255,0.95)) blur(0px)", duration: 0.5, ease: "expo.out" }, A.DROP);
+        tl.to("#s4-orb", { scale: 0.94, rotation: -3, duration: 0.1, ease: "power2.out" }, A.s808);
+        dropShards.forEach(function (o, i) {
+          var ang = o.a, r0 = 140, r1 = 650 + o.r * 750;
+          tl.fromTo(o.el, { opacity: 1, x: CX + Math.cos(ang) * r0 - o.s / 2, y: CY + Math.sin(ang) * r0 * 0.7 - o.s / 2, rotation: 0, scale: 0.4 },
+            { x: CX + Math.cos(ang) * r1 - o.s / 2, y: CY + Math.sin(ang) * r1 * 0.62 - o.s / 2, rotation: o.spin * 540, scale: 0.8 + o.z * 1.4, duration: 1.3, ease: "expo.out" }, A.DROP + (i % 4) * 0.012);
+          tl.to(o.el, { x: "+=" + (Math.cos(ang) * 60).toFixed(1), y: "+=" + (Math.sin(ang) * 40).toFixed(1), rotation: "+=" + (o.spin * 60).toFixed(1), opacity: 0.5 + o.z * 0.4, duration: 0.43, ease: "none" }, A.DROP + 1.3);
+          tl.to(o.el, { x: CX + Math.cos(ang) * 2100 - o.s / 2, y: CY + Math.sin(ang) * 1300 - o.s / 2, scale: 2.4, opacity: 0, duration: 0.4, ease: "power3.in" }, A.k2 - 0.12);
+        });
+        tl.fromTo("#s4-word .ch", { opacity: 0, y: 190, rotationX: -95, filter: "blur(14px)" }, { opacity: 1, y: 0, rotationX: 0, filter: "blur(0px)", duration: 0.55, ease: "expo.out", stagger: 0.046 }, A.half);
+        tl.fromTo("#s4-tag .m span", { yPercent: 110 }, { yPercent: 0, duration: 0.34, ease: "expo.out", stagger: 0.04 }, A.k1 - 0.2);
+        tl.to("#s4-tag .m span", { yPercent: -110, duration: 0.24, ease: "power3.in", stagger: 0.02 }, A.k2 - 0.07);
+        tl.to("#s4-word", { x: -760, y: -440, scale: 0.18, opacity: 0, duration: 0.42, ease: "expo.inOut" }, A.k2 - 0.08);
+        tl.to("#s4-halo", { opacity: 0, duration: 0.3 }, A.k2);
+
+        // ===== S5 · player 13.9 → 21.1 =====
+        vis("#s5", A.k2 - 0.05, 21.12);
+        tl.fromTo("#s5-brand", { opacity: 0, x: 40, scale: 1.4 }, { opacity: 1, x: 0, scale: 1, duration: 0.5, ease: "expo.out" }, A.k2 + 0.18);
+        tl.fromTo("#s5-nav", { opacity: 0, y: -90 }, { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.8)" }, A.k2 + 0.1);
+        ["#hb1", "#hb2", "#hb3"].forEach(function (h, i) { tl.fromTo(h, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(3)" }, A.k2 + 0.2 + i * 0.07); });
+        tl.fromTo("#s5-panel", { opacity: 0, y: 700, rotationX: 18, scale: 0.94 }, { opacity: 1, y: 0, rotationX: 0, scale: 1, duration: 0.75, ease: "expo.out" }, A.k2 + 0.06);
+        tl.fromTo("#s5-cover", { opacity: 0, rotationY: -115, scale: 0.6, z: -300 }, { opacity: 1, rotationY: 0, scale: 1, z: 0, duration: 0.75, ease: "back.out(1.3)" }, 14.27);
+        tl.fromTo("#s5-cshine", { xPercent: -120 }, { xPercent: 120, duration: 0.6, ease: "power2.inOut" }, A.D5);
+        tl.fromTo("#s5-title .ch", { opacity: 0, y: 60, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "expo.out", stagger: 0.03 }, A.D5);
+        tl.fromTo("#s5-artist", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, A.D5 + 0.2);
+        tl.fromTo("#s5-prog", { opacity: 0, scaleX: 0.3 }, { opacity: 1, scaleX: 1, duration: 0.55, ease: "expo.out" }, A.D5 + 0.05);
+        tl.fromTo("#s5-head h2", { opacity: 0, scale: 1.35, filter: "blur(18px)", x: -60 }, { opacity: 1, scale: 1, filter: "blur(0px)", x: 0, duration: 0.6, ease: "expo.out" }, A.D5);
+        tl.fromTo("#s5-head p", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: "expo.out" }, A.D5 + 0.37);
+        [["#cb-play", 15.41], ["#cb-prev", 15.6], ["#cb-next", 15.77], ["#cb-shuf", 16.16], ["#cb-rep", 16.53]].forEach(function (p) {
+          tl.fromTo(p[0], { opacity: 0, scale: 0, rotation: -90 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.5, ease: "back.out(3)" }, p[1]);
+        });
+        [["#ab-like", 16.72], ["#ab-add", 16.9], ["#ab-wave", 17.1], ["#ab-vol", 17.28]].forEach(function (p) {
+          tl.fromTo(p[0], { opacity: 0, scale: 0, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: "back.out(2.6)" }, p[1]);
+        });
+        tl.fromTo("#vol-fill", { scaleX: 0 }, { scaleX: 0.72, duration: 0.5, ease: "expo.out" }, 17.4);
+        tl.to("#heart", { fill: "#9cbeff", color: "#cfe0ff", scale: 1.3, duration: 0.12, ease: "power2.out" }, 16.9);
+        tl.to("#heart", { scale: 1, duration: 0.3, ease: "back.out(4)" }, 17.02);
+        $$("#ab-like .spark").forEach(function (s, i) {
+          var a = (i / 8) * Math.PI * 2;
+          tl.fromTo(s, { opacity: 1, x: 0, y: 0, scale: 1.4 }, { opacity: 0, x: Math.cos(a) * 60, y: Math.sin(a) * 60, scale: 0.3, duration: 0.5, ease: "expo.out" }, 16.9);
+        });
+        [15.79, 16.56, 18.79, 19.55, 20.29].forEach(function (b) {
+          tl.to("#cb-play", { scale: 1.08, duration: 0.08, ease: "power2.out" }, b);
+          tl.to("#cb-play", { scale: 1, duration: 0.3, ease: "power2.out" }, b + 0.08);
+        });
+        // exploded view: the player breaks into its components
+        blurOut("#s5-head", 17.2, { opacity: 0.18, x: -40, filter: "blur(4px)", duration: 0.4, ease: "power2.out" });
+        var EX = 17.28;
+        tl.to("#s5-col", { rotationY: -30, rotationX: 10, x: 40, duration: 0.6, ease: "expo.out" }, EX);
+        tl.to("#lay-cover", { z: 180, y: -70, duration: 0.6, ease: "expo.out" }, EX);
+        tl.to("#s5-prog", { z: 110, y: -30, duration: 0.6, ease: "expo.out" }, EX + 0.03);
+        tl.to("#s5-title, #s5-artist", { z: 60, duration: 0.6, ease: "expo.out" }, EX + 0.05);
+        tl.to("#s5-ctrl", { z: 0, y: 0, duration: 0.6, ease: "expo.out" }, EX + 0.07);
+        tl.to("#s5-act", { z: -80, y: 0, duration: 0.6, ease: "expo.out" }, EX + 0.09);
+        ["#co1", "#co2", "#co3", "#co4"].forEach(function (c, i) {
+          tl.fromTo(c, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.35, ease: "expo.out" }, EX + 0.12 + i * 0.07);
+          tl.fromTo(c + " i", { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "expo.out" }, EX + 0.12 + i * 0.07);
+          tl.to(c, { opacity: 0, x: -20, duration: 0.18, ease: "power2.in" }, A.D6 - 0.14);
+        });
+        tl.to("#s5-col", { rotationY: 0, rotationX: 0, x: 0, duration: 0.4, ease: "expo.out" }, A.D6);
+        tl.to("#lay-cover, #s5-prog, #s5-title, #s5-artist, #s5-ctrl, #s5-act", { z: 0, y: 0, duration: 0.4, ease: "expo.out" }, A.D6);
+        tl.to("#s5-head", { x: -900, opacity: 0, filter: "blur(20px)", duration: 0.3, ease: "power3.in" }, A.D6 - 0.2);
+        shake(A.D6, 0.3, 9);
+        flash(A.D6, 0.25, 0.25);
+
+        // ===== lyrics 18.02 → 21.04 =====
+        tl.fromTo("#ly-top", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, A.D6 + 0.05);
+        tl.fromTo("#ly-tr", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.4)" }, A.D6 + 0.12);
+        tl.fromTo("#ly-lines", { y: 260, opacity: 0 }, { y: 40, opacity: 1, duration: 0.5, ease: "expo.out" }, A.D6);
+        tl.to("#ll0", { opacity: 1, duration: 0.3 }, A.D6);
+        $$(".syl").forEach(function (s) {
+          var t0 = parseFloat(s.dataset.t), d = parseFloat(s.dataset.d);
+          tl.to(s, { backgroundPosition: "0% 0", duration: d, ease: "none" }, t0);
+          tl.fromTo(s, { y: 0 }, { y: -6, duration: d * 0.6, ease: "power2.out", immediateRender: false }, t0);
+          tl.to(s, { y: 0, duration: 0.4, ease: "power2.out" }, t0 + d);
+        });
+        var STEP = 76 * 1.15 + 38;
+        tl.to("#ly-lines", { y: 40 - STEP, duration: 0.4, ease: "power3.inOut" }, 19.0);
+        blurOut("#ll0", 19.0, { opacity: 0.32, filter: "blur(1.5px)", scale: 0.94, duration: 0.4 });
+        tl.to("#ll1", { opacity: 1, duration: 0.3 }, 19.0);
+        tl.to("#ly-lines", { y: 40 - 2 * STEP, duration: 0.4, ease: "power3.inOut" }, 20.1);
+        blurOut("#ll1", 20.1, { opacity: 0.32, filter: "blur(1.5px)", scale: 0.94, duration: 0.4 });
+        tl.to("#ll2", { opacity: 1, duration: 0.3 }, 20.1);
+        tl.to("#ly-tr", { backgroundColor: "rgba(156,190,255,0.9)", color: "#0d1d44", scale: 0.92, duration: 0.08 }, 20.2);
+        tl.to("#ly-tr", { scale: 1, duration: 0.3, ease: "back.out(3)" }, 20.28);
+        tl.fromTo("#ll2 .trn", { opacity: 0, y: 14, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 20.47);
+        blurOut("#s5-stage", A.D7 - 0.24, { scale: 0.86, y: 160, rotationX: -14, opacity: 0, filter: "blur(14px)", duration: 0.26, ease: "power3.in" });
+
+        // ===== S7 · Моя волна 21.04 → 23.0 =====
+        vis("#s7", A.D7 - 0.05, 24.1);
+        flash(A.D7, 0.3, 0.3);
+        shake(A.D7, 0.3, 8);
+        tl.fromTo("#s7-bubble", { opacity: 0, scale: 0.4, rotation: -40 }, { opacity: 0.75, scale: 1, rotation: 0, duration: 0.9, ease: "expo.out" }, A.D7);
+        tl.to("#s7-bubble", { rotation: 30, scale: 1.08, duration: 1.0, ease: "none" }, A.D7 + 0.9);
+        tl.fromTo("#s7-waves", { opacity: 0, scaleY: 0, transformOrigin: "50% 59%" }, { opacity: 1, scaleY: 1, duration: 0.6, ease: "expo.out" }, A.D7);
+        tl.fromTo("#s7-m", { opacity: 0, scale: 0.6, y: 120 }, { opacity: 1, scale: 1, y: 0, duration: 0.7, ease: "back.out(1.6)" }, A.D7);
+        tl.fromTo("#s7-mshadow", { opacity: 0, scaleX: 0.3 }, { opacity: 1, scaleX: 1, duration: 0.6, ease: "expo.out" }, A.D7 + 0.1);
+        $$("#s7-title .ch").forEach(function (c, i) {
+          tl.fromTo(c, { opacity: 0, y: 120 + Math.sin(i * 0.9) * 60, rotationX: -80 }, { opacity: 1, y: 0, rotationX: 0, duration: 0.6, ease: "expo.out" }, A.D7 + 0.04 + i * 0.035);
+        });
+        tl.fromTo("#s7-sub", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "expo.out" }, A.D7 + 0.4);
+        var cardT = [21.59, 21.77, 22.16, 22.53];
+        ["#cd0", "#cd1", "#cd2", "#cd3"].forEach(function (c, i) {
+          tl.fromTo(c, { opacity: 0, x: 2000, y: 80, rotation: 22, rotationY: -50 }, { opacity: 1, x: 120 + i * 262, y: (i % 2) * 30, rotation: (i - 1.5) * 2.5, rotationY: 0, duration: 0.55, ease: "expo.out" }, cardT[i]);
+        });
+        [0, 1, 2, 3].forEach(function (g) {
+          tl.set("#s7", { x: (g % 2 ? -1 : 1) * (22 - g * 4), skewX: g % 2 ? 6 : -6, filter: "drop-shadow(10px 0 0 rgba(255,40,90,.75)) drop-shadow(-10px 0 0 rgba(40,200,255,.75))" }, A.glitch + g * F);
+        });
+        tl.set("#s7", { x: 0, skewX: 0, filter: "blur(0px) saturate(1)" }, A.glitch + 4 * F);
+        tl.to("#s7", { opacity: 0.16, scale: 0.94, filter: "blur(10px) saturate(0.4)", duration: 0.35, ease: "power2.out" }, A.low);
+
+        // ===== S8 · toast 23.0 → 24.6 =====
+        vis("#s8", A.low, 24.7);
+        tl.fromTo("#s8-toast", { opacity: 0, scale: 0.7, y: 60, filter: "blur(10px)" }, { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.8)" }, A.toast);
+        tl.fromTo("#s8-cur", { opacity: 0, x: 1500, y: 1000 }, { opacity: 1, duration: 0.01 }, 23.35);
+        tl.to("#s8-cur", { x: 845, y: 575, duration: 0.42, ease: "power3.out" }, 23.36);
+        tl.to("#s8-cur", { scale: 0.8, duration: 0.1, ease: "power2.in" }, 23.86);
+        tl.fromTo("#s8-go", { scale: 1, filter: "brightness(1)" }, { scale: 0.92, filter: "brightness(1.25)", duration: 0.12, ease: "power2.in", immediateRender: false }, 23.86);
+        tl.fromTo("#s8-ripple", { opacity: 1, scale: 0.2, x: 0, y: 0 }, { opacity: 1, scale: 42, duration: 0.5, ease: "expo.out", immediateRender: false }, A.D8);
+        tl.to("#s8-ripple", { opacity: 0, duration: 0.3, ease: "power2.out" }, A.D8 + 0.5);
+        tl.to("#s8-toast, #s8-cur", { opacity: 0, duration: 0.15 }, A.D8 + 0.1);
+        shake(A.D8, 0.4, 16);
+
+        // ===== S9 · everywhere 24.03 → 27.05 =====
+        vis("#s9", A.D8 + 0.02, 27.12);
+        tl.fromTo("#tg-phone", { opacity: 0, y: 260, rotation: -8, scale: 0.85 }, { opacity: 1, y: 0, rotation: -3, scale: 1, duration: 0.7, ease: "expo.out" }, A.D8 + 0.05);
+        tl.fromTo("#tg-music", { opacity: 0, x: -60, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.45, ease: "back.out(2.2)" }, 24.42);
+        tl.fromTo("#tg-music", { boxShadow: "0 0 0px rgba(42,171,238,0)" }, { boxShadow: "0 0 50px rgba(42,171,238,0.8)", duration: 0.2, yoyo: true, repeat: 1, immediateRender: false }, 24.78);
+        $$("#p1-h .hl").forEach(function (h, i) {
+          tl.fromTo(h, { opacity: 0, y: 70, filter: "blur(12px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "expo.out" }, [24.06, 24.42, 24.78][i]);
+        });
+        tl.fromTo("#p1-h .psub", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 25.16);
+        tl.fromTo("#p1-path", { strokeDashoffset: 800, opacity: 0 }, { strokeDashoffset: 0, opacity: 0.7, duration: 0.6, ease: "power2.inOut" }, 24.6);
+        tl.fromTo("#p1-plane", { opacity: 0, x: 600, y: 380, rotation: -30, scale: 0.5 }, { opacity: 1, x: 1215, y: 80, rotation: 10, scale: 1, duration: 0.6, ease: "power2.inOut" }, 24.6);
+        tl.to("#p1-plane", { x: 1900, y: 20, opacity: 0, duration: 0.3, ease: "power2.in" }, 25.2);
+        tl.to("#s9-strip", { x: -1920, duration: 0.24, ease: "power4.inOut" }, 25.33);
+        blurOut("#s9-strip", 25.35, { filter: "blur(18px)", duration: 0.1, yoyo: true, repeat: 1, ease: "power2.in" });
+        $$("#p2-h .hl").forEach(function (h, i) {
+          tl.fromTo(h, { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.4, ease: "expo.out" }, 25.53 + i * 0.1);
+        });
+        tl.fromTo("#p2-h .psub", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 25.75);
+        tl.fromTo("#p2-tile", { opacity: 0, scale: 0.6, rotation: -12 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.5, ease: "back.out(2)" }, 25.45);
+        [0, 1, 2].forEach(function (i) {
+          var t0 = 25.53 + i * 0.12;
+          tl.fromTo("#src" + i, { opacity: 0, x: 860 + i * 250, y: 1120, scale: 1 }, { opacity: 1, y: 900, duration: 0.25, ease: "expo.out" }, t0);
+          tl.to("#src" + i, { x: 1380, y: 520, scale: 0.15, opacity: 0, duration: 0.3, ease: "expo.in" }, t0 + 0.28);
+        });
+        tl.to("#p2-tile", { scale: 1.06, duration: 0.07, yoyo: true, repeat: 3, ease: "power2.out" }, 25.96);
+        var cnt = { v: 0 };
+        tl.to(cnt, { v: 1248, duration: 0.5, ease: "expo.out", onUpdate: function () { $("#p2-cnt").textContent = "+" + Math.round(cnt.v).toLocaleString("ru-RU") + " треков"; } }, 25.8);
+        ["#mc0", "#mc1", "#mc2", "#mc3"].forEach(function (m, i) {
+          tl.fromTo(m, { opacity: 0, scale: 0, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: "back.out(3)" }, 25.9 + i * 0.06);
+        });
+        tl.to("#s9-strip", { x: -3840, duration: 0.24, ease: "power4.inOut" }, 26.07);
+        tl.to("#s9-strip", { filter: "blur(18px)", duration: 0.1, yoyo: true, repeat: 1, ease: "power2.in" }, 26.09);
+        tl.fromTo("#p3-h .hl", { opacity: 0, scale: 1.25, filter: "blur(14px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 26.27);
+        tl.fromTo("#p3-h .psub", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" }, 26.45);
+        $$(".dev").forEach(function (d, i) {
+          tl.fromTo(d, { opacity: 0, scale: 0, y: 80, rotation: (i - 2) * 12 }, { opacity: 1, scale: 1, y: 0, rotation: 0, duration: 0.42, ease: "back.out(2.6)" }, 26.3 + i * 0.093);
+        });
+        tl.to(".dev", { x: function (i) { return (2 - i) * 280; }, y: -150, scale: 0, opacity: 0, duration: 0.24, ease: "power3.in", stagger: 0.012 }, A.D9 - 0.26);
+        tl.to("#p3-h", { scale: 0.3, opacity: 0, y: 160, duration: 0.24, ease: "power3.in" }, A.D9 - 0.24);
+
+        // ===== S10 · end card 27.05 → 30 =====
+        vis("#s10", A.D9 - 0.02, 30.01);
+        flash(A.D9, 0.6, 0.4);
+        shake(A.D9, 0.45, 14);
+        tl.to("#bg-crystal", { opacity: 0.42, duration: 1.0, ease: "power2.out" }, A.D9);
+        tl.fromTo("#bg-crystal", { scale: 1.05, y: -120 }, { scale: 1.16, y: -90, duration: 2.95, ease: "none" }, A.D9);
+        tl.fromTo("#s10-orb", { opacity: 0, scale: 0.05, rotation: 260 }, { opacity: 1, scale: 1.12, rotation: -6, duration: 0.42, ease: "expo.out" }, A.D9);
+        tl.to("#s10-orb", { scale: 1, rotation: 0, duration: 0.5, ease: "elastic.out(1, 0.45)" }, A.D9 + 0.42);
+        tl.fromTo("#s10-ring", { opacity: 1, scale: 0.3 }, { opacity: 0, scale: 6, duration: 0.9, ease: "expo.out", immediateRender: false }, A.D9);
+        tl.fromTo("#s10-halo", { opacity: 0, scale: 0.4 }, { opacity: 0.85, scale: 1, duration: 0.8, ease: "expo.out" }, A.D9);
+        tl.fromTo("#s10-rays", { opacity: 0, rotation: 0 }, { opacity: 0.8, rotation: 50, duration: 2.95, ease: "none" }, A.D9);
+        tl.fromTo("#s10-m", { opacity: 0, x: 420, y: 60, scale: 0.7 }, { opacity: 1, x: 0, y: 0, scale: 1, duration: 0.8, ease: "expo.out" }, A.D9 + 0.2);
+        tl.fromTo("#s10-word .ch", { opacity: 0, y: 130, rotationX: -90, filter: "blur(10px)" }, { opacity: 1, y: 0, rotationX: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out", stagger: 0.045 }, 27.41);
+        tl.fromTo("#s10-url", { opacity: 0, y: 30, scale: 0.85 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "back.out(2)" }, 27.77);
+        tl.fromTo("#s10-url .sw", { x: -200 }, { x: 620, duration: 0.7, ease: "power2.inOut" }, 28.15);
+        tl.fromTo("#s10-plat", { opacity: 0, y: 16, scale: 1.08 }, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "expo.out" }, 28.54);
+        [28.91, 29.09, 29.27, 29.47, 29.66].forEach(function (b, i) {
+          tl.to("#s10-orb", { scale: 1 + (i + 1) * 0.022, duration: 0.06, ease: "power2.out" }, b);
+          tl.to("#s10-orb", { scale: 1 + i * 0.01, duration: 0.12, ease: "power2.out" }, b + 0.06);
+          tl.to("#s10-halo", { opacity: 0.85 + i * 0.03, scale: 1 + i * 0.05, duration: 0.1 }, b);
+        });
+        tl.to("#cam", { scale: 1.07, duration: 1.0, ease: "power2.in" }, 28.9);
+        flash(29.86, 1, 0.06);
+        tl.set("#black", { opacity: 1 }, 29.92);
+
+        document.fonts.ready.then(function () {
+          // measured once at setup: where the orb lands inside the lockup and where the toast button sits
+          var ph = $("#s4-ph").getBoundingClientRect();
+          var lx = ph.left + ph.width / 2 - 960, ly = ph.top + ph.height / 2 - 540;
+          tl.to("#s4-orb", { x: lx, y: ly, scale: 0.42, duration: 0.42, ease: "expo.inOut" }, A.half - 0.08);
+          tl.to("#s4-orb", { x: -870, y: -465, scale: 0.096, rotation: -180, duration: 0.42, ease: "expo.inOut" }, A.k2 - 0.08);
+          tl.to("#s4-orb", { opacity: 0, duration: 0.1 }, A.k2 + 0.3);
+          var go = $("#s8-go"); // layout offsets inside the toast (left 560, top 380) ignore its entry transform
+          gsap.set("#s8-ripple", { left: 560 + go.offsetLeft + go.offsetWidth / 2 - 50, top: 380 + go.offsetTop + go.offsetHeight / 2 - 50 });
+          window.__timelines["main"] = tl;
+          if (window.__hfForceTimelineRebind) window.__hfForceTimelineRebind();
+        });
+      })();
+    </script>
+  </body>
+</html>

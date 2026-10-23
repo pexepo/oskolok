@@ -3,6 +3,7 @@ import { Track, PlaybackInfo } from '../types/index.js';
 import { trackCacheRepository } from '../repositories/trackCacheRepository.js';
 import { studioMasterService } from './StudioMasterService.js';
 import { logger } from '../utils/logger.js';
+import { foldedCoverage, namesMatch } from './searchQuery.js';
 
 interface SoundCloudTranscoding {
   url: string;
@@ -20,6 +21,10 @@ interface SoundCloudSearchTrack {
   title: string;
   duration: number; // in ms
   policy?: string;
+  created_at?: string;
+  playback_count?: number;
+  /** Distributor-delivered uploads carry release metadata (album, UPC, ISRC). */
+  publisher_metadata?: { album_title?: string; upc_or_ean?: string; isrc?: string; artist?: string };
   user?: {
     username: string;
     verified?: boolean;
@@ -126,7 +131,7 @@ export class StreamResolverService {
     let clientId = await this.getFreshClientId();
 
     const cleanTitle = track.title
-      .replace(/\s*[\(\[][^\)\]]*(?:official|audio|video|remastered|bonus|version|deluxe|edit|prod|feat|ft)[\)\]]/gi, '')
+      .replace(/\s*[\(\[][^\)\]]*(?:official|audio|video|prod|feat|ft)[\)\]]/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
 
@@ -172,6 +177,24 @@ export class StreamResolverService {
       available: false,
       type: 'none',
     };
+  }
+
+  /** When the label's own copy of an older song went up on SoundCloud: the re-release date that marks
+   * which uploads still carry the original recording. Only uploads from 2025 on count (the re-release wave). */
+  public async reissueUploadDate(artist: string, title: string, duration: number): Promise<string | undefined> {
+    try {
+      const clientId = await this.getFreshClientId();
+      const res = await fetch(`https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(`${artist} ${title}`)}&client_id=${clientId}&limit=25`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return undefined;
+      const items = ((await res.json()) as { collection?: SoundCloudSearchTrack[] }).collection || [];
+      const dates = items.filter(item => {
+        const meta = item.publisher_metadata;
+        return (meta?.upc_or_ean || meta?.isrc) && item.created_at && item.created_at >= '2025-01-01'
+          && namesMatch(artist, item.user?.username || meta?.artist || '') && foldedCoverage(item.title || '', title) >= .8
+          && (!duration || Math.abs(Math.round(item.duration / 1000) - duration) <= 3);
+      }).map(item => item.created_at!.slice(0, 10)).sort();
+      return dates[0];
+    } catch { return undefined; }
   }
 
   public async searchAndResolve(
@@ -235,7 +258,8 @@ export class StreamResolverService {
         // 1. MANDATORY TITLE MATCH: The candidate MUST contain the track title tokens
         const hasTitle =
           normItemTitle.includes(cleanTargetTitle) ||
-          targetTokens.every((token) => normItemTitle.includes(token));
+          targetTokens.every((token) => normItemTitle.includes(token)) ||
+          foldedCoverage(item.title || '', targetTitle) === 1;
 
         if (!hasTitle) {
           // REJECT! Prevents playing "Bones" when user asked for "Thunder"
@@ -276,12 +300,16 @@ export class StreamResolverService {
           titleLower.includes('reverb');
 
         // Never substitute an unrequested edition, even if no official fallback exists.
-        const editions=['remix','ремикс','cover','кавер','karaoke','караоке','nightcore','sped up','speed up','slowed','reverb','mashup','bootleg','instrumental','live','remake','ремейк','tribute'];
-        if(editions.some(e=>hasVersion(titleLower,e)&&!hasVersion(targetTitle,e)))continue;
+        const editions=['remix','ремикс','cover','кавер','karaoke','караоке','nightcore','sped up','speed up','slowed','reverb','mashup','bootleg','instrumental','live','remake','ремейк','tribute','clean','explicit'];
+        if(editions.some(e=>hasVersion(titleLower,e)!==hasVersion(targetTitle,e)))continue;
         // If an official studio fallback exists, NEVER settle for a remake, cover, or remix
         if (hasOfficialFallback && (isRemix || isCover || isNightcore)) {
           continue;
         }
+
+        // Pitched copies keep the title and nearly the length: a sped-up upload of a 3-minute song
+        // runs only 3–5 s short. More than 1.5% shorter (or 4% longer) is not the release.
+        if (targetDuration > 60 && durSec > 0 && ((targetDuration - durSec) / targetDuration > 0.015 || (durSec - targetDuration) / targetDuration > 0.04)) continue;
 
         // Duration proximity check: Genuine studio release matches within ±8 seconds!
         // If it differs by more than 8 seconds, it is a cut, user edit, or remake.
@@ -299,15 +327,12 @@ export class StreamResolverService {
         // electronic-music account). A title match alone is not provenance.
         // Require the uploader to identify as the requested artist before we
         // use this source as a playback fallback.
-        const uploader = this.normalize(item.user?.username || '');
-        if (cleanTargetArtist && !uploader.includes(cleanTargetArtist)) continue;
+        // Compared folded, so "Слава КПСС" counts as "Slava KPSS".
+        if (cleanTargetArtist && !namesMatch(targetArtist, item.user?.username || '')) continue;
         if (targetDuration > 30 && durDiff > 8) continue;
 
         // Bonus for matching artist name
-        if (
-          normItemTitle.includes(cleanTargetArtist) ||
-          this.normalize(item.user?.username || '').includes(cleanTargetArtist)
-        ) {
+        if (normItemTitle.includes(cleanTargetArtist) || namesMatch(targetArtist, item.user?.username || '')) {
           score += 150;
         }
 
@@ -320,14 +345,22 @@ export class StreamResolverService {
           score += 200;
         }
 
-        if (durDiff <= 4) score += 200;
-        else if (durDiff <= 8) score += 120;
+        // The distributor's copy runs to the second; an artist's own early upload can be a different master.
+        if (durDiff <= 1) score += 280;
+        else if (durDiff <= 4) score += 160;
+        else if (durDiff <= 8) score += 80;
         else score -= durDiff * 8;
+        if (item.publisher_metadata?.upc_or_ean || item.publisher_metadata?.album_title) score += 90;
 
         scoredItems.push({ item, score });
       }
 
       scoredItems.sort((a, b) => b.score - a.score);
+      // Lyrics are timed to the release: an upload within 3 s of it beats any looser match.
+      if (targetDuration > 30) {
+        const close = scoredItems.filter(({ item }) => Math.abs(Math.round((item.duration || 0) / 1000) - targetDuration) <= 3);
+        if (close.length) scoredItems.splice(0, scoredItems.length, ...close);
+      }
 
       // Try candidates in score order (only if score is reasonable)
       for (const { item, score } of scoredItems.slice(0, 5)) {
@@ -335,12 +368,15 @@ export class StreamResolverService {
 
         const transcodings = item.media?.transcodings || [];
         const fullProgressive = transcodings.find((t) => !t.snipped && t.format.protocol === 'progressive');
-        const fullHls = transcodings.find((t) => !t.snipped && t.format.protocol === 'hls');
+        // AAC HLS remuxes into a seekable .m4a without re-encoding; MP3 HLS is the last resort.
+        const fullHls = transcodings.find((t) => !t.snipped && t.format.protocol === 'hls' && /^audio\/mp4/.test(t.format.mime_type || ''))
+          || transcodings.find((t) => !t.snipped && t.format.protocol === 'hls');
         const targetTrans = fullProgressive || fullHls;
 
         if (targetTrans?.url) {
           try {
-            const streamEndpoint = `${targetTrans.url}?client_id=${clientId}`;
+            const auth = (item as any).track_authorization ? `&track_authorization=${encodeURIComponent((item as any).track_authorization)}` : '';
+            const streamEndpoint = `${targetTrans.url}?client_id=${clientId}${auth}`;
             const streamRes = await fetch(streamEndpoint, {
               headers: {
                 'User-Agent':

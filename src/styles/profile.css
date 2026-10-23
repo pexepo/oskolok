@@ -1,0 +1,82 @@
+/* Profile text has a solid surface even over a bright uploaded banner. */
+:root {
+  --profile-surface: #f4f7fc;
+  --profile-field: #ffffff;
+  --profile-text: #16263e;
+  --profile-secondary: #4c5f78;
+  --profile-line: #bcc9dc;
+  --profile-chip: #dce8fc;
+}
+:root.dark {
+  --profile-surface: #17253b;
+  --profile-field: #101e32;
+  --profile-text: #f2f6ff;
+  --profile-secondary: #bccae0;
+  --profile-line: #4b6080;
+  --profile-chip: #2d4363;
+}
+.profile-head-id {
+  align-self: center;
+  padding: 16px 20px;
+  margin-top: 14px;
+  border-radius: 22px;
+  background: var(--profile-surface);
+  box-shadow: inset 0 0 0 1px var(--profile-line), 0 8px 24px #00000018;
+}
+.profile-head-id h1 { color: var(--profile-text); }
+.profile-head-id p { color: var(--profile-secondary); }
+.profile-head-id .profile-head-bio { color: var(--profile-text) !important; opacity: 1; }
+.profile-status, .profile-meta-chip {
+  color: var(--profile-text);
+  background: var(--profile-chip);
+  box-shadow: inset 0 0 0 1px var(--profile-line);
+  padding: 6px 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.profile-head-actions .profile-btn--primary,
+[style*="--profile-accent"] .profile-head-actions .profile-btn--primary {
+  color: #10213b;
+  background: #accbff !important;
+  border-color: #accbff !important;
+  min-height: 44px;
+  box-shadow: inset 0 1px 0 #ffffff99, 0 8px 22px #00000020;
+}
+.profile-head-actions .profile-btn--primary:hover { background: #c6dcff !important; }
+.profile-custom.set-group,
+:root:not(.dark) .profile-custom.set-group,
+.profile-edit-dialog.oskolok-sheet-popup.frost-surface {
+  background: var(--profile-surface) !important;
+  color: var(--profile-text);
+  box-shadow: inset 0 0 0 1px var(--profile-line), 0 12px 36px #00000020;
+}
+.profile-custom > h4 { color: var(--profile-secondary); padding: 18px 20px 8px; }
+.profile-custom .set-row { padding: 16px 20px; color: var(--profile-text); }
+.profile-custom .set-row small,
+.profile-edit-dialog :is(.oskolok-sheet-description, .profile-edit-field, .profile-edit-tools small) {
+  color: var(--profile-secondary);
+}
+.profile-custom input:not([type=checkbox]):not([type=color]),
+.profile-edit-field input, .profile-edit-field textarea {
+  background: var(--profile-field) !important;
+  color: var(--profile-text) !important;
+  border: 1px solid var(--profile-line);
+  box-shadow: none;
+}
+.profile-custom input::placeholder { color: var(--profile-secondary); opacity: 1; }
+.profile-edit-field textarea { min-height: 120px; line-height: 1.6; }
+.profile-edit-dialog .oskolok-sheet-title { color: var(--profile-text); }
+.profile-edit-tools .text-button { color: var(--profile-secondary); }
+.profile-edit-pick--banner { background: #152238; }
+.profile-custom-actions { padding: 16px 20px; color: var(--profile-secondary); }
+.profile-custom :is(input, button):focus-visible { outline: 2px solid #7aaaff; outline-offset: 3px; }
+.profile-custom .profile-link-add { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 700px) {
+  .profile-head-id { flex-basis: calc(100% - 110px); padding: 12px 14px; border-radius: 18px; }
+  .profile-head-id h1 { white-space: normal; overflow-wrap: anywhere; }
+}
+@media (max-width: 420px) {
+  .profile-head-id { flex-basis: 100%; margin-top: 0; }
+  .profile-custom .profile-link-add { grid-template-columns: minmax(0, 1fr); }
+  .profile-custom-actions .primary-button { padding: 0 14px; }
+}
