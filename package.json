@@ -1,7 +1,7 @@
 {
   "name": "oskolok",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Oskolok Desktop Music Player",
   "author": "Oskolok",
   "type": "module",
