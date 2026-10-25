@@ -322,27 +322,24 @@ html body .interference-modal.np-v2 .np-notes-slot { display: none; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-notes-slot { display: block; grid-column: 1; grid-row: 1 / span 2; min-height: 0; position: relative; background: none !important; animation: np-notes-in .5s cubic-bezier(.2, .8, .2, 1) both; }
   html body .interference-modal.np-v2 .np-notes-slot .genius-drawer { position: absolute; inset: 0; width: auto; transform: none; transition: none; }
   html body .interference-modal.np-v2 .np-notes-slot .genius-drawer[data-open=true] { transition: none; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-lyrics { grid-column: 2; grid-row: 2; order: 0; animation: np-shift-in .5s cubic-bezier(.2, .8, .2, 1) both; }
+  html body .interference-modal.np-v2 .np-layout.notes-open > .np-lyrics { grid-column: 2; grid-row: 2; order: 0; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel {
     grid-column: 2; grid-row: 1; order: 0;
     display: grid !important; grid-template-columns: clamp(84px, 11vh, 132px) minmax(0, 1fr); grid-template-areas: "art heading" "art progress" "art controls";
     align-items: center; justify-items: stretch; column-gap: 22px; row-gap: 4px; max-width: none !important; margin: 0 !important;
-    animation: np-shift-in .5s cubic-bezier(.2, .8, .2, 1) both;
   }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-art { grid-area: art; width: 100% !important; border-radius: 10px; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading { grid-area: heading; text-align: start; justify-items: start; margin: 0; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading > * { justify-self: start; text-align: start; max-width: 100%; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading h2 { font-size: clamp(18px, 1.7vw, 24px); }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-progress { grid-area: progress; margin: 0; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-controls { grid-area: controls; justify-content: flex-start; transform: scale(.82); transform-origin: left center; }
+  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-controls { grid-area: controls; justify-content: flex-start; }
   html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > :is(.np-actions, .np-meta) { display: none !important; }
   html body .interference-modal.np-v2 .np-layout.notes-open .lyrics-scroll { padding-block: 18vh 30vh !important; }
-  /* Closing: the cover column and the lyrics come back the same way. */
-  html body .interference-modal.np-v2 .np-layout:not(.notes-open) > :is(.np-panel, .np-lyrics) { animation: np-shift-back .45s cubic-bezier(.2, .8, .2, 1) both; }
+  html body .interference-modal.np-v2 .np-layout.notes-open .interference-lyrics .interference-line { font-size: clamp(22px, 2.3vw, 38px); }
 }
+html body .interference-modal.np-v2 .np-layout.is-flipping > :is(.np-panel, .np-lyrics) { overflow: visible !important; }
 @keyframes np-notes-in { from { opacity: 0; transform: translate3d(-28px, 0, 0); } }
-@keyframes np-shift-in { from { opacity: 0; transform: translate3d(22px, 0, 0); } }
-@keyframes np-shift-back { from { opacity: 0; transform: translate3d(-14px, 0, 0); } }
 
 /* Phones: the notes are a bottom sheet over the lyrics — opaque, so nothing behind is blurred every frame. */
 @media (max-width: 700px) {
@@ -365,3 +362,15 @@ html body .interference-modal.np-v2 .np-notes-slot { display: none; }
 }
 @media (min-width: 701px) { .np-mini { display: none; } }
 @media (prefers-reduced-motion: reduce) { html body .interference-modal.np-v2 .np-layout > * { animation: none !important; } }
+
+/* «Текст предоставлен …» lives behind a centred «⋯» under the lyrics. */
+html body .interference-lyrics .lyrics-attribution.lyrics-attribution--more { justify-content: center; min-height: 34px; padding: 4px 0; border-top: 0 !important; }
+.lyrics-credit-more { position: relative; display: flex; justify-content: center; }
+.lyrics-credit-more__button { display: grid; place-items: center; width: 40px; height: 28px; border: 0; border-radius: 999px; color: inherit; opacity: .6; background: transparent; cursor: pointer; transition: opacity .15s ease, background-color .15s ease; }
+.lyrics-credit-more__button:hover, .lyrics-credit-more__button[aria-expanded=true] { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.lyrics-credit-more__button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; opacity: 1; }
+.lyrics-credit-more__panel { position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 20; width: max-content; max-width: min(360px, 86vw); padding: 10px 12px; border-radius: 14px; transform: translateX(-50%); color: #eef3f8; background: #0f1824f2; box-shadow: 0 18px 44px -18px #000c, inset 0 0 0 1px #ffffff1f; font-size: 12.5px; animation: lyrics-credit-in .18s ease-out both; }
+.lyrics-credit-more__panel > .lyrics-attribution { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 0; padding: 0; border: 0 !important; color: inherit !important; }
+.lyrics-credit-more__panel :is(span, a, button, strong) { color: inherit !important; }
+@keyframes lyrics-credit-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+@media (prefers-reduced-motion: reduce) { .lyrics-credit-more__panel { animation: none; } }

@@ -5,7 +5,7 @@ import {contentApi} from '../../api/userContentClient.js';
 import {useTranslation,useLanguageStore} from '../../stores/useLanguageStore.js';
 import { scopedStorageKey } from '../../telegram/runtime.js';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import { Upload, Download, Minus, Plus, Crosshair, Pencil, Undo2, X, Settings2, Languages } from 'lucide-react';
+import { Upload, Download, Minus, Plus, Crosshair, Pencil, Undo2, X, Settings2, Languages, MoreHorizontal } from 'lucide-react';
 import type { LyricLine, LyricsAuthor, LyricsData } from '../../types/index.js';
 import { apiClient } from '../../api/apiClient.js';
 import { parseLrc, parseLyricsFile, normalizeLyricTimings, getActiveLyricIndex } from '../../utils/lyricsParser.js';
@@ -256,7 +256,9 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   };
   const timingLabel=lines.some(line=>line.timingMode==='syllable')?t('по словам и слогам','word & syllable sync'):lines.length?t('по строкам','line sync'):plain?t('без синхронизации','not synced'):'';
   // Who provided the text: under the lyrics on desktop, at the end of the text on phones (where screen height is the content's).
-  const attributionNode=!editor&&(author?<div className="lyrics-attribution"><span>{t("Текст предоставлен: ","Lyrics provided by: ")}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=="Spicy Lyrics"?t(" через: Spicy Lyrics"," via: Spicy Lyrics"):""}</span><AuthorCard author={author}/></div>:provider&&provider!=='none'?<div className="lyrics-attribution lyrics-attribution-plain"><span>{t('Текст предоставлен: ','Lyrics provided by: ')}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=='Spicy Lyrics'?t(' через: Spicy Lyrics',' via: Spicy Lyrics'):''}</span>{attribution?.uploader&&<AuthorCard label={t('Загрузил','Uploaded by')} author={{id:attribution.uploader.id,username:null,displayName:attribution.uploader.name,avatarUrl:attribution.uploader.avatarUrl,credit:attribution.uploader.name}}/>}{attribution?.maker&&<AuthorCard label={t('Разметил','Timed by')} author={{id:attribution.maker.id,username:null,displayName:attribution.maker.name,avatarUrl:attribution.maker.avatarUrl,credit:attribution.maker.name}}/>}</div>:null);
+  const attributionInner=!editor&&(author?<div className="lyrics-attribution"><span>{t("Текст предоставлен: ","Lyrics provided by: ")}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=="Spicy Lyrics"?t(" через: Spicy Lyrics"," via: Spicy Lyrics"):""}</span><AuthorCard author={author}/></div>:provider&&provider!=='none'?<div className="lyrics-attribution lyrics-attribution-plain"><span>{t('Текст предоставлен: ','Lyrics provided by: ')}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=='Spicy Lyrics'?t(' через: Spicy Lyrics',' via: Spicy Lyrics'):''}</span>{attribution?.uploader&&<AuthorCard label={t('Загрузил','Uploaded by')} author={{id:attribution.uploader.id,username:null,displayName:attribution.uploader.name,avatarUrl:attribution.uploader.avatarUrl,credit:attribution.uploader.name}}/>}{attribution?.maker&&<AuthorCard label={t('Разметил','Timed by')} author={{id:attribution.maker.id,username:null,displayName:attribution.maker.name,avatarUrl:attribution.maker.avatarUrl,credit:attribution.maker.name}}/>}</div>:null);
+  // Who provided, uploaded and timed the text: behind one «⋯» under the lyrics instead of a plate.
+  const attributionNode=attributionInner?<div className="lyrics-attribution lyrics-attribution--more"><LyricsCreditMore>{attributionInner}</LyricsCreditMore></div>:null;
   const drawer=lineNotes.size>0&&!editor?<GeniusDrawer open={note!==null} line={noteLines[shownNote.current.line]?.text} referents={drawerReferents} song={notes?.song} onClose={closeNote} translateTo={translateOn?(translated?.target||language):undefined} artwork={artwork}/>:null;
   return <section className="interference-lyrics lyrics-v3" data-notes-open={note?'true':undefined} data-notes-docked={notesSlot?'true':undefined} data-translated={lineTranslations?'true':undefined}>
     <div className="lyrics-toolbar"><div><span className="eyebrow">{t('Текст песни','Lyrics')}</span>{timingLabel&&<p>{timingLabel}</p>}</div><div className="lyrics-toolbar-actions"><button className={`text-button lyrics-translate-toggle${translateOn?' is-on':''}`} onClick={()=>setTranslateOn(v=>!v)} disabled={!leadTexts.length&&!translateOn} aria-pressed={translateOn} aria-busy={translating} title={translateOn?t('Скрыть перевод','Hide translation'):t('Перевести текст','Translate lyrics')}>{translating?<UniqueLoading size="sm" label={t('Переводим…','Translating…')}/>:<Languages size={17}/>}<span>{t('Перевод','Translate')}</span></button><button className="text-button" onClick={()=>setSettings(true)} aria-label={t('Настройки текста','Lyrics settings')}><Settings2 size={17}/></button></div></div>
@@ -308,4 +310,19 @@ function useWideScreen(){
   const [wide,setWide]=useState(()=>typeof window!=='undefined'&&window.matchMedia(query).matches);
   useEffect(()=>{const list=window.matchMedia(query),update=()=>setWide(list.matches);list.addEventListener('change',update);return()=>list.removeEventListener('change',update);},[]);
   return wide;
+}
+
+function LyricsCreditMore({children}:{children:React.ReactNode}){
+  const t=useTranslation(),[open,setOpen]=useState(false),root=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!open)return;
+    const away=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false);};
+    const esc=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.stopPropagation();setOpen(false);}};
+    document.addEventListener('pointerdown',away);document.addEventListener('keydown',esc,true);
+    return()=>{document.removeEventListener('pointerdown',away);document.removeEventListener('keydown',esc,true);};
+  },[open]);
+  return <div className="lyrics-credit-more" ref={root}>
+    <button type="button" className="lyrics-credit-more__button" onClick={()=>setOpen(v=>!v)} aria-expanded={open} aria-label={t('Кто предоставил текст','Who provided the lyrics')} title={t('Кто предоставил текст','Who provided the lyrics')}><MoreHorizontal size={18}/></button>
+    {open&&<div className="lyrics-credit-more__panel" role="dialog" aria-label={t('Источник текста','Lyrics source')}>{children}</div>}
+  </div>;
 }

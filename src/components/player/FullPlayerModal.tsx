@@ -14,6 +14,12 @@ import { MediaSettingsPanel } from './MediaSettingsPanel.js';
 import { PlaybackSourcePicker, PORTALED_MENU_CHILDREN } from '../tracks/PlaybackSourcePicker.js';
 import { LikeBurst } from '../common/LikeBurst.js';
 import { NotesSlotContext } from '../lyrics/notesSlot.js';
+
+/** Type size of the lyric lines right now (0 when there are none). */
+const lyricFont = (root: HTMLElement | null) => { const line = root?.querySelector('.np-lyrics .interference-line'); return line ? parseFloat(getComputedStyle(line).fontSize) || 0 : 0; };
+
+/** Pieces of the player that move between the full and the notes layout. */
+const FLIP_PARTS = '.np-art, .np-heading, .np-progress, .np-controls, .np-lyrics > .interference-lyrics';
 import { MixChip } from './MixChip.js';
 import { TrackArtistsPopup } from '../tracks/TrackCredits.js';
 import { getPreferredSource, setPreferredSource } from '../../utils/playbackPreferences.js';
@@ -102,7 +108,43 @@ export const FullPlayerModal: React.FC = () => {
   const playlistList = Array.isArray(playlists) ? playlists : [];
   const modalRef = React.useRef<HTMLDivElement>(null);
   const [notesSlot, setNotesSlot] = React.useState<HTMLDivElement | null>(null), [notesOpen, setNotesOpen] = React.useState(false);
-  const notesHost = React.useMemo(() => ({ slot: notesSlot, setOpen: setNotesOpen }), [notesSlot]);
+  // Notes open/close re-lays the player out once; FLIP then carries each piece from where it was (transform only):
+  // the cover column folds up into the header, the lyrics glide right and shrink.
+  const notesOpenRef = React.useRef(false), flipFrom = React.useRef<Map<HTMLElement, DOMRect> | null>(null), lyricFontFrom = React.useRef(0);
+  const setNotesOpenFlip = React.useCallback((open: boolean) => {
+    if (open === notesOpenRef.current) return;
+    notesOpenRef.current = open;
+    const root = modalRef.current;
+    if (root && window.matchMedia('(min-width: 701px)').matches) {
+      const from = new Map<HTMLElement, DOMRect>();
+      root.querySelectorAll<HTMLElement>(FLIP_PARTS).forEach(el => from.set(el, el.getBoundingClientRect()));
+      flipFrom.current = from; lyricFontFrom.current = lyricFont(root);
+    }
+    setNotesOpen(open);
+  }, []);
+  React.useLayoutEffect(() => {
+    const from = flipFrom.current; flipFrom.current = null;
+    if (!from || reduceMotion) return;
+    const timing = { duration: 600, easing: 'cubic-bezier(.32, .72, 0, 1)', composite: 'add' as CompositeOperation };
+    from.forEach((first, el) => {
+      const last = el.getBoundingClientRect();
+      if (!el.isConnected || !first.width || !last.width || !last.height) return;
+      const wide = el.matches('.np-progress');
+      // The lyrics change type size (smaller beside the notes): they scale by it, not by their box.
+      const font = el.matches('.interference-lyrics') ? lyricFont(modalRef.current) : 0;
+      const k = font && lyricFontFrom.current ? lyricFontFrom.current / font : el.matches('.np-heading') ? first.height / last.height : first.width / last.width;
+      const sx = Math.min(5, Math.max(.2, k)), sy = wide ? 1 : sx;
+      el.animate([{ transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${sx}, ${sy})`, transformOrigin: '0 0' }, { transform: 'translate(0, 0) scale(1)', transformOrigin: '0 0' }], timing);
+      // The lyrics cross under the header on their way: they surface as they travel instead of overlapping it.
+      if (font) el.animate([{ opacity: .2 }, { opacity: 1 }], { duration: 420, easing: 'ease-out' });
+    });
+    // The columns clip their content; while pieces travel between them nothing may be cut off.
+    const layout = modalRef.current?.querySelector<HTMLElement>('.np-layout');
+    layout?.classList.add('is-flipping');
+    const done = setTimeout(() => layout?.classList.remove('is-flipping'), timing.duration + 40);
+    return () => { clearTimeout(done); layout?.classList.remove('is-flipping'); };
+  }, [notesOpen, reduceMotion]);
+  const notesHost = React.useMemo(() => ({ slot: notesSlot, setOpen: setNotesOpenFlip }), [notesSlot, setNotesOpenFlip]);
 
   React.useEffect(() => {
     if (isFullPlayerOpen) {

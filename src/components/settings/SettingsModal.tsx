@@ -72,7 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
         </label>
       </section>
-      {desktopExtrasAvailable()&&<DesktopSettings/>}
+      {desktopExtrasAvailable()?<DesktopSettings/>:<section className="set-group"><h4>{t('Компьютер','Desktop')}</h4><div className="set-row"><span>{t('Приложение для компьютера','Desktop app')}<small>{t('Статус «Слушает Осколок» в Discord, мини-плеер поверх окон и горячая клавиша — только в приложении.','Discord “Listening to Oskolok” status, the floating mini player and a global shortcut live in the app.')}</small></span><DesktopDownloads/></div></section>}
       <PrivacySettings/>
       <p className="set-eq-note">{t('Эквалайзер, скорость, тон и реверберация — в кнопке «Звук» на плашке плеера.','Equalizer, speed, pitch and reverb live under «Sound» on the player bar.')}</p>
     </div>:null}
@@ -110,10 +110,18 @@ function DesktopSettings(){
       <input type="checkbox" checked={prefs.miniOnMinimize} onChange={e=>update({miniOnMinimize:e.target.checked})}/>
       <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
     </label>
-    {info?.discord&&<label className={`set-row set-check ${prefs.discord?'is-on':''}`}>
-      <span>{t('Статус в Discord','Discord status')}<small>{t('«Слушает Осколок»: трек, артист и кнопка «Слушать в Осколке» в профиле Discord','“Listening to Oskolok”: track, artist and a “Listen on Oskolok” button on your Discord profile')}</small></span>
+    {info?.discord?<label className={`set-row set-check ${prefs.discord?'is-on':''}`}>
+      <span>{t('Статус в Discord','Discord status')}<small>{t('«Слушает Осколок»: трек, артист и кнопка «Слушать в Осколке» в профиле Discord','“Listening to Oskolok”: track, artist and a “Listen in Oskolok” button on your Discord profile')}</small></span>
       <input type="checkbox" checked={prefs.discord} onChange={e=>update({discord:e.target.checked})}/>
       <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
-    </label>}
+    </label>:info&&<div className="set-row"><span>{t('Статус в Discord','Discord status')}<small>{t('В этой версии приложения его нет. Скачайте новую — настройки и вход сохранятся.','This app version does not have it. Download the new one — settings and sign-in stay.')}</small></span><DesktopDownloads/></div>}
   </section>;
+}
+
+/** Public builds (see DEPLOY.md, /downloads): the current platform first. */
+function DesktopDownloads(){
+  const mac=/Mac/i.test(navigator.platform||navigator.userAgent);
+  const links:Array<[string,string]>=[['Windows','/downloads/Oskolok-Setup.exe'],['macOS · Apple Silicon','/downloads/Oskolok-arm64.dmg'],['macOS · Intel','/downloads/Oskolok-x64.dmg']];
+  if(mac)links.push(links.shift()!);
+  return <span className="set-downloads">{links.map(([label,href])=><a key={href} className="set-download" href={href} download>{label}</a>)}</span>;
 }
