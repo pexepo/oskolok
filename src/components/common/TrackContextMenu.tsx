@@ -258,7 +258,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
 
       <div className="my-1 border-t border-blue-100/70 dark:border-slate-800" />
 
-      <button onClick={()=>{onClose();void apiClient.request('/profile/music',{method:'POST',body:JSON.stringify({trackId:track.id})}).then(()=>addToast('Трек добавлен в профиль','success')).catch(e=>addToast(e.message,'warning'));}} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50/70 dark:hover:bg-slate-800/80 text-left"><User size={16}/><span>{t('В профиль', 'To profile')}</span></button>
+      <button onClick={()=>{onClose();void apiClient.request('/profile/showcase',{method:'POST',body:JSON.stringify({kind:'track',trackId:track.id})}).then(()=>addToast('Трек добавлен в профиль','success')).catch(e=>addToast(e.message,'warning'));}} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50/70 dark:hover:bg-slate-800/80 text-left"><User size={16}/><span>{t('В профиль', 'To profile')}</span></button>
 
       <button
         onClick={handleToggleLike}

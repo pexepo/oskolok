@@ -1,12 +1,13 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {Track} from '../server/src/types/index.js';
 
-const db=vi.hoisted(()=>({findMany:vi.fn(),create:vi.fn(),update:vi.fn(),transaction:vi.fn(),userUpsert:vi.fn(),playlistCreate:vi.fn(),playlistFindMany:vi.fn(),playlistUpdate:vi.fn(),profileDelete:vi.fn(),profileUpdate:vi.fn()}));
+const db=vi.hoisted(()=>({findMany:vi.fn(),create:vi.fn(),update:vi.fn(),transaction:vi.fn(),userUpsert:vi.fn(),playlistCreate:vi.fn(),playlistFindMany:vi.fn(),playlistUpdate:vi.fn(),profileDelete:vi.fn(),profileUpdate:vi.fn(),showcaseDelete:vi.fn()}));
 vi.mock('../server/src/database/client.js',()=>({prisma:{
   user:{upsert:db.userUpsert},
   playlistTrack:{findMany:db.findMany,create:db.create,update:db.update},
   playlist:{create:db.playlistCreate,findMany:db.playlistFindMany,update:db.playlistUpdate},
   profilePlaylist:{deleteMany:db.profileDelete,updateMany:db.profileUpdate},
+  profileShowcaseItem:{deleteMany:db.showcaseDelete},
   $transaction:db.transaction,
 }}));
 import {playlistRepository} from '../server/src/repositories/playlistRepository.js';
@@ -55,6 +56,7 @@ describe('playlist catalogue merge',()=>{
     db.playlistUpdate.mockResolvedValue(playlist());
     await playlistRepository.updatePlaylist('p',{isPublic:false});
     expect(db.profileDelete).toHaveBeenCalledWith({where:{playlistId:'p'}});
+    expect(db.showcaseDelete).toHaveBeenCalledWith({where:{kind:'playlist',refId:'p'}});
     expect(db.profileUpdate).not.toHaveBeenCalled();
   });
 });

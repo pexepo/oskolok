@@ -6,7 +6,7 @@ import {ensureBetaSchema} from './ensureBetaSchema.js';
 import {prisma} from './client.js';
 import {seedDefaultRoles} from '../services/roles.js';
 
-const CUSTOM_COLUMNS:Record<string,string>={accentColor:'TEXT',profileTheme:"TEXT NOT NULL DEFAULT 'default'",pronouns:"TEXT NOT NULL DEFAULT ''",location:"TEXT NOT NULL DEFAULT ''",statusEmoji:"TEXT NOT NULL DEFAULT ''",statusText:"TEXT NOT NULL DEFAULT ''",socialLinks:"TEXT NOT NULL DEFAULT '[]'",profileVisibility:"TEXT NOT NULL DEFAULT '{}'"};
+const CUSTOM_COLUMNS:Record<string,string>={showcaseImported:'BOOLEAN NOT NULL DEFAULT false',accentColor:'TEXT',profileTheme:"TEXT NOT NULL DEFAULT 'default'",pronouns:"TEXT NOT NULL DEFAULT ''",location:"TEXT NOT NULL DEFAULT ''",statusEmoji:"TEXT NOT NULL DEFAULT ''",statusText:"TEXT NOT NULL DEFAULT ''",socialLinks:"TEXT NOT NULL DEFAULT '[]'",profileVisibility:"TEXT NOT NULL DEFAULT '{}'"};
 const roleTables=(date:string)=>[
  `CREATE TABLE IF NOT EXISTS "Role" ("id" TEXT NOT NULL PRIMARY KEY,"key" TEXT,"name" TEXT NOT NULL,"color" TEXT NOT NULL DEFAULT '#9cbeff',"icon" TEXT NOT NULL DEFAULT '',"description" TEXT NOT NULL DEFAULT '',"position" INTEGER NOT NULL DEFAULT 0,"hoist" BOOLEAN NOT NULL DEFAULT true,"createdAt" ${date} NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" ${date} NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
  'CREATE UNIQUE INDEX IF NOT EXISTS "Role_key_key" ON "Role"("key")',
@@ -18,6 +18,9 @@ const roleTables=(date:string)=>[
  // Rewards: achievement tiers and medals (server/src/services/rewards.ts).
  `CREATE TABLE IF NOT EXISTS "UserAchievement" ("userId" TEXT NOT NULL,"achievementId" TEXT NOT NULL,"tier" INTEGER NOT NULL,"unlockedAt" ${date} NOT NULL DEFAULT CURRENT_TIMESTAMP,"seenAt" ${date},PRIMARY KEY ("userId","achievementId","tier"))`,
  'CREATE INDEX IF NOT EXISTS "UserAchievement_userId_unlockedAt_idx" ON "UserAchievement"("userId","unlockedAt")',
+ // Profile showcase tiles (server/src/services/profileShowcase.ts).
+ `CREATE TABLE IF NOT EXISTS "ProfileShowcaseItem" ("id" TEXT NOT NULL PRIMARY KEY,"userId" TEXT NOT NULL,"kind" TEXT NOT NULL,"refId" TEXT,"data" TEXT NOT NULL,"caption" TEXT NOT NULL DEFAULT '',"size" TEXT NOT NULL DEFAULT 'm',"position" INTEGER NOT NULL DEFAULT 0,"fileId" TEXT,"addedAt" ${date} NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+ 'CREATE INDEX IF NOT EXISTS "ProfileShowcaseItem_userId_position_idx" ON "ProfileShowcaseItem"("userId","position")',
  `CREATE TABLE IF NOT EXISTS "UserMedal" ("id" TEXT NOT NULL PRIMARY KEY,"userId" TEXT NOT NULL,"medalId" TEXT NOT NULL,"note" TEXT NOT NULL DEFAULT '',"awardedBy" TEXT NOT NULL DEFAULT 'admin',"awardedAt" ${date} NOT NULL DEFAULT CURRENT_TIMESTAMP,"revokedAt" ${date},"seenAt" ${date})`,
  'CREATE UNIQUE INDEX IF NOT EXISTS "UserMedal_userId_medalId_key" ON "UserMedal"("userId","medalId")',
  'CREATE INDEX IF NOT EXISTS "UserMedal_medalId_idx" ON "UserMedal"("medalId")',

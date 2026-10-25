@@ -5,7 +5,14 @@ import {prisma} from '../database/client.js';
 import {z} from 'zod';
 import {lyricSubmissionSchema} from '../validation/lyrics.js';
 export const contentDirectory=path.resolve(process.env.USER_CONTENT_DIR||path.join(process.cwd(),'data','user-content'));
-export const personalSchema=z.object({offset:z.number().finite().min(-60).max(60).optional(),lines:lyricSubmissionSchema.shape.lines.nullable().optional(),trackTitle:z.string().max(300).optional(),artistName:z.string().max(200).optional()}).strict();
+/** A listener-chosen playback source, optionally with the exact recording: «youtube», «soundcloud:soundcloud:123», «personal». */
+export const timingSourceSchema=z.string().regex(/^(?:youtube|soundcloud|personal)(?::[\w:.-]{1,160})?$/);
+/** Each source (and recording) starts the song at its own moment, so its timing offset is kept apart; «auto» uses the track-wide one. */
+export function timingOffsetFor(personal:{hasTimingOffset:boolean;offset:number;sourceOffsets?:string|null}|null|undefined,shared:{offset:number}|null|undefined,source?:unknown):number{
+ if(typeof source==='string'&&personal?.sourceOffsets&&timingSourceSchema.safeParse(source).success){try{const value=(JSON.parse(personal.sourceOffsets) as Record<string,unknown>)[source];if(typeof value==='number'&&Number.isFinite(value))return value;}catch{}}
+ return personal?.hasTimingOffset?personal.offset:shared?.offset??0;
+}
+export const personalSchema=z.object({offset:z.number().finite().min(-60).max(60).optional(),source:timingSourceSchema.optional(),lines:lyricSubmissionSchema.shape.lines.nullable().optional(),trackTitle:z.string().max(300).optional(),artistName:z.string().max(200).optional()}).strict();
 export const reportSchema=z.object({requestId:z.string().uuid(),kind:z.enum(['bug','playback','source','lyrics','timing','other']),reason:z.string().trim().min(3).max(200),description:z.string().trim().max(8000).default(''),trackId:z.string().min(1).max(200).optional(),trackTitle:z.string().max(300).optional(),artistName:z.string().max(200).optional(),page:z.string().max(500).optional(),attachmentIds:z.array(z.string().uuid()).max(4).default([]),platform:z.enum(['soundcloud','youtube']).optional(),proposedUrl:z.string().url().max(2000).refine(v=>/^https:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com)\//i.test(v),'Нужна ссылка SoundCloud или YouTube.').optional(),offset:z.number().finite().min(-60).max(60).optional(),lines:lyricSubmissionSchema.shape.lines.optional(),diagnostics:z.object({pageName:z.string().max(200).optional(),route:z.string().max(500).transform(v=>v.split('?')[0]).optional(),errors:z.array(z.string().max(1000).transform(v=>sanitizeReportText(v))).max(20).default([]),userAgent:z.string().max(400).optional(),viewport:z.string().max(40).optional(),nowPlaying:z.string().max(400).optional()}).strict().optional()}).strict().superRefine((v,c)=>{
  // Lyrics, timing, source and playback reports carry their own data; only free-form reports need words.
  if(['bug','other'].includes(v.kind)&&v.description.length<5)c.addIssue({code:'custom',path:['description'],message:'Опишите проблему (от 5 символов).'});
@@ -25,6 +32,7 @@ export function inspectUpload(fileName:string,kind:string,body:Buffer){
  if(extension==='png'&&body.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
  if(['jpg','jpeg'].includes(extension)&&body[0]===255&&body[1]===216&&body[2]===255)return 'image/jpeg';
  if(extension==='webp'&&body.subarray(0,4).toString()==='RIFF'&&body.subarray(8,12).toString()==='WEBP')return 'image/webp';
+ if(extension==='gif'&&/^GIF8[79]a$/.test(body.subarray(0,6).toString('latin1')))return 'image/gif';
  if(['txt','log','json','lrc','ttml'].includes(extension)&&!body.includes(0))return 'text/plain';
  throw new Error('Вложите PNG, JPEG, WebP, TXT, LOG, JSON, LRC или TTML.');
 }

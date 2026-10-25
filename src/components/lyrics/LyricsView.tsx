@@ -9,6 +9,7 @@ import { Upload, Download, Minus, Plus, Crosshair, Pencil, Undo2, X, Settings2, 
 import type { LyricLine, LyricsAuthor, LyricsData } from '../../types/index.js';
 import { apiClient } from '../../api/apiClient.js';
 import { parseLrc, parseLyricsFile, normalizeLyricTimings, getActiveLyricIndex } from '../../utils/lyricsParser.js';
+import { getPreferredSource, getRecording } from '../../utils/playbackPreferences.js';
 import { readLocalLyrics, saveLocalLyrics, deleteLocalLyrics } from '../../utils/lyricsStorage.js';
 import { audioManager } from '../../audio/AudioManager.js';
 import { usePlayerStore } from '../../stores/usePlayerStore.js';
@@ -18,6 +19,8 @@ import { AuthorCard } from '../profile/AuthorCard.js';
 import { paintTimedLine, paintTimedWordSegments, paintLyricGap, lyricGaps, WORD_PULL_RELEASE_SECONDS } from '../../utils/lyricMotion.js';
 import UniqueLoading from '../ui/morph-loading.js';
 import { GeniusDrawer } from './GeniusAnnotations.js';
+import { createPortal } from 'react-dom';
+import { NotesSlotContext } from './notesSlot.js';
 import { annotationRanges, type GeniusAnnotationSet, type GeniusReferent } from '../../utils/geniusAnnotations.js';
 import {LoadingState} from '../common/LoadingState.js';
 
@@ -34,9 +37,14 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   const [editor,setEditor]=useState(false),[draft,setDraft]=useState(''),[stamps,setStamps]=useState<number[]>([]),[recording,setRecording]=useState(false);
   const [clock,setClock]=useState(currentTime);
   const [notes,setNotes]=useState<GeniusAnnotationSet|null>(null),[note,setNote]=useState<{line:number;referent:number}|null>(null),shownNote=useRef<{line:number;referent:number}>({line:-1,referent:-1});
+  // Docked notes (full player, wide screens): the drawer renders in the player's left column.
+  const notesHost=React.useContext(NotesSlotContext),wide=useWideScreen(),notesSlot=wide?notesHost?.slot??null:null;
   // Machine translation under each line; the target is the UI language, or English when the song already is in it.
   const language=useLanguageStore(s=>s.language),[translateOn,setTranslateOn]=useState(()=>localStorage.getItem(scopedStorageKey('lyrics-translate'))==='1'),[translated,setTranslated]=useState<{key:string;lines:string[];target:string}|null>(null),[translating,setTranslating]=useState(false);
   const playing=usePlayerStore(s=>s.isPlaying),buffering=usePlayerStore(s=>s.isBuffering),artwork=usePlayerStore(s=>s.currentTrack?.id===trackId?s.currentTrack.artworkUrl:undefined);
+  // The chosen source (and recording) of this track: each one keeps its own timing offset.
+  const [timingSource,setTimingSource]=useState(()=>timingSourceOf(trackId));
+  useEffect(()=>{const sync=()=>setTimingSource(timingSourceOf(trackId));sync();window.addEventListener('oskolok-source-change',sync);return()=>window.removeEventListener('oskolok-source-change',sync);},[trackId]);
   const fileRef=useRef<HTMLInputElement>(null),containerRef=useRef<HTMLDivElement>(null),activeRef=useRef<HTMLDivElement>(null),generation=useRef(0);
   useEffect(()=>{
     if(!enabled)return;
@@ -45,7 +53,7 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
     try{setOffset(Number(localStorage.getItem(scopedStorageKey(`interference-offset:${trackId}`)))||0);}catch{setOffset(0);}
     (async()=>{
       try{
-        const data=await apiClient.getLyrics(trackId,trackName,artistName,duration,controller.signal);
+        const data=await apiClient.getLyrics(trackId,trackName,artistName,duration,controller.signal,timingSource);
         if(id!==generation.current)return;
         setOffset(data.timingOffset||0);setRaw(data?.syncedLyrics||parseLrc(data?.plainLyrics||''));setPlain(data?.plainLyrics||'');setProvider(data?.provider||'');setAuthor(data?.author||null);setAttribution(data?.attribution);setViaSpicy(data?.apiSource==='spicy_lyrics');
       }catch{
@@ -58,7 +66,7 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
       finally{if(id===generation.current)setLoading(false);}
     })();
     return()=>{controller.abort();generation.current++;};
-  },[trackId,trackName,artistName,duration,reload,enabled]);
+  },[trackId,trackName,artistName,duration,reload,enabled,timingSource]);
   const lines=useMemo(()=>{
     const normalized=normalizeLyricTimings(raw,duration);
     return normalized.flatMap(line=>[line,...(line.background||[]).map(bg=>({...bg,role:'background' as const}))]).sort((a,b)=>a.time-b.time);
@@ -92,6 +100,9 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
     const same=(a:string,b:string)=>a.replace(/\s+/g,' ').trim()===b.replace(/\s+/g,' ').trim(),out:GeniusReferent[]=[];
     for(const referent of [...new Set(ids)].map(r=>notes.referents[r]).filter(Boolean)){const at=out.findIndex(other=>same(other.fragment,referent.fragment));if(at<0)out.push(referent);else out[at]={...out[at],annotations:[...out[at].annotations,...referent.annotations.filter(note=>!out[at].annotations.some(known=>known.id===note.id))]};}
     return out;},[notes,lineNotes,note]);
+  const docked=!!notesSlot&&note!==null&&lineNotes.size>0&&!editor;
+  useEffect(()=>{notesHost?.setOpen(docked);},[notesHost,docked]);
+  useEffect(()=>()=>notesHost?.setOpen(false),[notesHost]);
   // Every line the open fragment touches shows it as selected, so the text under the panel still says what it is about.
   const openReferent=note?.referent;
   const leadTexts=useMemo(()=>noteLines.map(line=>line.text),[noteLines]),translateKey=useMemo(()=>`${trackId}:${language}:${leadTexts.join('\u0001')}`,[trackId,leadTexts,language]);
@@ -220,7 +231,7 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   },[follow,editor,lines,glideTo]);
   const commit=async(next:LyricLine[])=>{
     const id=trackId,request=++generation.current;
-    try{setSaveState(t('Сохраняем…','Saving…'));await contentApi.save(id,{lines:next,offset,trackTitle:trackName,artistName});await saveLocalLyrics(id,next).catch(()=>{});setSaveState(t('Сохранено в вашем аккаунте','Saved to your account'));if(generation.current!==request)return;setRaw(next);setPlain('');setProvider('Ваш файл');setAuthor(null);setAttribution(undefined);setViaSpicy(false);setLoading(false);setError('');setEditor(false);setRecording(false);}
+    try{setSaveState(t('Сохраняем…','Saving…'));await contentApi.save(id,{lines:next,offset,source:timingSource,trackTitle:trackName,artistName});await saveLocalLyrics(id,next).catch(()=>{});setSaveState(t('Сохранено в вашем аккаунте','Saved to your account'));if(generation.current!==request)return;setRaw(next);setPlain('');setProvider('Ваш файл');setAuthor(null);setAttribution(undefined);setViaSpicy(false);setLoading(false);setError('');setEditor(false);setRecording(false);}
     catch(e){if(generation.current===request){const message=e instanceof Error?e.message:t('Не удалось сохранить','Could not save');setError(message);setSaveState(message);throw e;}}
   };
   const upload=async(file?:File)=>{
@@ -230,7 +241,7 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
     catch(e){setError(e instanceof Error?e.message:t('Не удалось прочитать файл.','Could not read the file.'));}
     finally{if(fileRef.current)fileRef.current.value='';}
   };
-  const setTiming=(value:number)=>{const next=Math.round(Math.max(-10,Math.min(10,value))*10)/10;setOffset(next);setSaveState(t('Сохраняем…','Saving…'));clearTimeout(offsetTimer.current);const selectedTrack=trackId;offsetTimer.current=setTimeout(()=>{void contentApi.save(selectedTrack,{offset:next,trackTitle:trackName,artistName}).then(()=>setSaveState(t('Сохранено в вашем аккаунте','Saved to your account'))).catch(e=>{setSaveState(e.message);setError(e.message);});},350);};
+  const setTiming=(value:number)=>{const next=Math.round(Math.max(-10,Math.min(10,value))*10)/10;setOffset(next);setSaveState(t('Сохраняем…','Saving…'));clearTimeout(offsetTimer.current);const selectedTrack=trackId,source=timingSource;offsetTimer.current=setTimeout(()=>{void contentApi.save(selectedTrack,{offset:next,source,trackTitle:trackName,artistName}).then(()=>setSaveState(t('Сохранено в вашем аккаунте','Saved to your account'))).catch(e=>{setSaveState(e.message);setError(e.message);});},350);};
   const report=(kind:'timing'|'lyrics')=>{const track=usePlayerStore.getState().currentTrack;setSettings(false);useReportStore.getState().open({track:track?.id===trackId?track:undefined,kind,offset,lines:raw});};
   const exportFile=()=>{const blob=new Blob([JSON.stringify({version:1,trackId,lines:raw},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${(trackName||'interference').replace(/[^\p{L}\p{N} -]/gu,'')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   const tokens=useMemo(()=>draft.split('\n').flatMap((line,lineIndex)=>(line.match(/\S+/g)||[]).map(text=>({text,lineIndex}))),[draft]);
@@ -246,17 +257,18 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   const timingLabel=lines.some(line=>line.timingMode==='syllable')?t('по словам и слогам','word & syllable sync'):lines.length?t('по строкам','line sync'):plain?t('без синхронизации','not synced'):'';
   // Who provided the text: under the lyrics on desktop, at the end of the text on phones (where screen height is the content's).
   const attributionNode=!editor&&(author?<div className="lyrics-attribution"><span>{t("Текст предоставлен: ","Lyrics provided by: ")}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=="Spicy Lyrics"?t(" через: Spicy Lyrics"," via: Spicy Lyrics"):""}</span><AuthorCard author={author}/></div>:provider&&provider!=='none'?<div className="lyrics-attribution lyrics-attribution-plain"><span>{t('Текст предоставлен: ','Lyrics provided by: ')}{provider==='Ваш файл'?t('Ваш файл','Your file'):provider}{viaSpicy&&provider!=='Spicy Lyrics'?t(' через: Spicy Lyrics',' via: Spicy Lyrics'):''}</span>{attribution?.uploader&&<AuthorCard label={t('Загрузил','Uploaded by')} author={{id:attribution.uploader.id,username:null,displayName:attribution.uploader.name,avatarUrl:attribution.uploader.avatarUrl,credit:attribution.uploader.name}}/>}{attribution?.maker&&<AuthorCard label={t('Разметил','Timed by')} author={{id:attribution.maker.id,username:null,displayName:attribution.maker.name,avatarUrl:attribution.maker.avatarUrl,credit:attribution.maker.name}}/>}</div>:null);
-  return <section className="interference-lyrics lyrics-v3" data-notes-open={note?'true':undefined} data-translated={lineTranslations?'true':undefined}>
+  const drawer=lineNotes.size>0&&!editor?<GeniusDrawer open={note!==null} line={noteLines[shownNote.current.line]?.text} referents={drawerReferents} song={notes?.song} onClose={closeNote} translateTo={translateOn?(translated?.target||language):undefined} artwork={artwork}/>:null;
+  return <section className="interference-lyrics lyrics-v3" data-notes-open={note?'true':undefined} data-notes-docked={notesSlot?'true':undefined} data-translated={lineTranslations?'true':undefined}>
     <div className="lyrics-toolbar"><div><span className="eyebrow">{t('Текст песни','Lyrics')}</span>{timingLabel&&<p>{timingLabel}</p>}</div><div className="lyrics-toolbar-actions"><button className={`text-button lyrics-translate-toggle${translateOn?' is-on':''}`} onClick={()=>setTranslateOn(v=>!v)} disabled={!leadTexts.length&&!translateOn} aria-pressed={translateOn} aria-busy={translating} title={translateOn?t('Скрыть перевод','Hide translation'):t('Перевести текст','Translate lyrics')}>{translating?<UniqueLoading size="sm" label={t('Переводим…','Translating…')}/>:<Languages size={17}/>}<span>{t('Перевод','Translate')}</span></button><button className="text-button" onClick={()=>setSettings(true)} aria-label={t('Настройки текста','Lyrics settings')}><Settings2 size={17}/></button></div></div>
     {error&&<p className="lyrics-error" role="alert">{error}</p>}
     {loadFailed&&<button type="button" className="text-button" onClick={()=>setReload(value=>value+1)}>{t('Повторить загрузку','Retry loading')}</button>}
     <div ref={containerRef} className={`lyrics-scroll ${follow?'':'is-manual'}`} onWheel={()=>setFollow(false)} onTouchMove={()=>setFollow(false)}>
-      {loading&&!lines.length?<LoadingState size="md" label={t('Ищем слова…','Finding lyrics…')}/>:lines.length?lines.map((line,i)=>{const glow=line.role!=='background'&&mainIndex[i]%2===1;const singing=time>=line.time&&time<line.end,sung=time>=line.end,gap=gapByLine.get(i),gapOpen=gap!==undefined&&gap===openGap;return <React.Fragment key={`${line.time}:${i}`}>{gap&&<div className="lyric-gap" data-open={gapOpen?'true':'false'} data-gap-start={gap.start} data-gap-end={gap.end} data-height="76" aria-hidden={!gapOpen} ref={gapOpen?activeRef:undefined}><UniqueLoading size="sm" className="lyric-gap-loader" label={t('Ждём следующую строку','Waiting for the next line')}/><span className="lyric-gap-progress"/></div>}<div className="lyric-slot" data-active={singing?'true':'false'} data-start={line.time} data-end={line.end} data-line-index={i} ref={i===focus&&!openGap?activeRef:undefined}><LyricsLine line={line} isActive={singing} isSung={sung} currentTime={time} onSeek={seekLine} glow={glow} notes={lineNotes.get(i)} lineIndex={i} onAnnotate={openNote} selected={openReferent!==undefined&&lineNotes.get(i)?.some(range=>range.referent===openReferent||range.also?.includes(openReferent))?openReferent:undefined} translation={lineTranslations?.[i]}/></div></React.Fragment>}):plain?<div className="plain-lyrics plain-lyrics--lines">{plainLines.map((line,i)=><PlainLyricLine key={i} text={line.text} translation={lineTranslations?.[i]} notes={lineNotes.get(i)} lineIndex={i} onAnnotate={openNote} selected={openReferent!==undefined&&lineNotes.get(i)?.some(range=>range.referent===openReferent||range.also?.includes(openReferent))?openReferent:undefined}/>)}</div>:<div className="lyrics-empty"><h3>{t('Добавьте текст','Add lyrics')}</h3><p>{t('Загрузите файл с временными метками или создайте разметку по словам.','Upload a timed lyrics file or time the words yourself.')}</p><button className="primary-button" onClick={()=>setSettings(true)}><Upload size={16}/> {t('Загрузить файл','Upload file')}</button></div>}
+      {loading&&!lines.length?<LoadingState size="md" label={t('Ищем слова…','Finding lyrics…')}/>:lines.length?lines.map((line,i)=>{const glow=line.role!=='background'&&mainIndex[i]%2===1;const singing=time>=line.time&&time<line.end,sung=time>=line.end,gap=gapByLine.get(i),gapOpen=gap!==undefined&&gap===openGap;return <React.Fragment key={`${line.time}:${i}`}>{gap&&<div className="lyric-gap" data-open={gapOpen?'true':'false'} data-gap-start={gap.start} data-gap-end={gap.end} data-height="76" aria-hidden={!gapOpen} ref={gapOpen?activeRef:undefined}><span className="lyric-gap-dots" role="img" aria-label={t('Проигрыш, ждём следующую строку','Instrumental, waiting for the next line')}><i style={{'--dot':0} as React.CSSProperties}/><i style={{'--dot':1} as React.CSSProperties}/><i style={{'--dot':2} as React.CSSProperties}/></span></div>}<div className="lyric-slot" data-active={singing?'true':'false'} data-start={line.time} data-end={line.end} data-line-index={i} ref={i===focus&&!openGap?activeRef:undefined}><LyricsLine line={line} isActive={singing} isSung={sung} currentTime={time} onSeek={seekLine} glow={glow} notes={lineNotes.get(i)} lineIndex={i} onAnnotate={openNote} selected={openReferent!==undefined&&lineNotes.get(i)?.some(range=>range.referent===openReferent||range.also?.includes(openReferent))?openReferent:undefined} translation={lineTranslations?.[i]}/></div></React.Fragment>}):plain?<div className="plain-lyrics plain-lyrics--lines">{plainLines.map((line,i)=><PlainLyricLine key={i} text={line.text} translation={lineTranslations?.[i]} notes={lineNotes.get(i)} lineIndex={i} onAnnotate={openNote} selected={openReferent!==undefined&&lineNotes.get(i)?.some(range=>range.referent===openReferent||range.also?.includes(openReferent))?openReferent:undefined}/>)}</div>:<div className="lyrics-empty"><h3>{t('Добавьте текст','Add lyrics')}</h3><p>{t('Загрузите файл с временными метками или создайте разметку по словам.','Upload a timed lyrics file or time the words yourself.')}</p><button className="primary-button" onClick={()=>setSettings(true)}><Upload size={16}/> {t('Загрузить файл','Upload file')}</button></div>}
       {!editor&&(lines.length>0||!!plain)&&<div className="lyrics-attribution-inline">{attributionNode}</div>}
       {!editor&&(lines.length>0||!!plain)&&<LyricsCredits trackId={trackId} enabled={enabled}/>}
     </div>
     {attributionNode}
-    {lineNotes.size>0&&!editor&&<GeniusDrawer open={note!==null} line={noteLines[shownNote.current.line]?.text} referents={drawerReferents} song={notes?.song} onClose={closeNote} translateTo={translateOn?(translated?.target||language):undefined} artwork={artwork}/>}
+    {lineNotes.size>0&&!editor&&(notesSlot?createPortal(drawer,notesSlot):drawer)}
     <div className="lyrics-footer"><button className="text-button" onClick={()=>setSettings(true)}><Settings2 size={15}/>{t('Настройки текста','Lyrics settings')}</button><button className="text-button" onClick={()=>setFollow(true)} disabled={follow}><Crosshair size={14}/>{follow?t('Следуем за музыкой','Following music'):t('К текущей строке','Current line')}</button></div>
     <Modal isOpen={settings} onClose={()=>{setSettings(false);setEditor(false);setRecording(false);}} title={t('Настройки текста','Lyrics settings')}><div className="content-form">
       <label>{t('Смещение тайминга','Timing offset')} <output>{offset>0?'+':''}{offset.toFixed(1)} {t('с','s')}</output><input type="range" min={-10} max={10} step={0.1} value={offset} onChange={e=>setTiming(Number(e.target.value))}/></label><small>{t('Положительное значение показывает текст раньше.','Positive values show lyrics earlier.')}</small><button className="text-button" onClick={()=>setTiming(0)}>{t('Сбросить смещение','Reset offset')}</button>
@@ -276,9 +288,24 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   </section>;
 },(a,b)=>a.enabled===b.enabled&&a.trackId===b.trackId&&a.trackName===b.trackName&&a.artistName===b.artistName&&a.duration===b.duration&&a.onSeek===b.onSeek);
 
+function timingSourceOf(trackId:string):string|undefined{
+  const source=getPreferredSource(trackId);
+  if(source==='auto')return undefined;
+  const recording=getRecording(trackId,source);
+  return recording?`${source}:${recording}`:source;
+}
+
 /** «Над треком работали»: the Genius credits, closing every text. */
 function LyricsCredits({trackId,enabled}:{trackId:string;enabled:boolean}){
   const t=useTranslation(),info=useTrackInfo(trackId,enabled),genius=info.data?.genius;
   if(!genius||(!genius.credits.length&&!genius.featuredArtists.length&&!genius.labels.length))return null;
   return <section className="lyrics-credits" aria-label={t('Над треком работали','Credits')}><h3>{t('Над треком работали','Credits')}</h3><CreditsList info={genius} compact/></section>;
+}
+
+/** Notes dock into the full player's column only where there is room for two columns. */
+function useWideScreen(){
+  const query='(min-width: 701px)';
+  const [wide,setWide]=useState(()=>typeof window!=='undefined'&&window.matchMedia(query).matches);
+  useEffect(()=>{const list=window.matchMedia(query),update=()=>setWide(list.matches);list.addEventListener('change',update);return()=>list.removeEventListener('change',update);},[]);
+  return wide;
 }

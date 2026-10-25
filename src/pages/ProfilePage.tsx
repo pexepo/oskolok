@@ -1,7 +1,7 @@
 import {MyReports} from '../components/profile/MyReports.js';
 import React,{useEffect,useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
-import {Pencil,Plus,Camera,ImagePlus,Music2,ListMusic,Heart,Radio,Shield,LogOut,Flag} from 'lucide-react';
+import {Pencil,Camera,ImagePlus,LayoutGrid,ListMusic,Heart,Shield,LogOut,Flag} from 'lucide-react';
 import {apiClient} from '../api/apiClient.js';
 import {TrackRow} from '../components/tracks/TrackRow.js';
 import {
@@ -22,8 +22,10 @@ import {usePlayerStore} from '../stores/usePlayerStore.js';
 import {useLibraryStore} from '../stores/useLibraryStore.js';
 import {TelegramLoginFlow} from '../components/telegram/TelegramLoginFlow.js';
 import {TelegramStatusSettings} from '../components/telegram/TelegramStatusSettings.js';
-import {ProfileCustomizationEditor,ProfileStatus,SocialLinks,accentStyle,type Customization} from '../components/profile/ProfileCustomization.js';
-import {RoleBadges,topRoleColor,type PublicRole} from '../components/profile/RoleBadge.js';
+import {ProfileCustomizationEditor,type Customization} from '../components/profile/ProfileCustomization.js';
+import type {PublicRole} from '../components/profile/RoleBadge.js';
+import {ProfileHero,ProfileAvatar} from '../components/profile/ProfileHero.js';
+import {Showcase,type ShowcaseItem} from '../components/profile/Showcase.js';
 import type {PublicRewards} from '../components/profile/Rewards.js';
 import {LoadingState} from '../components/common/LoadingState.js';
 import {SoonBadge} from '../components/common/SoonBadge.js';
@@ -33,7 +35,7 @@ import {useReportStore} from '../components/common/ReportDialog.js';
 import {useTranslation,tr} from '../stores/useLanguageStore.js';
 
 type Submission={id:string;trackId:string;trackTitle:string;artistName:string;credit:string;status:'pending'|'approved'|'rejected';reviewNote:string};
-type Profile={customization?:Customization;roles?:PublicRole[];rewards?:PublicRewards;userId:string;username:string|null;displayName:string;avatarUrl:string;telegramAvatarUrl:string;bannerUrl:string;bio:string;telegramConnected:boolean;telegramFullIntegration:boolean;telegramSyncError:string|null;currentTrack:Track|null;music:Track[];playlists:Array<{id:string;playlistId:string;title:string;artworkUrl?:string;tracks:Track[]}>;submissions:Submission[];contributions:Array<{id:string;trackId:string;trackTitle:string;artistName:string;credit:string}>};
+type Profile={customization?:Customization;roles?:PublicRole[];rewards?:PublicRewards;userId:string;username:string|null;displayName:string;avatarUrl:string;telegramAvatarUrl:string;bannerUrl:string;bio:string;telegramConnected:boolean;telegramFullIntegration:boolean;telegramSyncError:string|null;currentTrack:Track|null;showcase:ShowcaseItem[];submissions:Submission[];contributions:Array<{id:string;trackId:string;trackTitle:string;artistName:string;credit:string}>};
 type IdentityDraft={displayName:string;bio:string;avatarUrl:string;bannerUrl:string};
 // Beta: lyrics submissions and rewards stay hidden until they are ready.
 type Tab='showcase'|'import'|'reports'|'settings'|'lyrics'|'rewards';
@@ -51,9 +53,6 @@ function readImage(file:File){
   });
 }
 
-function Avatar({src,name,className}:{src?:string;name:string;className:string}){
-  return src?<img className={className} src={src} alt=""/>:<span className={className} aria-hidden="true">{name.slice(0,1).toUpperCase()||'?'}</span>;
-}
 
 export function ProfilePage(){
   const t=useTranslation();
@@ -61,9 +60,7 @@ export function ProfilePage(){
   const tab:Tab=TABS.includes(params.get('tab') as Tab)?params.get('tab') as Tab:'showcase';
   const setTab=(next:Tab)=>setParams(next==='showcase'?{}:{tab:next},{replace:true});
   const [p,setP]=useState<Profile>(),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
-  const [query,setQuery]=useState(''),[tracks,setTracks]=useState<Track[]>([]);
   const [editing,setEditing]=useState(false);
-  const [adding,setAdding]=useState(false);
   const playlists=usePlaylistStore(s=>s.playlists),fetchPlaylists=usePlaylistStore(s=>s.fetchPlaylists);
   const likedCount=useLibraryStore(s=>s.likedTracks.length);
   const playingTrack=usePlayerStore(s=>s.isPlaying?s.currentTrack:null);
@@ -94,25 +91,16 @@ export function ProfilePage(){
   if(!p)return error?<div className="frost-panel lyrics-error" role="alert">{error}</div>:<LoadingState className="route-loading" label={t('Открываем профиль…', 'Opening profile…')}/>;
   const nowPlaying=localTrack?playingTrack:p.currentTrack;
   const stats=[
-    {icon:Music2,value:p.music.length,label:t('треков в витрине','showcase tracks')},
-    {icon:ListMusic,value:p.playlists.length,label:t('плейлистов','playlists')},
+    {icon:LayoutGrid,value:p.showcase.length,label:t('плиток в витрине','showcase tiles')},
+    {icon:ListMusic,value:playlists.length,label:t('плейлистов','playlists')},
     {icon:Heart,value:likedCount,label:t('любимых','liked')},
   ];
   const tabs:Array<[Tab,string]>=[['showcase',t('Витрина','Showcase')],['import',t('Перенос музыки','Transfer music')],['reports',t('Обращения','Reports')],['settings',t('Настройки','Settings')]];
 
   return <div className="profile-page profile-v2">
-    <div className={`profile-head crystal-slab profile-theme--${p.customization?.theme||'default'}`} style={accentStyle(p.customization)}>
-      <div className="profile-head-banner">{p.bannerUrl?<img src={p.bannerUrl} alt="" aria-hidden="true"/>:<i className="profile-head-banner-art" aria-hidden="true"/>}</div>
-      <div className="profile-head-body">
-        <Avatar src={p.avatarUrl} name={p.displayName} className="profile-head-avatar"/>
-        <div className="profile-head-id">
-          <h1 style={{color:topRoleColor(p.roles)}}>{p.displayName} <RoleBadges roles={p.roles}/></h1>
-          <ProfileStatus c={p.customization}/>
-          <p>{p.username?`@${p.username}`:t('В Telegram нет username','No Telegram username')}<span className={`profile-head-dot ${p.telegramConnected?'is-on':''}`}>{p.telegramConnected?t('Telegram подключён','Telegram connected'):t('Telegram не подключён','Telegram not connected')}</span>{nowPlaying&&<span className="profile-head-listening"><Radio size={12}/>{nowPlaying.artist.name} — {nowPlaying.title}</span>}</p>
-          {p.bio&&<p className="profile-head-bio">{p.bio}</p>}
-          <SocialLinks links={p.customization?.socialLinks}/>
-        </div>
-        <div className="profile-head-actions">
+    <ProfileHero displayName={p.displayName} avatarUrl={p.avatarUrl} bannerUrl={p.bannerUrl} username={p.username} bio={p.bio} customization={p.customization} roles={p.roles} nowPlaying={nowPlaying}
+      meta={<>{!p.username&&t('В Telegram нет username','No Telegram username')}<span className={`profile-head-dot ${p.telegramConnected?'is-on':''}`}>{p.telegramConnected?t('Telegram подключён','Telegram connected'):t('Telegram не подключён','Telegram not connected')}</span></>}
+      actions={<>
           <Sheet open={editing} onOpenChange={onSheetChange}>
             <SheetTrigger className="profile-btn profile-btn--primary"><Pencil size={15}/>{t('Редактировать','Edit profile')}</SheetTrigger>
             <SheetPopup side="center" variant="inset" className="profile-edit-dialog">
@@ -129,7 +117,7 @@ export function ProfilePage(){
                       <label className="profile-edit-pick profile-edit-pick--banner"><ImagePlus size={15}/>{t('Сменить баннер','Change banner')}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';void run(()=>picture(file,'bannerUrl'));}}/></label>
                     </div>
                     <div className="profile-edit-avatar">
-                      <Avatar src={draft.avatarUrl} name={draft.displayName} className="profile-head-avatar"/>
+                      <ProfileAvatar src={draft.avatarUrl} name={draft.displayName}/>
                       <label className="profile-edit-pick profile-edit-pick--avatar" aria-label={t('Сменить аватар','Change avatar')}><Camera size={16}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';void run(()=>picture(file,'avatarUrl'));}}/></label>
                     </div>
                   </div>
@@ -148,15 +136,14 @@ export function ProfilePage(){
               </SheetFooter>
             </SheetPopup>
           </Sheet>
-        </div>
-      </div>
+      </>}>
       <dl className="profile-stats">{stats.map(({icon:Icon,value,label})=><div key={label}><dt><Icon size={14}/>{label}</dt><dd>{new Intl.NumberFormat().format(value)}</dd></div>)}</dl>
       <nav className="set-segmented profile-segmented" role="tablist" aria-label={t('Разделы профиля','Profile sections')}>
         {tabs.map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'is-active':''} onClick={()=>setTab(id)}>{label}</button>)}
         {/* Closed for the beta: they open the «в разработке» placeholder. */}
         {([['lyrics',t('Тексты','Lyrics')],['rewards',t('Награды','Rewards')]] as Array<[Tab,string]>).map(([id,label])=><button key={id} type="button" role="tab" aria-selected={tab===id} className={`is-soon${tab===id?' is-active':''}`} onClick={()=>setTab(id)}>{label}<SoonBadge/></button>)}
       </nav>
-    </div>
+    </ProfileHero>
 
     {(error&&!editing)&&<p role="alert" className="transfer-error">{error}</p>}{notice&&<p role="status" className="profile-notice">{notice}</p>}
 
@@ -167,17 +154,7 @@ export function ProfilePage(){
           {nowPlaying?<TrackRow track={nowPlaying}/>:<p className="profile-empty">{t('Сейчас ничего не играет.','Nothing is playing.')}</p>}
         </section>
         <section className="crystal-slab profile-card">
-          <div className="profile-card-head"><h2>{t('Витрина','Showcase')}</h2><button className="profile-btn" onClick={()=>setAdding(v=>!v)} aria-expanded={adding}><Plus size={15}/>{t('Добавить','Add')}</button></div>
-          {p.music.map((tr,i)=><div className="profile-music-row" key={tr.id}><TrackRow track={tr} index={i} collection={p.music}/><button aria-label={`Убрать ${tr.title} из профиля`} className="text-button" disabled={busy} onClick={()=>void run(async()=>{await apiClient.request(`/profile/music/${encodeURIComponent(tr.id)}`,{method:'DELETE'});await load();})}>{t('Убрать','Remove')}</button></div>)}
-          {p.playlists.map(pl=><div className="profile-music-row" key={pl.id}><details className="profile-playlist"><summary>{pl.title} · {pl.tracks.length} {t('треков','tracks')}</summary>{pl.tracks.map((tr,i)=><TrackRow key={tr.id} track={tr} index={i} collection={pl.tracks}/>)}</details><button className="text-button" disabled={busy} onClick={()=>void run(async()=>{await apiClient.request(`/profile/playlists/${encodeURIComponent(pl.playlistId)}`,{method:'DELETE'});await load();})}>{t('Убрать','Remove')}</button></div>)}
-          {!p.music.length&&!p.playlists.length&&<p className="profile-empty">{t('Здесь пока тихо. Нажмите «Добавить».','Quiet here for now. Press "Add".')}</p>}
-          {adding&&<div className="profile-adder">
-            <h3>{t('Плейлисты из коллекции','Playlists from your collection')}</h3>
-            <div className="profile-chips">{playlists.map(pl=><button className="profile-chip" key={pl.id} disabled={busy||p.playlists.some(x=>x.playlistId===pl.id)} onClick={()=>void run(async()=>{await apiClient.request('/profile/playlists',{method:'POST',body:JSON.stringify({playlistId:pl.id})});await load();})}>{pl.title}{p.playlists.some(x=>x.playlistId===pl.id)?' · ✓':''}</button>)}</div>
-            <h3>{t('Треки','Tracks')}</h3>
-            <form className="profile-search" onSubmit={e=>{e.preventDefault();void run(async()=>setTracks((await apiClient.search(query,1,8)).tracks));}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t('Артист и название','Artist and title')} aria-label={t('Найти трек','Find a track')}/><button className="profile-btn" disabled={busy||query.trim().length<2}>{t('Найти','Search')}</button></form>
-            <div className="author-track-results">{tracks.map(tr=><div className="profile-search-result" key={tr.id}><span>{tr.artist.name} — {tr.title}</span><button className="profile-btn" disabled={busy||p.music.some(m=>m.id===tr.id)} onClick={()=>void run(async()=>{await apiClient.request('/profile/music',{method:'POST',body:JSON.stringify({trackId:tr.id})});await load();})}>{p.music.some(m=>m.id===tr.id)?t('Добавлен','Added'):t('В профиль','To profile')}</button></div>)}</div>
-          </div>}
+          <Showcase items={p.showcase} editable onChange={showcase=>setP(current=>current&&{...current,showcase})}/>
         </section>
       </div>
     </div>}
@@ -202,7 +179,7 @@ export function ProfilePage(){
         <h4>Telegram</h4>
         <label className="set-row set-switch"><span>{t('Трек в профиле Telegram','Track in Telegram profile')}<small>{t('Все в Telegram увидят, что вы слушаете','Everyone in Telegram sees what you play')}</small></span><input type="checkbox" role="switch" checked={p.telegramFullIntegration} disabled={busy} onChange={e=>void run(async()=>{await apiClient.request('/profile/telegram-integration',{method:'PATCH',body:JSON.stringify({enabled:e.target.checked})});await load();})}/></label>
         {p.telegramSyncError&&<p className="set-note" role="alert">Telegram: {p.telegramSyncError}</p>}
-        <TelegramStatusSettings fallbackName={p.displayName} fallbackAvatar={p.telegramAvatarUrl||p.avatarUrl} fallbackTrack={nowPlaying||p.currentTrack||p.music[0]} enabled={p.telegramFullIntegration}/>
+        <TelegramStatusSettings fallbackName={p.displayName} fallbackAvatar={p.telegramAvatarUrl||p.avatarUrl} fallbackTrack={nowPlaying||p.currentTrack||p.showcase.find(item=>item.track)?.track} enabled={p.telegramFullIntegration}/>
         <div id="telegram-connection" className="set-row set-row--stack"><span>{t('Пользовательская сессия','User session')}<small>{p.telegramConnected?t('Подключена: текущий трек может появляться в музыке профиля.','Connected: your current track can appear in your profile music.'):t('Нужна, чтобы показывать музыку в Telegram-профиле.','Needed to show music in your Telegram profile.')}</small></span>{!p.telegramConnected&&<TelegramLoginFlow/>}{p.telegramConnected&&<button className="sg-btn" disabled={busy} onClick={()=>void run(async()=>{await apiClient.request('/profile/telegram',{method:'DELETE'});location.reload();})}>{t('Отключить сессию','Disconnect session')}</button>}</div>
       </section>
       <section className="set-group">

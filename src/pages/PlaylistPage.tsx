@@ -3,7 +3,10 @@ import {DownloadCollectionButton} from '../offline/OfflineUI.js';
 import {PageSkeleton} from '../components/common/Skeleton.js';
 import { useLibraryStore } from '../stores/useLibraryStore.js';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Shuffle, Search, Trash2, Edit2, ListMusic, MoreHorizontal, BookmarkPlus, Check, X, Heart } from 'lucide-react';
+import { Play, Shuffle, Search, Trash2, Edit2, ListMusic, MoreHorizontal, BookmarkPlus, Check, X, Heart, Disc3 } from 'lucide-react';
+import {usePlaylistFacts,playlistGenres,genreLabel} from '../components/playlist/playlistFacts.js';
+import {mixOrder} from '../audio/mixOrder.js';
+import {useLanguageStore} from '../stores/useLanguageStore.js';
 import { usePlaylistStore } from '../stores/usePlaylistStore.js';
 import { usePlayerStore } from '../stores/usePlayerStore.js';
 import { useShallow } from 'zustand/react/shallow';
@@ -30,6 +33,8 @@ export const PlaylistPage: React.FC = () => {
   const { playCollection,shuffle,sourceQueue,toggleShuffle } = usePlayerStore(useShallow(s => ({ playCollection: s.playCollection,shuffle:s.shuffle,sourceQueue:s.queueState.sourceQueue,toggleShuffle:s.toggleShuffle })));
 
   const [filterQuery, setFilterQuery] = useState('');
+  const [genre,setGenre]=useState<string|null>(null);
+  const ru=useLanguageStore(s=>s.language)!=='en';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -71,6 +76,10 @@ export const PlaylistPage: React.FC = () => {
     }
   }, [currentPlaylist]);
 
+  const allTracks=React.useMemo(()=>(currentPlaylist&&currentPlaylist.id===id?currentPlaylist.tracks||[]:[]).map(item=>item.track),[currentPlaylist,id]);
+  const {facts}=usePlaylistFacts(allTracks);
+  useEffect(()=>{setGenre(null);},[id]);
+
   if(playlistError)return <div role="alert"><p>{playlistError}</p><button className="secondary-button" onClick={()=>id&&void fetchPlaylistById(id)}>{t("Повторить","Retry")}</button></div>;
   if (isPlaylistLoading || !currentPlaylist || currentPlaylist.id!==id) {
     return <PageSkeleton label={t('Загрузка плейлиста…', 'Loading playlist…')}/>;
@@ -89,7 +98,11 @@ export const PlaylistPage: React.FC = () => {
         (p.title && currentPlaylist.title && p.title.trim().toLowerCase() === currentPlaylist.title.trim().toLowerCase())
     );
 
-  const tracks = (currentPlaylist.tracks || []).map((t) => t.track);
+  const genres=playlistGenres(allTracks,facts);
+  const activeGenre=genre&&genres.some(g=>g.name===genre)?genre:null;
+  const visibleItems=activeGenre?(currentPlaylist.tracks||[]).filter(item=>facts[item.track.id]?.genres?.includes(activeGenre)):(currentPlaylist.tracks||[]);
+  // Play, shuffle and «Микс» follow the genre filter.
+  const tracks = visibleItems.map((t) => t.track);
   const totalDuration = tracks.reduce((acc, t) => acc + (t.duration || 0), 0);
   const isPlaylistQueue=tracks.length>0&&tracks.length===sourceQueue.length&&tracks.every((track,index)=>track.id===sourceQueue[index]?.id);
   const isShuffling=shuffle&&isPlaylistQueue;
@@ -100,6 +113,8 @@ export const PlaylistPage: React.FC = () => {
       await playCollection(tracks, 0);
     }
   };
+  /** «Микс»: the playlist (or the chosen genre) in an order where each track flows into the next. */
+  const handleMix=async()=>{if(tracks.length)await playCollection(mixOrder(tracks,facts),0);};
   const handleShuffle=async()=>{
     if(isShuffling){toggleShuffle();return;}
     await playShuffledCollection(tracks,usePlayerStore.getState());
@@ -129,7 +144,7 @@ export const PlaylistPage: React.FC = () => {
     try{
       let playlistId=currentPlaylist.id;
       if(!canEdit){const saved=await createPlaylist(currentPlaylist.title,currentPlaylist.description||'',currentPlaylist.artworkUrl,tracks);if(!saved)return;playlistId=saved.id;}
-      await apiClient.request('/profile/playlists',{method:'POST',body:JSON.stringify({playlistId})});
+      await apiClient.request('/profile/showcase',{method:'POST',body:JSON.stringify({kind:'playlist',playlistId})});
       useToastStore.getState().addToast(t('Плейлист добавлен в профиль','Playlist added to profile'),'success');
     }catch(e){useToastStore.getState().addToast((e as Error).message,'warning');}
     finally{setIsSaving(false);}
@@ -205,6 +220,10 @@ export const PlaylistPage: React.FC = () => {
             aria-label={t('Перемешать и слушать','Shuffle and play')} aria-pressed={isShuffling}
             title={isShuffling?t('Выключить перемешивание','Turn shuffle off'):t('Перемешать и слушать','Shuffle and play')}>
             <Shuffle size={19} aria-hidden="true"/>
+          </button>
+          <button type="button" className="playlist-mix" onClick={()=>void handleMix()} disabled={tracks.length<3}
+            title={t('Слушать миксом: соседние треки близки по темпу, энергии и жанру','Play as a mix: neighbouring tracks are close in tempo, energy and genre')}>
+            <Disc3 size={18} aria-hidden="true"/><span>{t('Микс','Mix')}</span>
           </button>
           <DownloadCollectionButton tracks={tracks}/>
 
@@ -291,7 +310,7 @@ export const PlaylistPage: React.FC = () => {
       </div>
 
       {/* Filter inside playlist */}
-      {tracks.length > 0 && (
+      {allTracks.length > 0 && (
         <div className="relative max-w-md">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7188a3] dark:text-slate-400 pointer-events-none" />
           <input
@@ -312,11 +331,19 @@ export const PlaylistPage: React.FC = () => {
         </div>
       )}
 
+      {genres.length >= 2 && (
+        <div className="playlist-genres" role="radiogroup" aria-label={t('Жанр','Genre')}>
+          <button type="button" role="radio" aria-checked={!activeGenre} className={clsx(!activeGenre&&'is-active')} onClick={()=>setGenre(null)}>{t('Все','All')}</button>
+          {genres.map(g=><button key={g.name} type="button" role="radio" aria-checked={activeGenre===g.name} className={clsx(activeGenre===g.name&&'is-active')} onClick={()=>setGenre(activeGenre===g.name?null:g.name)}>{genreLabel(g.name,ru)}<small>{g.count}</small></button>)}
+        </div>
+      )}
+
       {/* Track List with Drag-and-Drop */}
       <PlaylistTrackList
         playlistId={currentPlaylist.id}
-        readOnly={!canEdit}
-        items={currentPlaylist.tracks || []}
+        // Reordering a filtered list would rewrite the playlist without the hidden tracks.
+        readOnly={!canEdit||!!activeGenre}
+        items={visibleItems}
         filterQuery={filterQuery}
       />
 

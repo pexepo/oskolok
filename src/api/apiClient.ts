@@ -1,6 +1,6 @@
 import { telegramAuthHeaders, useTelegramStore, apiBase } from '../telegram/runtime.js';
 import { tr } from '../stores/useLanguageStore.js';
-import { getLosslessPreferred, getRecording } from '../utils/playbackPreferences.js';
+import { getRecording } from '../utils/playbackPreferences.js';
 import {
   SearchResult,
   Track,
@@ -44,7 +44,6 @@ class ApiClient {
     if (source) params.set('source', source);
     const recording=recordingPreview?undefined:getRecording(trackId,source);if(recording)params.set('recording',recording);
     if(recordingPreview)params.set('exact','1');
-    if ((!source || source === 'auto') && getLosslessPreferred()) params.set('lossless', '1');
     const suffix = params.size ? `?${params}` : '';
     return `${this.baseUrl}/tracks/${encodeURIComponent(trackId)}/stream${suffix}`;
   }
@@ -129,13 +128,13 @@ class ApiClient {
     return this.request<PlaybackInfo>(`/tracks/${encodeURIComponent(id)}/playback`);
   }
 
-  public async prefetchTrack(id: string): Promise<void> {
+  public async prefetchTrack(id: string, mix = false): Promise<void> {
     try {
       await fetch(`${this.baseUrl}/tracks/prefetch`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...telegramAuthHeaders() },
-        body: JSON.stringify({ trackId: id }),
+        body: JSON.stringify(mix ? { trackId: id, mix: true } : { trackId: id }),
       });
     } catch {
       // Non-blocking prefetch failure
@@ -255,9 +254,11 @@ class ApiClient {
     trackName?: string,
     artistName?: string,
     duration?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    source?: string
   ): Promise<LyricsData> {
     const params = new URLSearchParams();
+    if (source) params.set('source', source);
     if (trackName) params.set('trackName', trackName);
     if (artistName) params.set('artistName', artistName);
     if (duration) params.set('duration', String(duration));

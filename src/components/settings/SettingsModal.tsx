@@ -3,7 +3,7 @@ import {usePerformance,readDevice,type PerfMode} from '../../utils/performance.j
 import {Modal} from '../common/Modal.js';
 import {PrivacySettings} from './PrivacySettings.js';
 import {Sun, Moon, MonitorSmartphone, Sparkles, Settings2, Check, Send} from 'lucide-react';
-import {getPreferredSource,setPreferredSource,recordingBetaEnabled,setRecordingBetaEnabled,getLosslessPreferred,setLosslessPreferred,inTelegramMiniApp} from '../../utils/playbackPreferences.js';
+import {getPreferredSource,setPreferredSource,recordingBetaEnabled,setRecordingBetaEnabled,inTelegramMiniApp} from '../../utils/playbackPreferences.js';
 import {ServiceLogo} from '../discovery/MusicAccounts.js';
 import {autoplayEnabled,setAutoplayEnabled} from '../../stores/waveSettings.js';
 import {desktopExtrasAvailable,desktopInfo,getDesktopPrefs,setDesktopPrefs,toggleMiniPlayer} from '../../desktop/desktopBridge.js';
@@ -30,7 +30,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   // TIDAL is no longer offered as the default; an old choice falls back to «Auto» here.
   const [source,setSource]=React.useState(()=>{const v=getPreferredSource();return v==='tidal'?'auto':v;});
   const [recordingBeta,setRecordingBeta]=React.useState(recordingBetaEnabled);
-  const [lossless,setLossless]=React.useState(()=>getLosslessPreferred());
   const [autoplay,setAutoplay]=React.useState(autoplayEnabled);
   React.useEffect(()=>{const sync=()=>setSource(getPreferredSource());window.addEventListener('oskolok-source-change',sync);return()=>window.removeEventListener('oskolok-source-change',sync);},[]);
   if (!isOpen) return null;
@@ -70,11 +69,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <label className={`set-row set-check ${autoplay?'is-on':''}`}>
           <span>{t('Автопродолжение','Autoplay')}<small>{t('Когда плейлист, любимые или подборка заканчиваются, дальше играет похожая музыка','When a playlist, your likes or a selection ends, similar music keeps playing')}</small></span>
           <input type="checkbox" checked={autoplay} onChange={e=>{setAutoplayEnabled(e.target.checked);setAutoplay(e.target.checked);}}/>
-          <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
-        </label>
-        <label className={`set-row set-check ${lossless?'is-on':''}`}>
-          <span>{t('Lossless в первую очередь','Lossless first')}<small>{t('При автовыборе сначала берём FLAC из вашего TIDAL, потом обычные источники','With automatic source, try FLAC from your TIDAL first, then the usual sources')}</small></span>
-          <input type="checkbox" checked={lossless} onChange={e=>{setLosslessPreferred(e.target.checked);setLossless(e.target.checked);}}/>
           <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
         </label>
       </section>

@@ -60,7 +60,6 @@ export const telegramController = {
       const cover=await profileMusicThumbnail(track.artworkUrl).catch(()=>({file:undefined,cleanup:async()=>{}}));
       const asset=await prepareTelegramAudio(file,track.title,track.artist.name,cover.file);
       try{await addProfileMusic(userId,asset.path,track.title,track.artist.name,track.duration,cover.file);}finally{await asset.cleanup();await cover.cleanup();}
-      await prisma.profileMusic.upsert({where:{userId_trackId:{userId,trackId}},create:{userId,trackId,trackData:JSON.stringify(track)},update:{trackData:JSON.stringify(track)}});
       res.json({data:{status:'added'}});
     }catch(e){
       logger.warn({userId,message:e instanceof Error?e.message:String(e)},'Telegram profile music failed');
@@ -83,6 +82,9 @@ export const telegramController = {
         await prisma.webSession.create({data:{tokenHash:hashToken(token),userId:res.locals.userId,expiresAt:new Date(Date.now()+30*86400000)}});
         res.cookie('oskolok_session',token,{httpOnly:true,sameSite:'strict',secure:req.secure,maxAge:30*86400000,path:'/'});
       }
+      // The app shows the Oskolok profile picture everywhere; the Telegram photo is only the fallback.
+      const profileAvatar=user?(await prisma.creatorProfile.findUnique({where:{userId:res.locals.userId},select:{avatarUrl:true}}).catch(()=>null))?.avatarUrl:undefined;
+      if(user&&profileAvatar)user={...user,photo_url:profileAvatar};
       res.setHeader('Cache-Control','no-store');
       res.json({ data: { user: user || null,betaAllowed:!!res.locals.betaAllowed,access:!user?'unauthenticated':res.locals.betaAllowed?'allowed':'beta_denied', botUsername: env.TELEGRAM_BOT_USERNAME, profileExportAvailable: Boolean(user && env.TELEGRAM_BOT_TOKEN) } });
     } catch (err) { next(err); }

@@ -21,7 +21,7 @@
     "desktop": "node scripts/launchDesktop.js",
     "build": "npm run build:server && npm run build:client",
     "build:client": "tsc -b --force && vite build && node scripts/sitePages.mjs && node scripts/compressDist.mjs",
-    "build:server": "prisma generate && tsc -p server/tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist-server/services', {recursive:true}); for(const name of ['ytdlp_worker.py','yandex_worker.py','tidal_worker.py']) fs.copyFileSync('server/src/services/'+name, 'dist-server/services/'+name); fs.copyFileSync('server/python-requirements.txt','dist-server/services/python-requirements.txt');\"",
+    "build:server": "prisma generate && tsc -p server/tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist-server/services', {recursive:true}); for(const name of ['ytdlp_worker.py','yandex_worker.py']) fs.copyFileSync('server/src/services/'+name, 'dist-server/services/'+name); fs.copyFileSync('server/python-requirements.txt','dist-server/services/python-requirements.txt');\"",
     "build:win": "node scripts/buildDist.js",
     "dist": "node scripts/buildDist.js",
     "dist:portable": "node scripts/buildDist.js --portable",
@@ -65,7 +65,7 @@
     "react-router-dom": "^7.18.4",
     "tailwind-merge": "^2.5.2",
     "teleproto": "^1.229.0",
-    "zod": "^3.23.8",
+    "zod": "^4.6.7",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

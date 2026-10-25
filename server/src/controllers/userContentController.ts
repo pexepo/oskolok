@@ -3,7 +3,7 @@ import {geniusSongInfo} from '../services/GeniusSongService.js';
 import {z} from 'zod';
 import rateLimit from 'express-rate-limit';
 import {prisma} from '../database/client.js';
-import {personalSchema,reportSchema,saveUserFile,publicFile,sanitizeReportText} from '../services/userContent.js';
+import {personalSchema,timingOffsetFor,reportSchema,saveUserFile,publicFile,sanitizeReportText} from '../services/userContent.js';
 import {notifyUser} from '../services/telegramBot.js';
 import {sendReportToSheet} from '../services/reportSheet.js';
 import {trackController} from './trackController.js';
@@ -15,11 +15,13 @@ userContentRoutes.use((_req,res,next)=>{res.setHeader('Cache-Control','private, 
 userContentRoutes.get('/tracks/:trackId/personal',route(async(req:any,res:any)=>{
  const item=await prisma.personalTrack.findUnique({where:{userId_trackId:{userId:res.locals.userId,trackId:req.params.trackId}}}),audio=item?.audioFileId?await prisma.userFile.findUnique({where:{id:item.audioFileId}}):null;
  const shared=await prisma.sharedTrackOverride.findUnique({where:{trackId:req.params.trackId}});
- res.json({data:{trackId:req.params.trackId,offset:item?.hasTimingOffset?item.offset:shared?.offset??0,lines:item?.lyricsData?JSON.parse(item.lyricsData):null,audio:audio?publicFile(audio):null}});
+ res.json({data:{trackId:req.params.trackId,offset:timingOffsetFor(item,shared,req.query.source),lines:item?.lyricsData?JSON.parse(item.lyricsData):null,audio:audio?publicFile(audio):null}});
 }));
 userContentRoutes.put('/tracks/:trackId/personal',route(async(req:any,res:any)=>{
  const body=personalSchema.parse(req.body),trackId=z.string().min(1).max(200).parse(req.params.trackId),userId=res.locals.userId;
- const data={...(body.offset!==undefined?{offset:body.offset,hasTimingOffset:true}:{}),...(body.lines!==undefined?{lyricsData:body.lines?JSON.stringify(body.lines):null}:{})};
+ let sourceOffsets:string|undefined;
+ if(body.source&&body.offset!==undefined){const current=await prisma.personalTrack.findUnique({where:{userId_trackId:{userId,trackId}},select:{sourceOffsets:true}});let map:Record<string,number>={};try{map=JSON.parse(current?.sourceOffsets||'{}');}catch{}map[body.source]=body.offset;sourceOffsets=JSON.stringify(Object.fromEntries(Object.entries(map).slice(-20)));}
+ const data={...(body.offset!==undefined?sourceOffsets!==undefined?{sourceOffsets}:{offset:body.offset,hasTimingOffset:true}:{}),...(body.lines!==undefined?{lyricsData:body.lines?JSON.stringify(body.lines):null}:{})};
  await prisma.personalTrack.upsert({where:{userId_trackId:{userId,trackId}},create:{userId,trackId,...data},update:data});res.json({data:{ok:true}});
 }));
 userContentRoutes.post('/files',rateLimit({windowMs:60000,limit:10,keyGenerator:(_req,res)=>res.locals.userId}),raw({type:()=>true,limit:'80mb'}),route(async(req:any,res:any)=>{

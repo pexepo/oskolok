@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import {translateLines,TranslationError} from '../services/TranslationService.js';
 import { lyricsService } from '../services/LyricsService.js';
 import {prisma} from '../database/client.js';
+import {timingOffsetFor} from '../services/userContent.js';
 import {geniusAnnotations} from '../services/GeniusAnnotationService.js';
 import {logger} from '../utils/logger.js';
 import type {LyricLine} from '../types/index.js';
@@ -26,7 +27,7 @@ export class LyricsController {
         optionalContent(prisma.sharedTrackOverride.findUnique({where:{trackId}}),trackId),
         optionalContent(prisma.lyricContribution.findFirst({where:{trackId},orderBy:{updatedAt:'desc'}}),trackId),
       ]);
-      const timingOffset=personal?.hasTimingOffset?personal.offset:shared?.offset??0;
+      const timingOffset=timingOffsetFor(personal,shared,req.query.source);
       const personalLines=storedLines(personal?.lyricsData);
       if(personalLines){res.json({data:{trackId,isSynced:true,syncedLyrics:personalLines,provider:'Ваш файл',timingOffset,personal:true}});return;}
       const contributionLines=storedLines(contribution?.lyricsData);

@@ -405,7 +405,6 @@
 .lyric-segment{display:inline-flex;white-space:pre;background-image:linear-gradient(90deg,var(--lyric-lit) var(--karaoke-start,-20%),var(--lyric-dim) var(--karaoke-end,0%));transform:none!important;text-shadow:none!important;filter:none!important}
 .interference-line[dir=rtl] .lyric-segment{background-image:linear-gradient(270deg,var(--lyric-lit) var(--karaoke-start,-20%),var(--lyric-dim) var(--karaoke-end,0%))}
 .interference-line.sung .lyric-line-fill,.interference-line.sung .lyric-segment{color:var(--lyric-lit);-webkit-text-fill-color:var(--lyric-lit);background-image:none}
-.lyric-letter{display:inline-block;transform:translateY(var(--letter-lift,0)) scale(var(--letter-scale,1));transform-origin:center bottom;will-change:transform}
 
 .lyrics-attribution{position:relative;min-height:42px;display:flex;align-items:center;padding:8px 4px;border-top:1px solid #ffffff24;flex-shrink:0;z-index:4}
 .lyrics-attribution-plain{font-size:11px;color:var(--muted)}
@@ -689,9 +688,6 @@
 .interference-lyrics .lyric-line-fill{white-space:pre-wrap;overflow-wrap:anywhere;padding-inline:2px}
 .interference-lyrics .lyric-segment{display:inline;white-space:normal;overflow-wrap:anywhere;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .interference-lyrics .lyric-segment[data-played=true]{color:var(--lyric-lit);-webkit-text-fill-color:var(--lyric-lit);background-image:none}
-.interference-lyrics .lyric-segment.has-letter-motion{background:none;color:var(--lyric-dim);-webkit-text-fill-color:var(--lyric-dim)}
-.interference-lyrics .lyric-segment.has-letter-motion[data-played=true] .lyric-letter{color:var(--lyric-lit);-webkit-text-fill-color:var(--lyric-lit)}
-.interference-lyrics .lyric-letter{color:var(--lyric-dim);-webkit-text-fill-color:var(--lyric-dim);color:color-mix(in srgb,var(--lyric-dim),var(--lyric-lit) var(--letter-lit,0%));-webkit-text-fill-color:color-mix(in srgb,var(--lyric-dim),var(--lyric-lit) var(--letter-lit,0%))}
 .mobile-lyrics-toggle{display:none}
 
 @media(max-width:700px){
@@ -730,7 +726,6 @@
 .interference-lyrics .interference-line.sung:not(.active){filter:brightness(.62)!important}
 .interference-lyrics .interference-line.line-timed.active .lyric-line-fill{filter:drop-shadow(0 0 7px rgba(255,255,255,var(--line-glow,0)))}
 .interference-lyrics .interference-line.active .lyric-segment[data-current=true]{text-shadow:0 0 var(--karaoke-glow-blur,0px) #ffffffbb!important}
-.interference-lyrics .interference-line.active .lyric-letter{will-change:transform}
 @media(prefers-reduced-motion:reduce){.mobile-player-tabs-indicator,.mobile-player-tabs button,.interference-modal .interference-main,.interference-modal .interference-main>.interference-track,.interference-modal .interference-main>.interference-text,.interference-lyrics .interference-line{transition:none!important}.interference-lyrics .interference-line.active .lyric-letter{will-change:auto}}
 
 /* Ice palette for Interference, including the fixed lyrics pane. */

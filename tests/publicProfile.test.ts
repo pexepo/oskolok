@@ -26,6 +26,8 @@ vi.mock('../server/src/database/client.js',()=>({prisma:{
   likedTrack:{count:db.likedCount},
 }}));
 vi.mock('../server/src/services/profileArtwork.js',()=>({profileTrackWithArtwork:async(raw:string)=>JSON.parse(raw)}));
+// The showcase reads its own table; profile tests see it through the service.
+vi.mock('../server/src/services/profileShowcase.js',()=>({listShowcase:async(userId:string)=>(await db.musicFindMany({where:{userId}})||[]).map((row:{trackData:string},i:number)=>({id:`tile-${i}`,kind:'track',size:'m',caption:'',track:JSON.parse(row.trackData)})),showcaseCount:(userId:string)=>db.musicCount({where:{userId}}),showcaseMedia:vi.fn()}));
 
 import {publicProfileController} from '../server/src/controllers/publicProfileController.js';
 
@@ -51,7 +53,7 @@ describe('public profile API',()=>{
     await publicProfileController.getPublicProfile({params:{id:'telegram:7'}} as any,res as any,()=>{});
     expect(res.statusCode).toBe(200);
     expect(res.body.data).toMatchObject({userId:'telegram:7',username:'boris',displayName:'Боря',bannerUrl:'banner://x',bio:'привет'});
-    expect(res.body.data.music[0].title).toBe('Песня');
+    expect(res.body.data.showcase[0].track.title).toBe('Песня');
     expect(res.body.data.contributions[0].trackTitle).toBe('Песня');
     expect(JSON.stringify(res.body)).not.toContain('lyricsData');
   });
@@ -89,7 +91,7 @@ describe('public profile visibility',()=>{
     const res=mockRes(),next=vi.fn();
     await publicProfileController.getPublicProfile({params:{id:'telegram:7'}} as any,res as any,next);
     expect(next).not.toHaveBeenCalled();
-    expect(res.body.data).toMatchObject({music:[],playlists:[],contributions:[],textsCount:0,currentTrack:null});
+    expect(res.body.data).toMatchObject({showcase:[],contributions:[],textsCount:0,currentTrack:null});
     expect(db.musicFindMany).not.toHaveBeenCalled();
     expect(db.contributionFindMany).not.toHaveBeenCalled();
   });

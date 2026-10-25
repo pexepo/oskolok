@@ -54,7 +54,7 @@ function AuthorCardDialog({ preview, onClose }: { preview: AuthorCardPreview; on
     queryFn: ({ pageParam }) => apiClient.request<LyricsPage>(`/users/${enc(id)}/lyrics?offset=${pageParam}&limit=${PAGE}`),
     getNextPageParam: last => last.hasMore ? last.offset + last.items.length : undefined,
   });
-  const music = useQuery({ queryKey: ['public-profile', id], queryFn: () => apiClient.request<{ music: Track[] }>(`/users/${enc(id)}`), enabled: tab === 'music' });
+  const music = useQuery({ queryKey: ['public-profile', id], queryFn: () => apiClient.request<{ showcase: Array<{ track?: Track }> }>(`/users/${enc(id)}`), select: data => ({ music: data.showcase.flatMap(item => item.track ? [item.track] : []) }), enabled: tab === 'music' });
 
   // Escape/Tab are taken in the capture phase so the fullscreen player's own Escape handler never sees them;
   // every other key is stopped at the overlay root so global player hotkeys (Space, L, arrows) stay quiet.
@@ -109,7 +109,7 @@ function AuthorCardDialog({ preview, onClose }: { preview: AuthorCardPreview; on
       [<Users size={20} />, num(p.stats.listeners), t('Слушателей этих текстов', 'Listeners of these lyrics')],
       [<Heart size={20} />, num(p.stats.likes), t('Добавлений этих треков в любимое', 'Likes on these tracks')],
     ] as Array<[React.ReactNode, string, string]> : []),
-    ...(p.musicCount > 0 ? [[<Music2 size={20} />, num(p.musicCount), t('Треков на витрине', 'Showcase tracks')]] as Array<[React.ReactNode, string, string]> : []),
+    ...(p.musicCount > 0 ? [[<Music2 size={20} />, num(p.musicCount), t('Плиток на витрине', 'Showcase tiles')]] as Array<[React.ReactNode, string, string]> : []),
     ...(p.joinedAt ? [[<CalendarDays size={20} />, date(p.joinedAt), t('В Осколке с', 'On Oskolok since')]] as Array<[React.ReactNode, string, string]> : []),
   ] : [];
   const activity = p && (p.currentTrack || p.latestLyrics);

@@ -76,6 +76,12 @@ html body .interference-lyrics.lyrics-v3 .lyric-background .interference-line.ac
 .media-fx-check { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; opacity: .85; }
 .media-fx-check input { margin-top: 2px; accent-color: var(--r-accent, #2f6fd6); }
 .media-fx-note { font-size: 12px; opacity: .7; }
+/* «ИИ-микс» switch above the crossfade lengths. */
+.media-fx-switch { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--accent, #6ea8ff) 9%, transparent); cursor: pointer; }
+.media-fx-switch > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.media-fx-switch b { font-size: 13.5px; font-weight: 650; }
+.media-fx-switch small { font-size: 11.5px; line-height: 1.4; opacity: .72; }
+.media-fx-switch input { flex: none; width: 20px; height: 20px; accent-color: var(--accent, #6ea8ff); }
 .media-fx-reset { justify-self: start; }
 .media-fx-eq { border-top: 1px solid var(--sg-glass-line, rgba(127,140,160,.25)); padding: 14px 0 0 !important; }
 .media-fx-eq > h4 { font-size: 13.5px; font-weight: 600; margin: 0 0 8px; }
@@ -244,3 +250,17 @@ html body .interference-modal.np-v2 .np-lyrics { animation: np-fade .6s ease .12
 .desktop-update__go { flex: none; padding: 8px 14px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: 13px; font-weight: 650; text-decoration: none; cursor: pointer; }
 .desktop-update__close { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
 .desktop-update__close:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+
+/* «ИИ-микс» settings: style and length chips, beatmatch, effect amounts. */
+.mix-settings { display: flex; flex-direction: column; gap: 10px; }
+.mix-row { display: flex; flex-direction: column; gap: 6px; }
+.mix-row > span, .mix-slider > span { font-size: 12px; font-weight: 600; opacity: .75; }
+.mix-row .media-fx-presets { flex-wrap: wrap; }
+.mix-check { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+.mix-more { align-self: flex-start; min-height: 32px; padding: 6px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .15s ease; }
+.mix-more:hover { background: rgba(255,255,255,.12); }
+.mix-more:focus-visible { outline: 2px solid var(--accent, #fff); outline-offset: 2px; }
+.mix-check input { width: 18px; height: 18px; accent-color: var(--accent, #6ea8ff); }
+.mix-slider { display: grid; grid-template-columns: 110px minmax(0, 1fr) 44px; align-items: center; gap: 10px; }
+.mix-slider input { width: 100%; accent-color: var(--accent, #6ea8ff); }
+.mix-slider output { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; opacity: .75; }

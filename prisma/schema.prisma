@@ -26,6 +26,7 @@ model CreatorProfile {
   statusText String @default("")
   socialLinks String @default("[]")
   profileVisibility String @default("{}")
+  showcaseImported Boolean @default(false)
 }
 // Discord-style roles. Lower position = higher priority (listed first, tints the name).
 model Role {
@@ -112,6 +113,19 @@ model LyricSubmission {
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])
   @@index([userId])
+}
+model ProfileShowcaseItem {
+  id String @id @default(uuid())
+  userId String
+  kind String
+  refId String?
+  data String
+  caption String @default("")
+  size String @default("m")
+  position Int @default(0)
+  fileId String?
+  addedAt DateTime @default(now())
+  @@index([userId, position])
 }
 model ProfileMusic {
   id String @id @default(uuid())
@@ -251,6 +265,7 @@ model PersonalTrack {
  trackId String
  offset Float @default(0)
  lyricsData String?
+ sourceOffsets String?
  audioFileId String?
  updatedAt DateTime @updatedAt
  @@unique([userId, trackId])

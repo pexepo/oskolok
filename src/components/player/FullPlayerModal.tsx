@@ -4,14 +4,17 @@ import {VolumeControl} from './VolumeControl.js';
 import {useShallow} from 'zustand/react/shallow';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronDown, Info, Music2, SlidersHorizontal, Moon, MoreHorizontal, UsersRound, Flag } from 'lucide-react';
+import { ChevronDown, Info, Music2, SlidersHorizontal, Moon, MoreHorizontal, UsersRound, Flag, Sparkles, Play, Pause } from 'lucide-react';
 import { openJamPanel } from '../../connect/jam.js';
 import { DevicesButton } from '../connect/ConnectLayer.js';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { JamButton } from '../connect/JamLayer.js';
 import { useSleepTimer, sleepTimerActive } from '../../audio/sleepTimer.js';
 import { MediaSettingsPanel } from './MediaSettingsPanel.js';
-import { PlaybackSourcePicker } from '../tracks/PlaybackSourcePicker.js';
+import { PlaybackSourcePicker, PORTALED_MENU_CHILDREN } from '../tracks/PlaybackSourcePicker.js';
+import { LikeBurst } from '../common/LikeBurst.js';
+import { NotesSlotContext } from '../lyrics/notesSlot.js';
+import { MixChip } from './MixChip.js';
 import { TrackArtistsPopup } from '../tracks/TrackCredits.js';
 import { getPreferredSource, setPreferredSource } from '../../utils/playbackPreferences.js';
 import { useReportStore } from '../common/ReportDialog.js';
@@ -98,6 +101,8 @@ export const FullPlayerModal: React.FC = () => {
 
   const playlistList = Array.isArray(playlists) ? playlists : [];
   const modalRef = React.useRef<HTMLDivElement>(null);
+  const [notesSlot, setNotesSlot] = React.useState<HTMLDivElement | null>(null), [notesOpen, setNotesOpen] = React.useState(false);
+  const notesHost = React.useMemo(() => ({ slot: notesSlot, setOpen: setNotesOpen }), [notesSlot]);
 
   React.useEffect(() => {
     if (isFullPlayerOpen) {
@@ -165,7 +170,10 @@ export const FullPlayerModal: React.FC = () => {
           </div>
 
           {/* The same mounted panels crossfade on phones; lyrics keep their timing state. */}
-          <div className={`interference-main np-layout view-${mobileView} relative z-10 flex-1 min-h-0 overflow-hidden`}>
+          <NotesSlotContext.Provider value={notesHost}>
+          <div className={`interference-main np-layout view-${mobileView}${notesOpen ? ' notes-open' : ''} relative z-10 flex-1 min-h-0 overflow-hidden`}>
+            {/* Genius notes dock here (left), the track shrinks to the top right and the lyrics sit under it. */}
+            <div ref={setNotesSlot} className="np-notes-slot interference-lyrics lyrics-v3" />
             {/* Cover column: artwork, scrub bar, title — then our controls (Apple-style "now playing"). */}
             <div ref={trackPanelRef} id="mobile-player-info" role={isMobile?'tabpanel':undefined} aria-labelledby={isMobile?'mobile-player-info-tab':undefined} aria-hidden={isMobile&&mobileView!=='info'} className="interference-track np-panel">
               <div className="np-art">
@@ -175,6 +183,9 @@ export const FullPlayerModal: React.FC = () => {
               <div className="np-heading">
                 <h2 title={displayTitle}><NavLink to={currentTrack.release?.id ? `/release/${encodeURIComponent(currentTrack.release.id)}` : `/track/${encodeURIComponent(currentTrack.id)}`} onClick={() => setFullPlayerOpen(false)} className="np-title-link">{displayTitle}</NavLink></h2>
                 <button type="button" className="np-artists" onClick={() => setShowArtists(true)} title={t('Исполнители трека', 'Track artists')} aria-haspopup="dialog">{artistName}</button>
+                {/* Why the wave played this: people asked for it instead of a silent algorithm. */}
+                {currentTrack.recommendationReason && <span className="np-reason" title={t('Почему этот трек', 'Why this track')}><Sparkles size={12} aria-hidden="true" />{currentTrack.recommendationReason}</span>}
+                <MixChip />
               </div>
               <div className="np-controls">
                 <PlayerControls
@@ -191,7 +202,7 @@ export const FullPlayerModal: React.FC = () => {
                 />
               </div>
               <div className="np-actions">
-                <button type="button" className={`np-icon ${liked ? 'is-on' : ''}`} onClick={() => toggleLike(currentTrack)} aria-pressed={liked} title={liked ? t('Убрать из любимых', 'Remove from liked') : t('В любимые', 'Like')}><PlayerIcon name="like" size={22} /></button>
+                <button type="button" className={`np-icon ${liked ? 'is-on' : ''}`} onClick={() => toggleLike(currentTrack)} aria-pressed={liked} title={liked ? t('Убрать из любимых', 'Remove from liked') : t('В любимые', 'Like')} style={{ position: 'relative' }}><PlayerIcon name="like" size={22} /><LikeBurst liked={liked} /></button>
                 <div className="np-menu-wrap">
                   <button type="button" className="np-icon" onClick={() => setShowPlaylistMenu(!showPlaylistMenu)} aria-expanded={showPlaylistMenu} title={t('Добавить в плейлист', 'Add to playlist')}><PlayerIcon name="add" size={19} /></button>
                   {showPlaylistMenu && <div className="np-menu" role="menu">
@@ -214,6 +225,13 @@ export const FullPlayerModal: React.FC = () => {
 
             {/* Right Column: Seamless Borderless Synchronized Karaoke Lyrics */}
             <div ref={lyricsPanelRef} id="full-player-lyrics" role={isMobile?'tabpanel':undefined} aria-labelledby={isMobile?'mobile-player-lyrics-tab':undefined} aria-hidden={isMobile&&mobileView!=='lyrics'} className="interference-text np-lyrics">
+              {/* Phones, «Текст»: the track stays on screen as one compact row above the lyrics. */}
+              {isMobile && <div className="np-mini">
+                <button type="button" className="np-mini__art" onClick={() => setMobileView('info')} aria-label={t('Показать трек', 'Show track')}><ArtworkImage src={currentTrack.artworkUrl} alt="" className="w-full h-full" iconSize={20} /></button>
+                <button type="button" className="np-mini__text" onClick={() => setMobileView('info')}><b>{displayTitle}</b><span>{artistName}</span></button>
+                <button type="button" className={`np-icon np-mini__btn ${liked ? 'is-on' : ''}`} onClick={() => toggleLike(currentTrack)} aria-pressed={liked} aria-label={liked ? t('Убрать из любимых', 'Remove from liked') : t('В любимые', 'Like')}><PlayerIcon name="like" size={19} /></button>
+                <button type="button" className="np-icon np-mini__btn" onClick={togglePlay} aria-label={isPlaying ? t('Пауза', 'Pause') : t('Слушать', 'Play')}>{isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button>
+              </div>}
               <LyricsBoundary resetKey={currentTrack.id}>
                 <LyricsView
                   enabled={!isMobile||mobileView==='lyrics'}
@@ -227,6 +245,7 @@ export const FullPlayerModal: React.FC = () => {
               </LyricsBoundary>
             </div>
           </div>
+          </NotesSlotContext.Provider>
           <MediaSettingsPanel open={mediaOpen} onClose={() => setMediaOpen(false)}/>
           <TrackInfoDialog track={currentTrack} isOpen={showInfo} onClose={()=>setShowInfo(false)}/>
           <TrackArtistsPopup track={currentTrack} open={showArtists} onClose={()=>setShowArtists(false)}/>
@@ -255,7 +274,7 @@ function NpMore({ onInfo, onSound, onReport, source, telegram }: { onInfo: () =>
   const t = useTranslation(), [open, setOpen] = React.useState(false), root = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    const away = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node) && !(e.target as Element).closest?.(PORTALED_MENU_CHILDREN)) setOpen(false); };
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
     document.addEventListener('pointerdown', away); document.addEventListener('keydown', esc, true);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc, true); };

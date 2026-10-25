@@ -4,7 +4,7 @@ import {ServiceLogo,EXPORTIFY_URL} from './MusicAccounts.js';
 import {SoonBadge} from '../common/SoonBadge.js';
 import {useTranslation} from '../../stores/useLanguageStore.js';
 
-export type TransferService='spotify'|'soundcloud'|'yandex'|'tidal';
+export type TransferService='spotify'|'soundcloud'|'yandex';
 type T=(ru:string,en:string)=>string;
 type Step={title:string;text:React.ReactNode;mock:React.ReactNode};
 
@@ -79,7 +79,7 @@ function stepsFor(service:'spotify'|'soundcloud',t:T):{title:string;lead:string;
 
 export function TransferServiceTabs({value,onChange}:{value:TransferService;onChange:(v:TransferService)=>void}){
  const t=useTranslation();
- const items:Array<[TransferService,string,boolean]>=[['spotify','Spotify',true],['soundcloud','SoundCloud',true],['yandex',t('Яндекс Музыка','Yandex Music'),false],['tidal','TIDAL',false]];
+ const items:Array<[TransferService,string,boolean]>=[['spotify','Spotify',true],['soundcloud','SoundCloud',true],['yandex',t('Яндекс Музыка','Yandex Music'),false]];
  return <div className="transfer-tabs" role="tablist" aria-label={t('Откуда переносим','Transfer from')}>
   {items.map(([id,label,open])=><button key={id} type="button" role="tab" aria-selected={value===id} className={`transfer-tab service-${id}${value===id?' is-active':''}${open?'':' is-soon'}`} onClick={()=>onChange(id)}>
    <span className="transfer-tab-logo"><ServiceLogo id={id} size={18}/></span>{label}{!open&&<SoonBadge/>}

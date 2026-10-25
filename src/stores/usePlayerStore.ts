@@ -530,3 +530,7 @@ useLibraryStore.subscribe((library, previous) => {
 
 // Development builds only: lets QA scripts inspect the queue and wave state from the console.
 if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __oskolokPlayer?: typeof usePlayerStore }).__oskolokPlayer = usePlayerStore;
+
+// «ИИ-микс» plays only in Резонанс.
+audioManager.setWaveActive(usePlayerStore.getState().isWaveActive);
+usePlayerStore.subscribe(state => audioManager.setWaveActive(state.isWaveActive));

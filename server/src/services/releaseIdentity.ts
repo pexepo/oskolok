@@ -147,7 +147,7 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
   if (at > now) await new Promise(r => setTimeout(r, at - now));
   try { return await fn(); } finally { active--; waiting.shift()?.(); }
 }
-async function dz(path: string): Promise<any> {
+export async function dz(path: string): Promise<any> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const data = await slot(async () => { const r = await fetch(`${API}/${path}`, { signal: AbortSignal.timeout(8000) }); return r.ok ? r.json() as Promise<any> : null; }).catch(() => null);
     // Deezer answers its quota (50 calls / 5 s) with a 200 and an error body.

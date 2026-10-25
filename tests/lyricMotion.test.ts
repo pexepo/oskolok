@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {gradientStops,intervalProgress,letterMotion,lineBlur,splitGraphemes,wordPullMotion,paintTimedWordSegments} from '../src/utils/lyricMotion.js';
+import {gradientStops,intervalProgress,isLongNote,letterBump,letterMotion,lineBlur,splitGraphemes,wordPullMotion,paintTimedWordSegments} from '../src/utils/lyricMotion.js';
 
 describe('audio-derived karaoke motion',()=>{
   it('maps intervals exactly and rewinds without retained state',()=>{
@@ -17,10 +17,31 @@ describe('audio-derived karaoke motion',()=>{
     expect(gradientStops(1)).toEqual({start:100,end:120});
   });
 
-  it('returns every letter to rest after its sequential accent',()=>{
-    expect(letterMotion(0,0,4)).toEqual({progress:0,lift:0,scale:1});
-    expect(letterMotion(1,3,4)).toEqual({progress:1,lift:expect.closeTo(0,8),scale:1});
-    expect(letterMotion(.125,0,4)).toMatchObject({progress:.5,lift:-2,scale:1.025});
+  it('sings a held note letter by letter: each letter fills in its slice and rises, swells and settles',()=>{
+    // A 2 s note of 4 letters: 0.5 s slices; motion windows of 0.7 s start 0.105 s early.
+    expect(letterMotion(-1,0,4,2)).toEqual({fill:0,y:-0,scale:1,glow:0});
+    expect(letterMotion(.25,0,4,2).fill).toBe(.5);
+    expect(letterMotion(.25,1,4,2).fill).toBe(0);
+    expect(letterMotion(2,3,4,2).fill).toBe(1);
+    // Rises (negative y) and swells to the peak halfway through its motion, then settles to rest.
+    const peak=letterMotion(.35-.105,0,4,2);
+    expect(peak.scale).toBeCloseTo(1.16,3);
+    expect(peak.y).toBeLessThan(-.07);
+    expect(letterMotion(.7,0,4,2).scale).toBe(1);
+    // Smooth: no frame jumps more than a few percent of the swell.
+    let prev=1;
+    for(let t=-.2;t<2.6;t+=1/60){const s=letterMotion(t,2,4,2).scale;expect(Math.abs(s-prev)).toBeLessThan(.012);prev=s;}
+    // Letters set off one after another.
+    const now=[0,1,2,3].map(i=>letterMotion(.6,i,4,2).scale);
+    expect(now[0]).toBeLessThan(now[1]);
+    expect(now[3]).toBe(1);
+    expect(letterBump(.5)).toBe(1);
+  });
+  it('splits only held, short words into letters',()=>{
+    expect(isLongNote('Ooh',0,1.2)).toBe(true);
+    expect(isLongNote('Ooh',0,.6)).toBe(false);
+    expect(isLongNote('extraordinarily',0,2)).toBe(false);
+    expect(isLongNote('a',0,2)).toBe(false);
   });
 
   it('preserves grapheme clusters and caps distance blur',()=>{

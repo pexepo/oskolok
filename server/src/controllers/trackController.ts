@@ -1,3 +1,4 @@
+import { warmMixAnalysis } from '../services/mixAnalysis.js';
 import {spicyLyricsService} from '../services/SpicyLyricsService.js';
 import {prisma} from '../database/client.js';
 import {existsSync} from 'node:fs';
@@ -19,7 +20,6 @@ import { phraseCoverage, swapKeyboardLayout } from '../services/searchQuery.js';
 import { yandexQueryHint } from '../services/yandex/yandexSearchHint.js';
 import { logger } from '../utils/logger.js';
 
-import { resolveTidalStream } from './musicAccounts.js';
 import { proxyAudio } from '../utils/audioProxy.js';
 export class TrackController {
   public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -309,7 +309,8 @@ export class TrackController {
           },
         });
         // Kick off background stream preparation
-        studioMasterService.prefetch(track);
+        if (req.body?.mix === true) warmMixAnalysis(track.id, () => studioMasterService.getExportAudio(track.id)?.path ?? null, () => studioMasterService.prepareExportAudio(track));
+        else studioMasterService.prefetch(track);
         spicyLyricsService.warmSpotifyIds([track]);
         return;
       }
@@ -345,7 +346,8 @@ export class TrackController {
 
       const track = await this.resolveTrack(id);
       if (track) {
-        studioMasterService.prefetch(track);
+        if (req.body?.mix === true) warmMixAnalysis(track.id, () => studioMasterService.getExportAudio(track.id)?.path ?? null, () => studioMasterService.prepareExportAudio(track));
+        else studioMasterService.prefetch(track);
         spicyLyricsService.warmSpotifyIds([track]);
       }
 
@@ -378,7 +380,7 @@ export class TrackController {
         if(candidate){await studioMasterService.handleAudioStream(candidate,req,res,source,true);return;}
       }
       let requestedSource = typeof req.query.source === 'string' && req.query.source!=='auto' ? req.query.source : undefined;
-      if(requestedSource&&!['personal','soundcloud','youtube','spotify','tidal'].includes(requestedSource)){res.status(400).json({error:{code:'SOURCE_INVALID',message:'Неизвестный источник.'}});return;}
+      if(requestedSource&&!['personal','soundcloud','youtube','spotify'].includes(requestedSource)){res.status(400).json({error:{code:'SOURCE_INVALID',message:'Неизвестный источник.'}});return;}
       if(req.query.exact==='1'){
         if(!requestedSource||!['youtube','soundcloud'].includes(requestedSource)||!id.startsWith(`${requestedSource}:`)){res.status(400).json({error:{message:'Некорректная аудиодорожка'}});return;}
         await studioMasterService.handleAudioStream(track,req,res,requestedSource,true);return;
@@ -404,14 +406,6 @@ export class TrackController {
             if(resolved.tracks.length===1){await studioMasterService.handleAudioStream(resolved.tracks[0],req,res,'soundcloud');return;}
           }
         }
-      }
-      // Lossless: the listener's own TIDAL account. An explicit choice reports a
-      // miss; the "lossless first" preference falls back to the usual sources.
-      if(requestedSource==='tidal'||(!requestedSource&&req.query.lossless==='1')){
-        const flac=await resolveTidalStream(userId,track).catch(error=>{logger.warn({err:error,trackId:id},'TIDAL resolve failed');return null;});
-        if(flac){res.setHeader('X-Audio-Source','tidal');res.setHeader('X-Audio-Quality',flac.quality);if(await proxyAudio(flac.url,req,res))return;}
-        if(requestedSource==='tidal'){if(!res.headersSent)res.status(404).json({error:{code:'TIDAL_UNAVAILABLE',message:userId?'Этого трека нет в TIDAL или TIDAL не подключён.':'Войдите, чтобы слушать TIDAL.'}});return;}
-        if(res.headersSent)return;
       }
       if(requestedSource==='spotify')requestedSource=undefined;
       await studioMasterService.handleAudioStream(track, req, res, requestedSource);

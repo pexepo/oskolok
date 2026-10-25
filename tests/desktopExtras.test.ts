@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-const {activityFor,encode,decode,pipePaths}=require('../electron/discord-rpc.cjs');
+const {activityFor,encode,decode,pipePaths,DiscordPresence}=require('../electron/discord-rpc.cjs');
 const {sanitize}=require('../electron/desktop-extras.cjs');
 
 describe('Discord status',()=>{
@@ -22,6 +22,19 @@ describe('Discord status',()=>{
     expect(activityFor({title:'Песня',artist:'А',playing:false},'https://oskolok.lol')).toBeNull();
     // Discord needs at least two characters per field.
     expect(activityFor({title:'Я',artist:'Б',playing:true,duration:0,position:0},'')).toMatchObject({details:'Я ',state:'Б '});
+  });
+  it('shows the artist in the status, links the track and throttles Discord updates',()=>{
+    const a=activityFor({id:'deezer:1',title:'Песня',artist:'Артист',duration:200,position:0,playing:true},'https://oskolok.lol');
+    expect(a).toMatchObject({status_display_type:1,details_url:'https://oskolok.lol/app/track/deezer%3A1'});
+    const writes:Buffer[]=[],p=new DiscordPresence('123456789012345678','https://oskolok.lol');
+    p.ready=true;p.socket={write:(b:Buffer)=>writes.push(b),destroy(){},end(){}};
+    const state={id:'deezer:1',title:'Песня',artist:'Артист',duration:200,position:10,playing:true};
+    p.update(state);p.update({...state,position:10.2});
+    expect(writes).toHaveLength(1);
+    p.update({...state,id:'deezer:2',title:'Другая'});
+    expect(writes).toHaveLength(1);
+    expect(p.timer).not.toBeNull();
+    p.close();
   });
   it('looks for Discord on the right sockets per platform',()=>{
     expect(pipePaths('win32',{})[0]).toBe('\\\\?\\pipe\\discord-ipc-0');

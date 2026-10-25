@@ -11,6 +11,8 @@ import {useToastStore} from '../../stores/useToastStore.js';
 import {PersonalAudioDialog} from './PersonalAudioDialog.js';
 
 type Option={id:string;label:string;hint:string;soon?:boolean};
+/** The source popup and its dialogs render in a portal: a menu that holds the picker must not treat clicks there as "outside" and unmount it mid-choice. */
+export const PORTALED_MENU_CHILDREN='.src-pop,[aria-modal="true"]';
 
 export function PlaybackSourcePicker({value='auto',onChange,compact=false,track,appliesNow=false}:{value?:string;onChange:(v:string)=>void;compact?:boolean;deezer?:boolean;track?:Track;appliesNow?:boolean}){
  const t=useTranslation();

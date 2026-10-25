@@ -3,7 +3,7 @@ import {readCustomization} from '../services/profileCustomization.js';
 import {rolesForUser} from '../services/roles.js';
 import {publicRewards} from '../services/rewards.js';
 import { prisma } from '../database/client.js';
-import {profileTrackWithArtwork} from '../services/profileArtwork.js';
+import {listShowcase,showcaseCount,showcaseMedia} from '../services/profileShowcase.js';
 
 const FALLBACK_NAME = 'Слушатель';
 const spicyId = (id: string) => /^spicy:\d{5,30}$/.test(id);
@@ -26,7 +26,7 @@ async function spicyLyrics(userId: string) {
 async function loadSpicyProfile(userId: string) {
   const { author, items } = await spicyLyrics(userId);
   if (!author) return null;
-  return { userId, username: null, displayName: author.name, avatarUrl: author.avatarUrl, bannerUrl: '', bio: 'Зарегистрирован на Spicy Lyrics.', externalSource: 'Spicy Lyrics', externalUrl: author.profileUrl, currentTrack: null, music: [], playlists: [], contributions: items, textsCount: items.length, musicCount: 0 };
+  return { userId, username: null, displayName: author.name, avatarUrl: author.avatarUrl, bannerUrl: '', bio: 'Зарегистрирован на Spicy Lyrics.', externalSource: 'Spicy Lyrics', externalUrl: author.profileUrl, currentTrack: null, showcase: [], contributions: items, textsCount: items.length, musicCount: 0 };
 }
 
 async function loadIdentity(userId: string) {
@@ -81,14 +81,13 @@ export class PublicProfileController {
       }
       const identity = await loadIdentity(userId);
       if (!identity) { notFoundUser(res); return; }
-      const [music, contributions, playlists] = await Promise.all([
-        identity.customization.visibility.showcase ? prisma.profileMusic.findMany({ where: { userId }, orderBy: { addedAt: 'desc' } }) : Promise.resolve([]),
+      const [showcase, contributions] = await Promise.all([
+        identity.customization.visibility.showcase ? listShowcase(userId) : Promise.resolve([]),
         identity.customization.visibility.lyrics ? prisma.lyricContribution.findMany({
           where: { userId },
           select: { id: true, trackId: true, trackTitle: true, artistName: true, credit: true, updatedAt: true },
           orderBy: { updatedAt: 'desc' },
         }) : Promise.resolve([]),
-        identity.customization.visibility.showcase ? prisma.profilePlaylist.findMany({where:{userId},orderBy:{addedAt:'desc'}}) : Promise.resolve([]),
       ]);
       const publicIds=new Set((await prisma.playlist.findMany({where:{userId,isPublic:true},select:{id:true}})).map(p=>p.id));
       res.json({
@@ -99,8 +98,8 @@ export class PublicProfileController {
           avatarUrl: identity.avatarUrl,
           bannerUrl: identity.bannerUrl,
           bio: identity.bio,
-          music: await Promise.all(music.map((item) => profileTrackWithArtwork(item.trackData))),
-          playlists: playlists.filter(item=>publicIds.has(item.playlistId)).map(item=>({id:item.id,playlistId:item.playlistId,title:item.title,artworkUrl:item.artworkUrl,tracks:JSON.parse(item.tracksData)})),
+          // A playlist made private later leaves the public showcase.
+          showcase: showcase.filter(item => item.kind !== 'playlist' || publicIds.has(item.playlist!.playlistId)),
           currentTrack: identity.customization.visibility.nowPlaying ? nowPlaying(identity.profile) : null,
           contributions,
           textsCount: contributions.length,
@@ -128,7 +127,7 @@ export class PublicProfileController {
       if (!identity) { notFoundUser(res); return; }
       const [trackRows, musicCount, latest] = await Promise.all([
         identity.customization.visibility.lyrics ? prisma.lyricContribution.findMany({ where: { userId }, select: { trackId: true } }) : Promise.resolve([]),
-        identity.customization.visibility.showcase ? prisma.profileMusic.count({ where: { userId } }) : Promise.resolve(0),
+        identity.customization.visibility.showcase ? showcaseCount(userId) : Promise.resolve(0),
         identity.customization.visibility.lyrics ? prisma.lyricContribution.findFirst({ where: { userId }, orderBy: { updatedAt: 'desc' }, select: { id: true, trackId: true, trackTitle: true, artistName: true, updatedAt: true } }) : Promise.resolve(null),
       ]);
       const stats = await lyricTrackStats([...new Set(trackRows.map(r => r.trackId))], userId);
@@ -152,6 +151,20 @@ export class PublicProfileController {
           ...(username && userId.startsWith('telegram:') ? { telegramUrl: `https://t.me/${encodeURIComponent(username)}` } : {}),
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** A showcase picture or GIF, only while the profile shows its showcase. */
+  public getShowcaseMedia = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = normalizeUserId(req.params.id), identity = spicyId(userId) ? null : await loadIdentity(userId);
+      const media = identity?.customization.visibility.showcase ? await showcaseMedia(userId, req.params.itemId) : null;
+      if (!media) { res.sendStatus(404); return; }
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+      res.type(media.mime).sendFile(media.path);
     } catch (err) {
       next(err);
     }

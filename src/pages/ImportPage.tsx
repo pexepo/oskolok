@@ -69,7 +69,7 @@ export function MusicTransfer(){
  const focusLink=()=>{linkInput.current?.focus();linkInput.current?.scrollIntoView({behavior:'smooth',block:'center'});};
  return <div className="music-transfer">
   <TransferServiceTabs value={service} onChange={setService}/>
-  {service==='yandex'||service==='tidal'?<WipPlaceholder title={service==='yandex'?t('Перенос из Яндекс Музыки на стройке','Yandex Music transfer is under construction'):t('Перенос из TIDAL на стройке','TIDAL transfer is under construction')} text={t('Пока можно перенести из Spotify, SoundCloud или файлом CSV / TXT.','For now you can move music from Spotify, SoundCloud or a CSV / TXT file.')}/>:<>
+  {service==='yandex'?<WipPlaceholder title={t('Перенос из Яндекс Музыки на стройке','Yandex Music transfer is under construction')} text={t('Пока можно перенести из Spotify, SoundCloud или файлом CSV / TXT.','For now you can move music from Spotify, SoundCloud or a CSV / TXT file.')}/>:<>
   <TransferGuide key={service} service={service}/>
 
   <section className="transfer-link crystal-slab">

@@ -46,3 +46,25 @@
 @media(max-width:640px){.playlist-actions .playlist-profile{width:48px;height:48px;min-width:48px;padding:0;justify-content:center;border-radius:16px}.playlist-profile span{display:none}}
 @media(max-width:640px){.search-albums{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.search-best-album{width:72px;border-radius:12px}}
 @media(prefers-reduced-motion:reduce){.oskolok-app .route-back,.oskolok-app .playlist-shuffle,.search-album,.search-album-cover>svg{transition:none}.search-album:hover{transform:none}}
+
+/* «Микс» and the genre filter of a playlist. */
+.oskolok-app .playlist-mix {
+  display:inline-flex;align-items:center;gap:8px;flex:none;height:48px;padding:0 16px;border-radius:16px;font:inherit;font-size:14px;font-weight:650;
+  color:var(--ink);background:color-mix(in srgb,var(--ink) 5%,transparent);border:1px solid color-mix(in srgb,var(--muted) 23%,transparent);cursor:pointer;
+  transition:background-color .18s ease,transform .18s ease;
+}
+.playlist-mix:hover:not(:disabled) {background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.playlist-mix:active:not(:disabled) {transform:scale(.96)}
+.playlist-mix:focus-visible {outline:2px solid var(--accent);outline-offset:4px}
+.playlist-mix:disabled {opacity:.35;cursor:default}
+.playlist-genres {display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 4px;margin-top:-4px}
+.playlist-genres::-webkit-scrollbar {display:none}
+.playlist-genres button {
+  display:inline-flex;align-items:center;gap:6px;flex:none;min-height:34px;padding:0 14px;border-radius:999px;font:inherit;font-size:13px;font-weight:600;white-space:nowrap;
+  color:var(--muted);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid color-mix(in srgb,var(--muted) 20%,transparent);cursor:pointer;
+  transition:color .15s ease,background-color .15s ease,border-color .15s ease;
+}
+.playlist-genres button small {font-size:11px;opacity:.6;font-variant-numeric:tabular-nums}
+.playlist-genres button:hover {color:var(--ink)}
+.playlist-genres button.is-active {color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.playlist-genres button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}

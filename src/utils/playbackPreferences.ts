@@ -5,11 +5,6 @@ const retired=['tidal','telegram'];
 export function getPreferredSource(trackId?:string):string{try{const value=localStorage.getItem(scopedStorageKey(trackId?`source:${trackId}`:'source:default'));if(value&&allowed.includes(value))return value;if(value&&retired.includes(value))return 'auto';}catch{}return trackId?getPreferredSource():'auto';}
 export function setPreferredSource(source:string,trackId?:string):void{if(!allowed.includes(source))return;if(source==='telegram')trackId=undefined;try{localStorage.setItem(scopedStorageKey(trackId?`source:${trackId}`:'source:default'),source);}catch{}window.dispatchEvent(new Event('oskolok-source-change'));}
 
-/** "Lossless first": automatic playback asks the listener's own TIDAL account
- * for FLAC before the regular sources. */
-export function getLosslessPreferred():boolean{try{return localStorage.getItem(scopedStorageKey('lossless'))==='1';}catch{return false;}}
-export function setLosslessPreferred(on:boolean):void{try{localStorage.setItem(scopedStorageKey('lossless'),on?'1':'0');}catch{}window.dispatchEvent(new Event('oskolok-lossless'));}
-
 /** «Telegram» — глобальный режим Mini App: треки присылает бот, играет нативный плеер Telegram (в фоне). Вне Mini App не действует. */
 export const inTelegramMiniApp=()=>typeof window!=='undefined'&&!!window.Telegram?.WebApp?.initData;
 /** The Telegram source mode was removed: inside Telegram the Mini App is simply the web version. */

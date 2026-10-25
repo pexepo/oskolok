@@ -10,10 +10,11 @@ import {isTrustedLocalOrigin,requireTrustedMutation} from '../middleware/trusted
 import {prisma} from '../database/client.js';
 import {sessionConfigured,beginLogin,beginPhoneLogin,beginBotLogin,cancelLogin,loginStatus,consumeLogin,submitPhoneCode,submitLoginPassword,hashToken,disconnectSession} from '../services/telegramSession.js';
 import {updateNowPlaying,refreshTelegramIntegration,clearNowPlayingOnExit} from '../services/telegramNowPlaying.js';
-import {profileTrackWithArtwork} from '../services/profileArtwork.js';
 import {profileCustomizationSchema,customizationColumns,readCustomization,ProfileValidationError} from '../services/profileCustomization.js';
 import {rolesForUser} from '../services/roles.js';
 import {publicRewards} from '../services/rewards.js';
+import {raw} from 'express';
+import {listShowcase,addShowcaseItem,updateShowcaseItem,reorderShowcase,removeShowcaseItem,uploadShowcaseImage,showcaseAddSchema,showcasePatchSchema,showcaseOrderSchema,ShowcaseError} from '../services/profileShowcase.js';
 export const cookies=(req:any)=>Object.fromEntries(String(req.headers.cookie||'').split(';').map(s=>s.trim().split('=')));
 const route=(fn:any)=>async(req:any,res:any,next:any)=>{try{await fn(req,res);}catch(e){next(e);}};
 export const telegramLogin=Router();
@@ -83,9 +84,7 @@ profileRoutes.get('/',route(async(_req:any,res:any)=>{
   const profile=await prisma.creatorProfile.findUnique({where:{userId}});
   const contributions=await prisma.lyricContribution.findMany({where:{userId},select:{id:true,trackId:true,trackTitle:true,artistName:true,credit:true,updatedAt:true},orderBy:{updatedAt:'desc'}});
   const submissions=await prisma.lyricSubmission.findMany({where:{userId},select:{id:true,trackId:true,trackTitle:true,artistName:true,credit:true,status:true,reviewNote:true,createdAt:true},orderBy:{createdAt:'desc'}});
-  const music=await prisma.profileMusic.findMany({where:{userId},orderBy:{addedAt:'desc'}});
-  const playlists=await prisma.profilePlaylist.findMany({where:{userId},orderBy:{addedAt:'desc'}});
-  res.json({data:{userId,username:user?.username||null,telegramAvatarUrl:user?.avatarUrl||'',music:await Promise.all(music.map(m=>profileTrackWithArtwork(m.trackData))),playlists:playlists.map(p=>({id:p.id,playlistId:p.playlistId,title:p.title,artworkUrl:p.artworkUrl,tracks:JSON.parse(p.tracksData)})),currentTrack:profile?.playbackSeenAt&&Date.now()-profile.playbackSeenAt.getTime()<90000&&profile.currentTrackData?JSON.parse(profile.currentTrackData):null,telegramFullIntegration:profile?.telegramFullIntegration??true,telegramSyncError:profile?.telegramSyncError||null,submissions,displayName:profile?.displayName||user?.name||'Слушатель',avatarUrl:profile?.avatarUrl||user?.avatarUrl||'',bannerUrl:profile?.bannerUrl||'',bio:profile?.bio||'',customization:readCustomization(profile),roles:await rolesForUser(userId).catch(()=>[]),rewards:await publicRewards(userId).catch(()=>({medals:[],achievements:[],achievementsUnlocked:0})),contributions,telegramConnected:!!await prisma.telegramConnection.findUnique({where:{userId}}),telegramConfigured:sessionConfigured}});
+  res.json({data:{userId,username:user?.username||null,telegramAvatarUrl:user?.avatarUrl||'',showcase:await listShowcase(userId),currentTrack:profile?.playbackSeenAt&&Date.now()-profile.playbackSeenAt.getTime()<90000&&profile.currentTrackData?JSON.parse(profile.currentTrackData):null,telegramFullIntegration:profile?.telegramFullIntegration??true,telegramSyncError:profile?.telegramSyncError||null,submissions,displayName:profile?.displayName||user?.name||'Слушатель',avatarUrl:profile?.avatarUrl||user?.avatarUrl||'',bannerUrl:profile?.bannerUrl||'',bio:profile?.bio||'',customization:readCustomization(profile),roles:await rolesForUser(userId).catch(()=>[]),rewards:await publicRewards(userId).catch(()=>({medals:[],achievements:[],achievementsUnlocked:0})),contributions,telegramConnected:!!await prisma.telegramConnection.findUnique({where:{userId}}),telegramConfigured:sessionConfigured}});
 }));
 profileRoutes.patch('/',route(async(req:any,res:any)=>{const data=z.object({displayName:z.string().trim().min(1).max(80),bio:z.string().max(500),avatarUrl:image.optional(),bannerUrl:image.optional()}).parse(req.body);res.json({data:await prisma.creatorProfile.upsert({where:{userId:res.locals.userId},create:{userId:res.locals.userId,...data},update:data})});}));
 /** Look & links: accent, theme, status, pronouns, location, social links, section visibility. */
@@ -116,18 +115,13 @@ profileRoutes.delete('/lyrics/:id',route(async(req:any,res:any)=>{
   if(!result.count){res.status(409).json({error:{message:'Можно отозвать только свою заявку, ожидающую проверки.'}});return;}
   res.json({data:{ok:true}});
 }));
-profileRoutes.post('/music',route(async(req:any,res:any)=>{
-  const {trackId}=z.object({trackId:z.string().min(1).max(200)}).parse(req.body);
-  const track=await trackController.resolveTrack(trackId);
-  if(!track){res.status(404).json({error:{message:'Трек не найден.'}});return;}
-  const userId=res.locals.userId;
-  await prisma.profileMusic.upsert({where:{userId_trackId:{userId,trackId}},create:{userId,trackId,trackData:JSON.stringify(track)},update:{trackData:JSON.stringify(track)}});
-  res.json({data:{ok:true}});
-}));
-profileRoutes.delete('/music/:trackId',route(async(req:any,res:any)=>{
-  await prisma.profileMusic.deleteMany({where:{userId:res.locals.userId,trackId:req.params.trackId}});
-  res.json({data:{ok:true}});
-}));
+/** Showcase tiles: add, resize/caption, reorder, remove, and pictures/GIFs for them. */
+const showcaseRoute=(fn:(req:any,res:any)=>Promise<void>)=>route(async(req:any,res:any)=>{try{await fn(req,res);}catch(e:any){if(e instanceof ShowcaseError){res.status(e.status).json({error:{message:e.message}});return;}if(e?.name==='ZodError'){res.status(400).json({error:{message:e.issues?.[0]?.message||'Проверьте плитку.'}});return;}throw e;}});
+profileRoutes.post('/showcase',showcaseRoute(async(req,res)=>{res.status(201).json({data:await addShowcaseItem(res.locals.userId,showcaseAddSchema.parse(req.body),id=>trackController.resolveTrack(id))});}));
+profileRoutes.post('/showcase/media',raw({type:()=>true,limit:'9mb'}),showcaseRoute(async(req,res)=>{if(!Buffer.isBuffer(req.body))throw new ShowcaseError('Передайте файл картинки.');res.status(201).json({data:await uploadShowcaseImage(res.locals.userId,req.body)});}));
+profileRoutes.put('/showcase/order',showcaseRoute(async(req,res)=>{await reorderShowcase(res.locals.userId,showcaseOrderSchema.parse(req.body).ids);res.json({data:await listShowcase(res.locals.userId)});}));
+profileRoutes.patch('/showcase/:id',showcaseRoute(async(req,res)=>{res.json({data:await updateShowcaseItem(res.locals.userId,String(req.params.id),showcasePatchSchema.parse(req.body))});}));
+profileRoutes.delete('/showcase/:id',showcaseRoute(async(req,res)=>{await removeShowcaseItem(res.locals.userId,String(req.params.id));res.json({data:{ok:true}});}));
 profileRoutes.patch('/telegram-integration',route(async(req:any,res:any)=>{
   const enabled=z.object({enabled:z.boolean()}).parse(req.body).enabled,userId=res.locals.userId;
   await prisma.creatorProfile.upsert({where:{userId},create:{userId,displayName:'Слушатель',telegramFullIntegration:enabled},update:{telegramFullIntegration:enabled}});
@@ -138,20 +132,6 @@ profileRoutes.put('/now-playing',route(async(req:any,res:any)=>{
   const {trackId,sessionId,heartbeat}=z.object({trackId:z.string().max(200).nullable(),sessionId:z.string().max(100).optional(),heartbeat:z.boolean().optional()}).parse(req.body);
   if(trackId&&!heartbeat&&!await trackController.resolveTrack(trackId)){res.status(404).json({error:{message:'Трек не найден.'}});return;}
   await updateNowPlaying(res.locals.userId,trackId,sessionId,heartbeat);
-  res.json({data:{ok:true}});
-}));
-profileRoutes.post('/playlists',route(async(req:any,res:any)=>{
-  const {playlistId}=z.object({playlistId:z.string().min(1).max(200)}).parse(req.body),userId=res.locals.userId;
-  const playlist=await prisma.playlist.findFirst({where:{id:playlistId,userId},include:{tracks:{orderBy:{position:'asc'}}}});
-  if(!playlist){res.status(404).json({error:{message:'Плейлист не найден.'}});return;}
-  await prisma.playlist.update({where:{id:playlistId},data:{isPublic:true}});
-  const snapshot=playlist.tracks.map(t=>JSON.parse(t.trackData));
-  const artworkUrl=playlist.artworkUrl||snapshot.find(t=>t.artworkUrl)?.artworkUrl||null;
-  await prisma.profilePlaylist.upsert({where:{userId_playlistId:{userId,playlistId}},create:{userId,playlistId,title:playlist.title,artworkUrl,tracksData:JSON.stringify(snapshot)},update:{title:playlist.title,artworkUrl,tracksData:JSON.stringify(snapshot)}});
-  res.json({data:{ok:true}});
-}));
-profileRoutes.delete('/playlists/:playlistId',route(async(req:any,res:any)=>{
-  await prisma.profilePlaylist.deleteMany({where:{userId:res.locals.userId,playlistId:req.params.playlistId}});
   res.json({data:{ok:true}});
 }));
 profileRoutes.post('/logout',route(async(req:any,res:any)=>{

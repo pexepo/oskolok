@@ -20,6 +20,8 @@ describe('desktop distribution', () => {
       const manifest = JSON.parse(asar.extractFile(archive, 'package.json').toString());
       expect(manifest.main).toBe('electron/distributed.cjs');
       expect(manifest.dependencies).toBeUndefined();
+      // Discord status ships enabled: the public Application ID is baked in.
+      if (!process.env.OSKOLOK_DISCORD_CLIENT_ID) expect(JSON.parse(asar.extractFile(archive, 'electron/app-url.json').toString()).discordClientId).toBe('1563136390177366148');
       const source = asar.extractFile(archive, 'electron/distributed.cjs').toString();
       expect(source).toContain('sandbox: true');
       expect(source).toContain('webSecurity: true');

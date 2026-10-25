@@ -116,7 +116,7 @@ export class PlaylistRepository {
       },
     });
 
-    if (data.isPublic === false) await prisma.profilePlaylist.deleteMany({where:{playlistId:id}});
+    if (data.isPublic === false) { await prisma.profilePlaylist.deleteMany({where:{playlistId:id}}); await prisma.profileShowcaseItem.deleteMany({where:{kind:'playlist',refId:id}}); }
     else await prisma.profilePlaylist.updateMany({where:{playlistId:id},data:{title:updated.title,artworkUrl:updated.artworkUrl}});
     return (await this.mapToDomains([updated]))[0];
   }

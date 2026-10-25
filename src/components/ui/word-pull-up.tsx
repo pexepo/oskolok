@@ -5,7 +5,7 @@ import type { AnnotationRange } from '@/utils/geniusAnnotations';
 import { motion, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { LyricWord } from '@/types';
-import { gradientStops, intervalProgress, wordPullMotion } from '@/utils/lyricMotion';
+import { gradientStops, intervalProgress, isLongNote, letterMotion, letterStyle, splitGraphemes, wordPullMotion } from '@/utils/lyricMotion';
 import './word-pull-up.css';
 
 interface WordPullUpProps {
@@ -67,7 +67,9 @@ function WordPullUp({
       const nextStart = nextWord?.[0].word.start;
       const nextEnd = nextWord?.[nextWord.length - 1].word.end;
       const split = group.length > 1;
-      const pull = split ? { y: 0, scale: 1, opacity: 1 } : wordPullMotion(currentTime, first.start, last.word.end, nextStart, nextEnd);
+      // A held one-syllable note is sung letter by letter instead of lifting as a whole word.
+      const held = !split && !isLast && isLongNote(first.text, first.start, first.end);
+      const pull = split || held ? { y: 0, scale: 1, opacity: 1 } : wordPullMotion(currentTime, first.start, last.word.end, nextStart, nextEnd);
       const mark = markFor(groupIndex), closesMark = !!mark?.last && offsets[groupIndex].end >= mark.end - 1 && markFor(groupIndex + 1) !== mark;
       const wordNode = <span
         className={cn('lyric-pull-word', split && 'lyric-pull-word--split', isLast && 'lyric-last-word')}
@@ -75,10 +77,10 @@ function WordPullUp({
         data-lit={isLast ? String(currentTime >= first.start) : undefined}
         data-start={isLast ? first.start : undefined}
         data-end={isLast ? last.word.end : undefined}
-        data-word-start={split ? undefined : first.start}
-        data-word-end={split ? undefined : last.word.end}
-        data-next-start={split ? undefined : nextStart}
-        data-next-end={split ? undefined : nextEnd}
+        data-word-start={split || held ? undefined : first.start}
+        data-word-end={split || held ? undefined : last.word.end}
+        data-next-start={split || held ? undefined : nextStart}
+        data-next-end={split || held ? undefined : nextEnd}
         data-animating={pull.y !== 0 || pull.scale !== 1 ? 'true' : 'false'}
         style={{
           '--word-pull-y': `${pull.y}em`,
@@ -95,7 +97,7 @@ function WordPullUp({
       const own = split ? wordPullMotion(currentTime, word.start, word.end, handStart, handEnd) : undefined;
       return <span
           key={`${word.start}:${index}`}
-          className={cn('lyric-segment lyric-pull-segment', syllable && 'lyric-syllable')}
+          className={cn('lyric-segment lyric-pull-segment', syllable && 'lyric-syllable', held && 'has-letter-motion')}
           data-start={word.start}
           data-end={word.end}
           data-syllable={syllable ? 'true' : 'false'}
@@ -111,7 +113,7 @@ function WordPullUp({
             '--karaoke-end': `${stops.end}%`,
             ...(own ? { '--word-pull-y': `${own.y}em`, '--word-pull-scale': own.scale, '--word-pull-glow': (own.scale - 1) * 5 } : {}),
           } as CSSProperties}
-        >{word.text}</span>;
+        >{held ? (() => { const letters = splitGraphemes(word.text); return letters.map((letter, i) => <span key={i} className="lyric-letter" style={letterStyle(letterMotion(currentTime - word.start, i, letters.length, word.end - word.start)) as CSSProperties}>{letter}</span>);  })() : word.text}</span>;
       })}</span>;
       return { key: `${first.start}:${group[0].index}`, mark, wordNode, needsSpace, closesMark };
     });

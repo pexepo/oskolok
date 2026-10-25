@@ -18,7 +18,7 @@ const envSchema = z.object({
   // shape as LyricsData; LRCLIB remains a verified fallback when unset.
   LYRICS_PROVIDER_URL: z.string().default('').refine(v => !v || /^https?:\/\//i.test(v), 'LYRICS_PROVIDER_URL must be an http(s) URL'),
   DATABASE_URL: z.string().default('file:./dev.db'),
-  PORT: z.string().transform((val) => parseInt(val, 10)).default('5000'),
+  PORT: z.string().default('5000').transform((val) => parseInt(val, 10)),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   // Панель разработчика: ключ доступа к /api/admin/* и разрешённый origin панели.

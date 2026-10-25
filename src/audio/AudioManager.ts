@@ -1,4 +1,6 @@
-import {getPreferredSource,setPreferredSource,getLosslessPreferred,getRecording} from '../utils/playbackPreferences.js';
+import {getPreferredSource,setPreferredSource,getRecording} from '../utils/playbackPreferences.js';
+import {planMix,DEFAULT_MIX_SETTINGS,type MixAnalysis,type MixPlan,type MixSettings} from './mixPlanner.js';
+import {buildMixChain,mixAnalysis,resetChain,runMix,type MixChain} from './mixer.js';
 import { Track, PlaybackInfo, RepeatMode } from '../types/index.js';
 import { queueManager } from './QueueManager.js';
 import { apiClient } from '../api/apiClient.js';
@@ -41,6 +43,12 @@ export class AudioManager {
   private spare: HTMLAudioElement;
   private fading: HTMLAudioElement | null = null;
   private pendingFadeIn: { el: HTMLAudioElement; secs: number } | null = null;
+  /** «ИИ-микс»: each element's effect chain, and the transition waiting for the incoming track to sound. */
+  private mixChains = new Map<HTMLAudioElement, MixChain>();
+  private pendingMix: { el: HTMLAudioElement; out: HTMLAudioElement; plan: MixPlan; a: MixAnalysis | null; b: MixAnalysis | null } | null = null;
+  private rateRestore: ReturnType<typeof setInterval> | undefined;
+  /** The transition now playing, for the player's «сводим» chip; null when none. */
+  public mixNow: { preset: MixPlan['preset']; beatmatched: boolean; from?: number; to?: number } | null = null;
   private crossfadeAdvance = false;
   private elementGains = new Map<HTMLAudioElement, GainNode>();
   private volumeRamps = new Map<HTMLAudioElement, ReturnType<typeof setInterval>>();
@@ -217,7 +225,9 @@ export class AudioManager {
         this.equalizerContext=new AudioContext();
         // Both media elements feed the same chain, each through its own gain (the crossfade).
         const input=this.equalizerContext.createGain();
-        for(const el of [this.audio,this.spare]){const source=this.equalizerContext.createMediaElementSource(el),gain=this.equalizerContext.createGain();source.connect(gain);gain.connect(input);this.elementGains.set(el,gain);}
+        // «ИИ-микс» reverb: one room both tracks can send into.
+        const mixRoom=this.equalizerContext.createConvolver();mixRoom.buffer=reverbImpulse(this.equalizerContext,3,2.6);const mixRoomGain=this.equalizerContext.createGain();mixRoomGain.gain.value=.8;mixRoom.connect(mixRoomGain);mixRoomGain.connect(input);
+        for(const el of [this.audio,this.spare]){const source=this.equalizerContext.createMediaElementSource(el),gain=this.equalizerContext.createGain();this.mixChains.set(el,buildMixChain(this.equalizerContext,source,gain,input,mixRoom));gain.connect(input);this.elementGains.set(el,gain);}
         let previous:AudioNode=input;
         this.equalizerNodes=EQ_FREQUENCIES.map(frequency=>{const filter=this.equalizerContext!.createBiquadFilter();filter.type="peaking";filter.frequency.value=frequency;filter.Q.value=1;previous.connect(filter);previous=filter;return filter;});
         this.eqOut=previous;
@@ -314,7 +324,24 @@ export class AudioManager {
     try { localStorage.setItem(scopedStorageKey('crossfade'), String(Math.max(0, Math.min(12, Math.round(seconds))))); } catch { /* private mode */ }
     if (!seconds) this.cancelCrossfade();
   }
+  /** «ИИ-микс»: transitions planned per track pair from beat analysis (beatmatch, bass swap, filters, echo). */
+  public getMix(): boolean { try { return localStorage.getItem(scopedStorageKey('ai-mix')) === '1'; } catch { return false; } }
+  public setMix(on: boolean): void {
+    try { localStorage.setItem(scopedStorageKey('ai-mix'), on ? '1' : '0'); } catch { /* private mode */ }
+    if (on) { this.ensureEqualizer(); this.prefetchNextTrack(); } else this.cancelCrossfade();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('oskolok-mix'));
+  }
+  public getMixSettings(): MixSettings { try { return { ...DEFAULT_MIX_SETTINGS, ...JSON.parse(localStorage.getItem(scopedStorageKey('ai-mix-settings')) || '{}') }; } catch { return DEFAULT_MIX_SETTINGS; } }
+  public setMixSettings(next: Partial<MixSettings>): void {
+    try { localStorage.setItem(scopedStorageKey('ai-mix-settings'), JSON.stringify({ ...this.getMixSettings(), ...next })); } catch { /* private mode */ }
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('oskolok-mix'));
+  }
+  private setMixNow(value: AudioManager['mixNow']): void { this.mixNow = value; if (typeof window !== 'undefined') window.dispatchEvent(new Event('oskolok-mix')); }
   /** iOS keeps media volume read-only and the Web Audio chain off: there the tracks simply follow each other. */
+  /** «ИИ-микс» works only inside Резонанс (the wave); the player store keeps this in step with isWaveActive. */
+  private waveActive = false;
+  public setWaveActive(on: boolean): void { if (this.waveActive === on) return; this.waveActive = on; if (!on) this.cancelCrossfade(); else this.prefetchNextTrack(); }
+  public mixActive(): boolean { return this.waveActive && this.getMix() && this.crossfadeSupported(); }
   public crossfadeSupported(): boolean { return !AudioManager.appleMobile && !spotifyPlayback.active; }
 
   /** Moves a media element's own gain (Web Audio when the chain runs, element volume otherwise). */
@@ -341,14 +368,23 @@ export class AudioManager {
     clearInterval(this.volumeRamps.get(el)); this.volumeRamps.delete(el);
     try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* already idle */ }
     this.rampElement(el, 1, 0);
+    const chain = this.mixChains.get(el);
+    if (chain && this.equalizerContext) resetChain(this.equalizerContext, chain);
   }
   /** Any manual move (pause, seek, another track) ends a running crossfade at once. */
   private cancelCrossfade(): void {
+    if (this.pendingMix || this.mixNow || this.rateRestore) {
+      this.pendingMix = null; clearInterval(this.rateRestore); this.rateRestore = undefined;
+      const chain = this.mixChains.get(this.audio);
+      if (chain && this.equalizerContext) resetChain(this.equalizerContext, chain);
+      this.applyEffects(); this.setMixNow(null);
+    }
     if (this.fading) this.releaseFading(this.fading);
     if (this.pendingFadeIn || (this.elementGains.get(this.audio)?.gain.value ?? 1) !== 1) { this.pendingFadeIn = null; this.rampElement(this.audio, 1, 0); }
   }
   private maybeCrossfade(cur: number, dur: number): void {
     const secs = this.getCrossfade();
+    if (this.mixActive() && this.equalizerContext) { this.maybeMix(cur, dur, secs); return; }
     if (!secs || this.fading || this.crossfadeAdvance || !this.crossfadeSupported() || this.externalOn()) return;
     if (!this.userWantsPlayback || this.audio.paused || !Number.isFinite(dur) || dur < secs * 3) return;
     const left = (dur - cur) / (this.audio.playbackRate || 1);
@@ -369,6 +405,68 @@ export class AudioManager {
     setTimeout(release, fade * 1000 + 250);
     this.crossfadeAdvance = true;
     try { void this.next('natural'); } finally { this.crossfadeAdvance = false; }
+  }
+
+  /** «ИИ-микс»: when A reaches the planned point, B starts on the spare element and the plan takes over. */
+  private maybeMix(cur: number, dur: number, secs: number): void {
+    if (this.fading || this.crossfadeAdvance || !this.crossfadeSupported() || this.externalOn()) return;
+    if (!this.userWantsPlayback || this.audio.paused || !Number.isFinite(dur) || dur < 30) return;
+    if (this.stopAfterCurrent || queueManager.getState().repeatMode === 'one') return;
+    const nextTrack = queueManager.peekNextTrack(), current = this.currentTrack;
+    if (!nextTrack || !current || dur - cur > 90) return;
+    // Analyses are asked for in the last 90 s; whatever has arrived by the planned point is used.
+    const a = mixAnalysis(current.id) ?? null, b = mixAnalysis(nextTrack.id) ?? null;
+    const plan = planMix(a, b, dur, secs || 6, this.getMixSettings());
+    if (cur < plan.at || cur > plan.at + plan.duration * .6) return;
+    const out = this.audio, incoming = this.spare;
+    this.fading = out;
+    this.listeners.forEach(l => l.onEnded?.(this.currentTrack));
+    this.audio = incoming; this.spare = out;
+    incoming.volume = this.isMuted ? 0 : elementVolume(this.volume) * this.fadeGain;
+    this.applyEffects();
+    this.rampElement(incoming, 0, 0);
+    this.pendingMix = { el: incoming, out, plan, a, b };
+    this.setMixNow({ preset: plan.preset, beatmatched: plan.beatmatched, from: a?.bpm, to: b?.bpm });
+    const release = () => { if (this.fading === out) this.releaseFading(out); };
+    out.addEventListener('ended', release, { once: true });
+    setTimeout(release, (plan.at + plan.duration - cur) * 1000 + 600);
+    this.crossfadeAdvance = true;
+    try { void this.next('natural'); } finally { this.crossfadeAdvance = false; }
+  }
+  /** B sounds: cue it on A's beat grid (beatmatched pairs) and run the planned automation for the time left. */
+  private startPendingMix(el: HTMLAudioElement): void {
+    const m = this.pendingMix; if (!m || m.el !== el) return;
+    this.pendingMix = null;
+    const ctx = this.equalizerContext, outChain = this.mixChains.get(m.out), inChain = this.mixChains.get(el), outGain = this.elementGains.get(m.out), inGain = this.elementGains.get(el);
+    if (!ctx || !outChain || !inChain || !outGain || !inGain) { this.rampElement(el, 1, m.plan.duration); return; }
+    const elapsed = Math.max(0, m.out.currentTime - m.plan.at), p0 = Math.min(.95, elapsed / m.plan.duration);
+    const frac = (x: number) => x - Math.floor(x);
+    if (m.plan.beatmatched && m.a && m.b) {
+      let target = m.plan.bStart + elapsed * m.plan.rate;
+      let shift = frac((m.out.currentTime - m.a.downbeat) / m.a.beat) - frac((target - m.b.downbeat) / m.b.beat);
+      if (shift > .5) shift -= 1;
+      if (shift < -.5) shift += 1;
+      target += shift * m.b.beat;
+      try { el.currentTime = Math.max(0, target); } catch { /* not seekable yet: plays from where it is */ }
+      (el as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = true;
+      el.playbackRate = this.effects.speed * m.plan.rate;
+    } else if (m.plan.bStart > 0) { try { el.currentTime = m.plan.bStart + elapsed; } catch { /* plays from the start */ } }
+    runMix(ctx, m.plan, p0, { chain: outChain, gain: outGain }, { chain: inChain, gain: inGain }, m.a?.beat ?? .5);
+    const left = m.plan.duration * (1 - p0);
+    setTimeout(() => {
+      if (this.audio !== el) return;
+      resetChain(ctx, inChain, .3); this.setMixNow(null);
+      // The borrowed tempo eases back to normal over a few seconds, too slowly to notice.
+      clearInterval(this.rateRestore);
+      this.rateRestore = setInterval(() => {
+        const target = this.effects.speed, rate = el.playbackRate + (target - el.playbackRate) * .12;
+        if (this.audio !== el || Math.abs(rate - target) < .002) {
+          if (this.audio === el) { el.playbackRate = target; (el as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = this.effects.preservePitch; }
+          clearInterval(this.rateRestore); this.rateRestore = undefined; return;
+        }
+        el.playbackRate = rate;
+      }, 250);
+    }, left * 1000 + 200);
   }
 
   private stopAudioPipeline(): void {
@@ -500,7 +598,6 @@ export class AudioManager {
     const unreleased = track.source === 'unreleased';
     const hasPersonal = unreleased ? false : !selectedSource ? await apiClient.request<{audio:unknown}>(`/content/tracks/${encodeURIComponent(track.id)}/personal`).then(data=>!!data.audio).catch(()=>false) : selectedSource==='personal';
     if(sessionId!==this.playSessionId)return;
-    const losslessFirst = (!selectedSource || selectedSource === 'auto') && getLosslessPreferred();
     // Spotify is a catalogue only: its audio cannot be played without a Spotify device, so every
     // track streams through Osk's own resolver (the same on desktop, web, phones and Telegram).
     const streamUrl = apiClient.getStreamUrl(track.id, selectedSource);
@@ -645,7 +742,11 @@ export class AudioManager {
     try {
       const nextTrack = queueManager.peekNextTrack();
       if (nextTrack && nextTrack.id) {
-        apiClient.prefetchTrack(nextTrack.id).catch(() => {});
+        // With «ИИ-микс» the server also downloads and beat-analyses both tracks now, so the transition
+        // minutes later is planned from real analyses instead of falling back to a plain fade.
+        const mix = this.mixActive();
+        apiClient.prefetchTrack(nextTrack.id, mix).catch(() => {});
+        if (mix && this.currentTrack) apiClient.prefetchTrack(this.currentTrack.id, true).catch(() => {});
       }
     } catch {
       // Non-blocking prefetch
@@ -932,6 +1033,7 @@ export class AudioManager {
     on('playing', () => {
       // The incoming track of a crossfade rises from silence once it really sounds.
       if (this.pendingFadeIn && this.pendingFadeIn.el === el) { const secs = this.pendingFadeIn.secs; this.pendingFadeIn = null; this.rampElement(el, 1, secs); }
+      if (this.pendingMix && this.pendingMix.el === el) this.startPendingMix(el);
       const id = this.currentTrack?.id || '';
       if (id && this.startedTrackId !== id) { this.startedTrackId = id; this.listeners.forEach(l => l.onAudioStarted?.(this.currentTrack)); }
     });

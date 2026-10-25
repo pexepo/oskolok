@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** Public Application ID of the «Осколок» Discord app (not a secret). */
+const DISCORD_CLIENT_ID = '1563136390177366148';
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Export a client for the shared server, never private data from this checkout.
@@ -18,7 +20,8 @@ export function prepareDesktopStage(appUrl, stage) {
     fs.copyFileSync(path.join(project, 'electron', name), path.join(stage, 'electron', name));
   }
   // Discord status needs the public Application ID of the «Осколок» Discord app (not a secret); without it the status stays off.
-  const discordClientId = /^\d{15,25}$/.test(process.env.OSKOLOK_DISCORD_CLIENT_ID || '') ? process.env.OSKOLOK_DISCORD_CLIENT_ID : '';
+  // OSKOLOK_DISCORD_CLIENT_ID still overrides it (a test app); otherwise every build gets the real one.
+  const discordClientId = /^\d{15,25}$/.test(process.env.OSKOLOK_DISCORD_CLIENT_ID || '') ? process.env.OSKOLOK_DISCORD_CLIENT_ID : DISCORD_CLIENT_ID;
   fs.writeFileSync(path.join(stage, 'electron', 'app-url.json'), JSON.stringify({ url: url.origin, ...(discordClientId ? { discordClientId } : {}) }));
   fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify({
     name: manifest.name, version: manifest.version, description: manifest.description,

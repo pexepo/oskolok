@@ -35,7 +35,27 @@
 }
 .interference-lyrics .lyric-word-pull-up .lyric-pull-segment[data-animating=true] { will-change: transform; }
 
+/* Held notes, letter by letter (letterMotion): each letter fills with its own gradient while it rises and
+ * swells from the baseline and glows, then settles. drop-shadow, not text-shadow: a text-shadow would paint
+ * over the clipped gradient. The glow filter exists only while a letter moves. */
+.interference-lyrics .lyric-word-pull-up .lyric-segment.has-letter-motion .lyric-letter {
+  display: inline-block;
+  white-space: pre;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(90deg, var(--lyric-lit) var(--letter-start, -20%), var(--lyric-rest, var(--lyric-dim)) var(--letter-end, 0%));
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transform: translate3d(0, var(--letter-y, 0em), 0) scale(var(--letter-scale, 1));
+  transform-origin: center 85%;
+  filter: drop-shadow(0 0 calc(var(--letter-glow, 0) * .28em) rgba(255, 255, 255, calc(var(--letter-glow, 0) * .45)));
+}
+.interference-lyrics .interference-line.active .lyric-word-pull-up .lyric-segment.has-letter-motion .lyric-letter { will-change: transform, filter; }
+[dir=rtl] .interference-lyrics .lyric-word-pull-up .lyric-segment.has-letter-motion .lyric-letter { background-image: linear-gradient(270deg, var(--lyric-lit) var(--letter-start, -20%), var(--lyric-rest, var(--lyric-dim)) var(--letter-end, 0%)); }
+
 @media (prefers-reduced-motion: reduce) {
+  .interference-lyrics .lyric-word-pull-up .lyric-segment.has-letter-motion .lyric-letter { transform: none; filter: none; }
   .interference-lyrics .lyric-word-pull-up :is(.lyric-pull-word, .lyric-pull-word--split .lyric-pull-segment) {
     transform: none !important;
     opacity: 1;

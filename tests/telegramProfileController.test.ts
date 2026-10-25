@@ -30,7 +30,8 @@ describe('Telegram profile music response',()=>{
  it('adds only after a completed audio export and cleans temporary assets',async()=>{
   const res=response();await telegramController.addMusic(req,res,vi.fn());
   expect(addProfileMusic).toHaveBeenCalledWith('telegram:test-profile','/prepared.mp3','Song','Artist',180,'/cover.jpg');
-  expect(res.json).toHaveBeenCalledWith({data:{status:'added'}});expect(prisma.profileMusic.upsert).toHaveBeenCalledOnce();expect(assetCleanup).toHaveBeenCalledOnce();expect(coverCleanup).toHaveBeenCalledOnce();
+  expect(res.json).toHaveBeenCalledWith({data:{status:'added'}});// Telegram profile music stays out of the Oskolok showcase.
+  expect(prisma.profileMusic.upsert).not.toHaveBeenCalled();expect(assetCleanup).toHaveBeenCalledOnce();expect(coverCleanup).toHaveBeenCalledOnce();
  });
  it('returns a useful download error and releases the request lock for retry',async()=>{
   vi.mocked(studioMasterService.prepareExportAudio).mockRejectedValueOnce(new AudioFileError('Загрузка аудио прервалась. Попробуйте ещё раз.'));

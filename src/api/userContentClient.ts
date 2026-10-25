@@ -10,7 +10,7 @@ export interface TrackInfo {trackId:string;genius:GeniusSongInfo|null;releaseDat
 export interface ReportPayload {requestId:string;kind:'bug'|'playback'|'source'|'lyrics'|'timing'|'other';reason:string;description:string;trackId?:string;trackTitle?:string;artistName?:string;page?:string;attachmentIds?:string[];platform?:string;proposedUrl?:string;offset?:number;lines?:LyricLine[];diagnostics?:{pageName?:string;route?:string;errors:string[];userAgent?:string;viewport?:string;nowPlaying?:string}}
 export const contentApi={
  personal:(trackId:string)=>apiClient.request<PersonalContent>(`/content/tracks/${encodeURIComponent(trackId)}/personal`),
- save:(trackId:string,data:Partial<Pick<PersonalContent,'offset'|'lines'>>&{trackTitle?:string;artistName?:string})=>apiClient.request<PersonalContent>(`/content/tracks/${encodeURIComponent(trackId)}/personal`,{method:'PUT',body:JSON.stringify(data)}),
+ save:(trackId:string,data:Partial<Pick<PersonalContent,'offset'|'lines'>>&{trackTitle?:string;artistName?:string;source?:string})=>apiClient.request<PersonalContent>(`/content/tracks/${encodeURIComponent(trackId)}/personal`,{method:'PUT',body:JSON.stringify(data)}),
  info:(trackId:string)=>apiClient.request<TrackInfo>(`/content/tracks/${encodeURIComponent(trackId)}/info`),
  report:(data:ReportPayload)=>apiClient.request<{id:string;status:string}>('/content/reports',{method:'POST',body:JSON.stringify(data)}),
  upload:async(file:File,kind:'audio'|'attachment',trackId?:string):Promise<UploadedFile>=>{

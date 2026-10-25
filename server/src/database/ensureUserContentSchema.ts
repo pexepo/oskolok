@@ -32,10 +32,19 @@ async function migrateUserContent(){
   // Legacy nonzero offsets were explicit. A legacy zero is indistinguishable from the old default.
   await prisma.$executeRawUnsafe('UPDATE "PersonalTrack" SET "hasTimingOffset"=true WHERE "offset" <> 0');
  }
+ // Per-source timing offsets (JSON {source: seconds}); absent means the track-wide offset applies.
+ if(!personalColumns.some(c=>c.name==='sourceOffsets')){
+  try{await prisma.$executeRawUnsafe('ALTER TABLE "PersonalTrack" ADD COLUMN "sourceOffsets" TEXT');}
+  catch(error){if(!/duplicate column name:\s*sourceOffsets|column.*sourceOffsets.*already exists/i.test(String((error as Error).message)))throw error;}
+ }
  // Older builds used username as primary key and userId as the binding.
  const betaColumns=pg?await prisma.$queryRawUnsafe<Array<{name:string}>>(`SELECT column_name AS name FROM information_schema.columns WHERE table_name='BetaAccess'`):await prisma.$queryRawUnsafe<Array<{name:string}>>('PRAGMA table_info("BetaAccess")');
  const betaPresent=new Set(betaColumns.map(c=>c.name));
- for(const [name,definition] of Object.entries({id:'TEXT',telegramUserId:'TEXT',enabled:'BOOLEAN NOT NULL DEFAULT true',updatedAt:date,approvalNotificationId:'TEXT',approvalNotificationState:"TEXT NOT NULL DEFAULT 'none'"}))if(!betaPresent.has(name))await prisma.$executeRawUnsafe(`ALTER TABLE "BetaAccess" ADD COLUMN "${name}" ${definition}`);
+ for(const [name,definition] of Object.entries({id:'TEXT',telegramUserId:'TEXT',enabled:'BOOLEAN NOT NULL DEFAULT true',updatedAt:date,approvalNotificationId:'TEXT',approvalNotificationState:"TEXT NOT NULL DEFAULT 'none'"}))if(!betaPresent.has(name)){
+  // A concurrent bootstrap may add the same column after the column list was read; only that error is safe to accept.
+  try{await prisma.$executeRawUnsafe(`ALTER TABLE "BetaAccess" ADD COLUMN "${name}" ${definition}`);}
+  catch(error){if(!new RegExp(`duplicate column name:\\s*${name}|column.*${name}.*already exists`,'i').test(String((error as Error).message)))throw error;}
+ }
  await prisma.$executeRawUnsafe(`UPDATE "BetaAccess" SET "id"='legacy:' || "username" WHERE "id" IS NULL`);
  if(betaPresent.has('userId'))await prisma.$executeRawUnsafe('UPDATE "BetaAccess" SET "telegramUserId"="userId" WHERE "telegramUserId" IS NULL AND "userId" IS NOT NULL');
  await prisma.$executeRawUnsafe('UPDATE "BetaAccess" SET "updatedAt"="createdAt" WHERE "updatedAt" IS NULL');

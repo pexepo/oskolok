@@ -118,6 +118,18 @@ describe.sequential('real Express + isolated SQLite content integration',()=>{
   expect((await (await request(url)).json()).data.offset).toBe(0);
   expect((await db.personalTrack.findUniqueOrThrow({where:{userId_trackId:{userId:owner,trackId:id}}})).hasTimingOffset).toBe(true);
  });
+ it('keeps a separate timing offset per playback source and recording',async()=>{
+  const id='soundcloud:per-source',url=`/api/content/tracks/${encodeURIComponent(id)}/personal`;
+  expect((await json(url,{offset:1},owner,'PUT')).response.status).toBe(200);
+  expect((await json(url,{offset:-4.5,source:'youtube:youtube:abcdefghijk'},owner,'PUT')).response.status).toBe(200);
+  expect((await json(url,{offset:2,source:'soundcloud'},owner,'PUT')).response.status).toBe(200);
+  const at=async(source?:string)=>(await (await request(source?`${url}?source=${encodeURIComponent(source)}`:url)).json()).data.offset;
+  expect(await at()).toBe(1);
+  expect(await at('youtube:youtube:abcdefghijk')).toBe(-4.5);
+  expect(await at('soundcloud')).toBe(2);
+  expect(await at('youtube')).toBe(1);
+  expect((await json(url,{offset:1,source:'spotify'},owner,'PUT')).response.status).toBe(400);
+ });
  it('deduplicates concurrent release exports, writes a valid ZIP and isolates its download',async()=>{
   isolated.tracks[trackId]={id:trackId,source:'soundcloud',title:'Test export',artist:{name:'Artist'},duration:1};
   const body={requestId:randomUUID(),trackIds:[trackId],title:'Private release',sendTelegram:false};

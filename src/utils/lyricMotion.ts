@@ -19,12 +19,29 @@ export function splitGraphemes(text:string):string[] {
   return Segmenter?Array.from(new Segmenter(undefined,{granularity:'grapheme'}).segment(text),part=>part.segment):Array.from(text);
 }
 
-export function letterMotion(segmentProgress:number,index:number,count:number):{progress:number;lift:number;scale:number} {
-  const progress=clamp01(Math.max(1,count)*clamp01(segmentProgress)-index);
-  if(progress===0||progress===1)return {progress,lift:0,scale:1};
-  const wave=Math.sin(Math.PI*progress)**2;
-  return {progress,lift:-2*wave,scale:1+.025*wave};
+/** A held note (at least this long, at most LONG_NOTE_MAX_LETTERS) is sung letter by letter. */
+export const LONG_NOTE_SECONDS=1;
+export const LONG_NOTE_MAX_LETTERS=12;
+export const isLongNote=(text:string,start:number,end:number)=>end-start>=LONG_NOTE_SECONDS&&splitGraphemes(text.trim()).length>=2&&splitGraphemes(text.trim()).length<=LONG_NOTE_MAX_LETTERS;
+/** One letter of a held note, the way Spicy Lyrics sings it: the note is split into equal slices, one per
+ * letter. A letter fills left to right during its own slice, and around it rises and swells to a peak halfway
+ * through its motion, glowing, then settles back — so the word grows from below letter after letter, a wave
+ * rather than a jump. The motion lasts at least LETTER_MOTION_SECONDS (fast slices still read smoothly) and
+ * starts slightly before the slice, as a spring would. Pure function of time since the note began
+ * (`elapsed`, unclamped), so seek and pause restore it exactly and the last letter settles after the note. */
+export const LETTER_MOTION_SECONDS=.7;
+export const LETTER_LIFT_EM=.075,LETTER_SWELL=.16;
+const smooth=(x:number)=>x*x*(3-2*x);
+/** 0 → 1 at the middle → 0, starting and ending at rest (no jolt at either end). */
+export const letterBump=(q:number)=>q<=0||q>=1?0:smooth(q<.5?q*2:2-q*2);
+export function letterMotion(elapsed:number,index:number,count:number,seconds:number):{fill:number;y:number;scale:number;glow:number} {
+  const n=Math.max(1,count),slice=Math.max(.01,seconds)/n,from=index*slice;
+  const fill=clamp01((elapsed-from)/slice);
+  const span=Math.max(slice*1.4,LETTER_MOTION_SECONDS),q=(elapsed-from+.15*span)/span,b=letterBump(q);
+  return {fill,y:-LETTER_LIFT_EM*b,scale:1+LETTER_SWELL*b,glow:Math.min(1,b*1.35)};
 }
+/** How long after the note's end the last letter is still settling. */
+export const letterTail=(seconds:number,count:number)=>Math.max(seconds/Math.max(1,count)*1.4,LETTER_MOTION_SECONDS);
 
 // Maximum tail beyond measured timing, including the minimum short accent.
 export const WORD_PULL_RELEASE_SECONDS=.85;
@@ -124,22 +141,29 @@ export function paintTimedWordSegments(root:HTMLElement,time:number,reducedMotio
     syllable.style.setProperty('--word-pull-glow',String(reducedMotion?0:(pull.scale-1)*5));
   });
   root.querySelectorAll<HTMLElement>('.lyric-segment[data-start][data-end]').forEach(segment=>{
-    const progress=intervalProgress(time,Number(segment.dataset.start),Number(segment.dataset.end));
+    const start=Number(segment.dataset.start),end=Number(segment.dataset.end),progress=intervalProgress(time,start,end);
     segment.dataset.played=progress>=1?'true':'false';
     segment.dataset.current=progress>0&&progress<1?'true':'false';
-    if(!setProgress(segment,progress))return;
-    const letters=segment.querySelectorAll<HTMLElement>('.lyric-letter');
-    letters.forEach((letter,index)=>{
-      const motion=letterMotion(progress,index,letters.length);
-      if(reducedMotion){motion.lift=0;motion.scale=1;}
-      const lift=`${motion.lift.toFixed(3)}px`,scale=motion.scale.toFixed(4);
-      if(letter.style.getPropertyValue('--letter-lift')!==lift)letter.style.setProperty('--letter-lift',lift);
-      if(letter.style.getPropertyValue('--letter-scale')!==scale)letter.style.setProperty('--letter-scale',scale);
-      const lit=`${Math.round(motion.progress*100)}%`;
-      if(letter.style.getPropertyValue('--letter-lit')!==lit)letter.style.setProperty('--letter-lit',lit);
-    });
+    const changed=setProgress(segment,progress);
+    const letters=segment.querySelectorAll<HTMLElement>('.lyric-letter'),seconds=end-start,elapsed=time-start;
+    if(!letters.length)return;
+    // Letters keep moving a little after the note ends; outside that window only a changed progress repaints.
+    const moving=elapsed>-LETTER_MOTION_SECONDS&&elapsed<seconds+letterTail(seconds,letters.length);
+    if(!changed&&!moving)return;
+    settling ||= moving;
+    letters.forEach((letter,index)=>paintLetter(letter,letterMotion(elapsed,index,letters.length,seconds),reducedMotion));
   });
   root.dataset.wordSettling=settling?'true':'false';
+}
+
+/** CSS variables of one held-note letter (see word-pull-up.css). */
+export function letterStyle(m:{fill:number;y:number;scale:number;glow:number},reducedMotion=false):Record<string,string> {
+  const stops=gradientStops(reducedMotion?Math.round(m.fill):m.fill);
+  return {'--letter-start':`${stops.start.toFixed(2)}%`,'--letter-end':`${stops.end.toFixed(2)}%`,
+    '--letter-y':`${(reducedMotion?0:m.y).toFixed(4)}em`,'--letter-scale':(reducedMotion?1:m.scale).toFixed(4),'--letter-glow':(reducedMotion?0:m.glow).toFixed(3)};
+}
+function paintLetter(letter:HTMLElement,m:{fill:number;y:number;scale:number;glow:number},reducedMotion:boolean):void {
+  for(const [name,value] of Object.entries(letterStyle(m,reducedMotion)))if(letter.style.getPropertyValue(name)!==value)letter.style.setProperty(name,value);
 }
 
 /** Interludes shorter than this keep the previous line on screen. */

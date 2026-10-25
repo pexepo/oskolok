@@ -13,7 +13,7 @@ export function errorHandler(
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Invalid request data',
-        details: err.errors,
+        details: err.issues,
       },
     });
     return;

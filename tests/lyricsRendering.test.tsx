@@ -5,7 +5,8 @@ import {LyricsLine,PlainLyricLine} from '../src/components/lyrics/LyricsLine.js'
 import {LyricsBoundary} from '../src/components/lyrics/LyricsBoundary.js';
 import type {NormalizedLyricLine} from '../src/utils/lyricsParser.js';
 
-const syllableLine:NormalizedLyricLine={time:0,end:5,endEstimated:false,timingMode:'syllable',text:'Один долгий текст',words:[{text:'Один',start:0,end:1},{text:'долгий',start:1,end:3},{text:'текст',start:3,end:5}]};
+// Words shorter than a held note (LONG_NOTE_SECONDS), so each lifts as one piece.
+const syllableLine:NormalizedLyricLine={time:0,end:2.4,endEstimated:false,timingMode:'syllable',text:'Один долгий текст',words:[{text:'Один',start:0,end:.8},{text:'долгий',start:.8,end:1.6},{text:'текст',start:1.6,end:2.4}]};
 const base={onSeek:()=>{},currentTime:0,isActive:false,isSung:false};
 
 describe('karaoke lyric rendering',()=>{
@@ -23,12 +24,21 @@ describe('karaoke lyric rendering',()=>{
   });
 
   it('pulls up whole measured words without separate letter bounces',()=>{
-    const html=renderToStaticMarkup(<LyricsLine {...base} line={syllableLine} isActive currentTime={2}/>);
+    const html=renderToStaticMarkup(<LyricsLine {...base} line={syllableLine} isActive currentTime={1.2}/>);
     expect(html.match(/class="lyric-segment/g)?.length).toBe(3);
     expect(html).toContain('lyric-word-pull-up');
     expect(html).toContain('--word-pull-y:0em');
     expect(html).not.toContain('lyric-letter');
     expect(html).not.toContain('per-word-crossfade');
+  });
+
+  it('sings a held note letter by letter instead of lifting the word',()=>{
+    const line:NormalizedLyricLine={time:0,end:3,endEstimated:false,timingMode:'syllable',text:'Ooh yeah',words:[{text:'Ooh',start:0,end:2},{text:'yeah',start:2,end:2.5}]};
+    const html=renderToStaticMarkup(<LyricsLine {...base} line={line} isActive currentTime={1}/>);
+    expect(html.match(/class="lyric-letter"/g)).toHaveLength(3);
+    expect(html).toContain('has-letter-motion');
+    // The held word does not also pull up as a whole.
+    expect(html).not.toMatch(/data-word-start="0"/);
   });
 
   it('animates short syllables and marks only the syllable being sung',()=>{
@@ -123,7 +133,7 @@ describe('karaoke lyric rendering',()=>{
   });
 
   it('keeps every word in the line and marks completed words independently',()=>{
-    const html=renderToStaticMarkup(<LyricsLine {...base} line={syllableLine} isActive currentTime={2}/>);
+    const html=renderToStaticMarkup(<LyricsLine {...base} line={syllableLine} isActive currentTime={1.2}/>);
     expect(html).toContain('Один');
     expect(html).toContain('долгий');
     expect(html).toContain('текст');
