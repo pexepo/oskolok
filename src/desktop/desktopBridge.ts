@@ -3,7 +3,7 @@ import {useLibraryStore} from '../stores/useLibraryStore.js';
 
 /** The shipped desktop client (electron/distributed-preload.cjs): mini-player above other windows and Discord status. */
 interface DesktopBridge {
-  info?: () => Promise<{discord: boolean; shortcut: string} | null>;
+  info?: () => Promise<{discord: boolean; discordUser?: {username: string; globalName?: string} | null; shortcut: string} | null>;
   nowPlaying?: (state: Record<string, unknown>) => void;
   setPrefs?: (prefs: {miniOnMinimize?: boolean; discord?: boolean}) => void;
   toggleMini?: () => void;

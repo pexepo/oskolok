@@ -35,7 +35,7 @@ export const PlaylistsPage: React.FC = () => {
           onClick={() => setIsModalOpen(true)}
           className="group text-left focus:outline-none cursor-pointer flex flex-col h-full"
         >
-          <div className="w-full aspect-square rounded-xl bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border-2 border-dashed border-blue-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-sky-400 transition-all flex items-center justify-center text-blue-600 dark:text-sky-400 shadow-xs group-hover:shadow-md group-hover:scale-[1.02]">
+          <div className="w-full aspect-square rounded-xl bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border-2 border-dashed border-blue-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-sky-400 transition flex items-center justify-center text-blue-600 dark:text-sky-400 shadow-xs group-hover:shadow-md group-hover:scale-[1.02]">
             <Plus size={32} strokeWidth={1.8} />
           </div>
           <div className="mt-2.5 flex flex-col justify-start">
@@ -48,7 +48,7 @@ export const PlaylistsPage: React.FC = () => {
 
         {/* Transfer from another platform: its own flow with a preview before anything is created */}
         <NavLink to="/playlists/import" className="group text-left focus:outline-none cursor-pointer flex flex-col h-full">
-          <div className="w-full aspect-square rounded-xl bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border-2 border-dashed border-blue-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-sky-400 transition-all flex items-center justify-center text-[#7188a3] dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-sky-400">
+          <div className="w-full aspect-square rounded-xl bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border-2 border-dashed border-blue-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-sky-400 transition flex items-center justify-center text-[#7188a3] dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-sky-400">
             <ArrowDownToLine size={30} strokeWidth={1.8} />
           </div>
           <div className="mt-2.5 flex flex-col justify-start">
@@ -64,7 +64,7 @@ export const PlaylistsPage: React.FC = () => {
             to={`/playlist/${pl.id}`}
             className="group text-left flex flex-col h-full"
           >
-            <div className="w-full aspect-square rounded-xl overflow-hidden bg-white/70 dark:bg-slate-900/70 border border-blue-100 dark:border-slate-800 hover:border-blue-300 dark:hover:border-sky-500/50 transition-all shadow-xs group-hover:shadow-md group-hover:scale-[1.02]">
+            <div className="w-full aspect-square rounded-xl overflow-hidden bg-white/70 dark:bg-slate-900/70 border border-blue-100 dark:border-slate-800 hover:border-blue-300 dark:hover:border-sky-500/50 transition shadow-xs group-hover:shadow-md group-hover:scale-[1.02]">
               <ArtworkImage
                 src={pl.artworkUrl}
                 alt={pl.title}

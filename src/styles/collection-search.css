@@ -68,3 +68,16 @@
 .playlist-genres button:hover {color:var(--ink)}
 .playlist-genres button.is-active {color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .playlist-genres button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
+
+/* Search start: recent queries instead of shelves */
+.search-recent { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.search-recent__head { display: flex; align-items: center; justify-content: space-between; }
+.search-recent__head h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--ink); }
+.search-recent__list { display: flex; flex-wrap: wrap; gap: 8px; }
+.search-recent__chip { display: inline-flex; align-items: center; border-radius: 999px; background: rgba(255, 255, 255, .45); border: 1px solid rgba(255, 255, 255, .55); box-shadow: 0 6px 16px -12px rgba(20, 50, 90, .5); transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+.dark .search-recent__chip { background: rgba(15, 23, 42, .5); border-color: rgba(255, 255, 255, .1); }
+.search-recent__chip:hover { transform: translateY(-1px); }
+.search-recent__chip:active { transform: scale(.97); }
+.search-recent__chip button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 4px 7px 12px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.search-recent__chip button + button { padding: 7px 10px 7px 4px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .search-recent__chip { transition: none; } }

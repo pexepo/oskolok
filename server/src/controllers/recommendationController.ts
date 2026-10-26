@@ -7,6 +7,7 @@ import { yandexWaveBatch, yandexWaveFeedback } from '../services/wave/yandexWave
 import { yandexAccessToken } from './musicAccounts.js';
 import { acceptedFriend } from './friendsController.js';
 import { buildBlendWave } from '../services/wave/blendWave.js';
+import { noteServed, recentlyServed, sessionSalt } from '../services/wave/served.js';
 import type { RotorEvent } from '../services/yandex/yandexApi.js';
 import type { Track } from '../types/index.js';
 
@@ -76,13 +77,18 @@ export class RecommendationController {
         // «Моя волна» Яндекса leads for a connected account unless the listener chose Осколок's own picks;
         // an unreachable Yandex or settings it cannot express fall through to the builder below.
         const yandexToken = await yandexAccessToken(res.locals.userId), token = body.engine === 'oskolok' ? null : yandexToken;
+        // What earlier sessions already gave stays out for a few days; a pool that small falls back to the session's own list.
+        const userId = base.userId!, batch = base.batch || 0, own = base.excludeTrackIds || [], served = recentlyServed(userId), salt = sessionSalt(userId, batch);
         if (token) {
-          const tracks = await yandexWaveBatch({ userId: base.userId!, token, request, limit: base.limit || 20, batch: base.batch || 0,
-            excludeTrackIds: base.excludeTrackIds || [], skippedIds: (base.skipped || []).map(s => s.id) }).catch(() => null);
-          if (tracks?.length) { res.json({ data: { tracks, status: 'ok', source: 'yandex', yandexConnected: true, version: 'yandex' } }); return; }
+          const tracks = await yandexWaveBatch({ userId, token, request, limit: base.limit || 20, batch,
+            excludeTrackIds: [...served, ...own], skippedIds: (base.skipped || []).map(s => s.id) }).catch(() => null);
+          if (tracks?.length) { noteServed(userId, tracks.map(t => t.id)); res.json({ data: { tracks, status: 'ok', source: 'yandex', yandexConnected: true, version: 'yandex' } }); return; }
         }
-        const result = await buildWaveV2({ ...request, userId: base.userId!, limit: base.limit || 20, batch: base.batch || 0,
-          excludeTrackIds: base.excludeTrackIds || [], skipped: base.skipped || [], liked: base.liked || [], recentArtists: base.recentArtists || [], finished: signals(body.finished, 40) });
+        const build = (excludeTrackIds: string[]) => buildWaveV2({ ...request, userId, limit: base.limit || 20, batch, salt,
+          excludeTrackIds, skipped: base.skipped || [], liked: base.liked || [], recentArtists: base.recentArtists || [], finished: signals(body.finished, 40) });
+        let result = await build([...served, ...own]);
+        if (!result.tracks.length && served.length) result = await build(own);
+        noteServed(userId, result.tracks.map(t => t.id));
         res.json({ data: { ...result, source: 'oskolok', yandexConnected: !!yandexToken } });
         return;
       }

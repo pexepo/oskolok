@@ -335,3 +335,5 @@ html body .oskolok-app .friends-orb.active { color: #fff; background: var(--r-ac
   /* The cover takes the height the old tab band used. */
   html .interference-modal:is(.np-v2,#np-v2) .np-panel > .np-art { width: clamp(180px, calc(var(--app-viewport-height,100dvh) - 420px - var(--tg-content-top,0px) - var(--tg-content-bottom,0px)), min(86vw,380px)) !important; }
 }
+/* Ambient loops pause while the page scrolls (performance.ts): the glass above them stops re-blurring every frame. */
+html.is-scrolling :is(.liquid-blob, .starfield-spark, .shard-holo, .mobile-cover-shard, .animate-wave-blob-1, .animate-wave-blob-2, .animate-wave-blob-3, .animate-wave-rays, .login-shard) { animation-play-state: paused !important; }

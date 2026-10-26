@@ -91,6 +91,7 @@ function clearPending(id: string) {
 async function work() {
   if (running) return;
   running = true;
+  let failed = 0;
   try {
     while (queue.length) {
       const track = queue.shift()!;
@@ -115,9 +116,13 @@ async function work() {
           queue = []; break;
         }
         useOfflineStore.setState(s => ({pending: {...s.pending, [track.id]: 'error'}}));
+        failed++;
       }
     }
-  } finally { running = false; }
+  } finally {
+    running = false;
+    if (failed) useToastStore.getState().addToast(tr(`Не удалось скачать треков: ${failed}. Источник сейчас недоступен — попробуйте позже.`, `Could not download ${failed} tracks. The source is unavailable right now — try later.`), 'warning', 6000);
+  }
 }
 
 /** Queues tracks for download (blocked ones and duplicates are skipped). */
@@ -129,6 +134,7 @@ export function downloadTracks(tracks: Track[]) {
   const fresh = tracks.filter(t => t.access !== 'blocked' && !entries[t.id] && pending[t.id] !== 'queued' && pending[t.id] !== 'downloading' && !queue.some(q => q.id === t.id));
   if (!fresh.length) return;
   queue.push(...fresh);
+  useToastStore.getState().addToast(tr(`Скачиваем на устройство: ${fresh.length}. Найдёте в «Коллекция» → «Скачанное».`, `Downloading to this device: ${fresh.length}. Find them in Collection → Downloads.`), 'info', 4000);
   useOfflineStore.setState(s => ({pending: {...s.pending, ...Object.fromEntries(fresh.map(t => [t.id, 'queued' as Status]))}}));
   void work();
 }

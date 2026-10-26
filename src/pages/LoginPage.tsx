@@ -3,6 +3,7 @@ import {useTelegramStore} from '../telegram/runtime.js';
 import {apiClient} from '../api/apiClient.js';
 import {useTranslation} from '../stores/useLanguageStore.js';
 import { TelegramLoginFlow } from '../components/telegram/TelegramLoginFlow.js';
+import { startDiscord } from '../discord/discordAuth.js';
 import logo from '../assets/logo.png';
 import mascot from '../assets/oskolok-mascot.webp';
 import '../styles/login.css';
@@ -30,7 +31,7 @@ export function LoginPage() {
     <section className="login-card">
       <h1 className="login-wordmark" data-text={t('Осколок','Oskolok')}>{t('Осколок','Oskolok')}</h1>
       <p className="login-lead">{t('Войдите через Telegram — музыка, любимое и текущий трек в профиле.','Sign in with Telegram — your music, favourites and now playing on your profile.')}</p>
-      {denied?<div role="alert" className="login-denied"><p>{t('Проект в бета-тесте, и у этого аккаунта пока нет доступа.','The project is in beta and this account has no access yet.')}</p><button className="secondary-button" onClick={()=>location.reload()}>{t('Проверить доступ','Check access')}</button><a className="secondary-button login-beta-link" href="/beta">{t('Подать заявку на бету','Apply for the beta')}</a><button className="text-button" onClick={()=>void apiClient.request('/telegram/login/logout',{method:'POST',body:'{}'}).then(()=>location.reload())}>{t('Сменить аккаунт','Switch account')}</button></div>:<TelegramLoginFlow />}
+      {denied?<div role="alert" className="login-denied"><p>{t('Проект в бета-тесте, и у этого аккаунта пока нет доступа.','The project is in beta and this account has no access yet.')}</p><button className="secondary-button" onClick={()=>location.reload()}>{t('Проверить доступ','Check access')}</button><a className="secondary-button login-beta-link" href="/beta">{t('Подать заявку на бету','Apply for the beta')}</a><button className="text-button" onClick={()=>void apiClient.request('/telegram/login/logout',{method:'POST',body:'{}'}).then(()=>location.reload())}>{t('Сменить аккаунт','Switch account')}</button></div>:<><TelegramLoginFlow /><button type="button" className="secondary-button login-discord" onClick={()=>void startDiscord('login')}>{t('Войти через Discord','Sign in with Discord')}</button><small className="login-discord-note">{t('Для аккаунтов, где Discord подключён в настройках.','For accounts that connected Discord in settings.')}</small></>}
       <p className="login-site-links"><a href="/">{t('Об Осколке','About Oskolok')}</a><a href="/beta">{t('Бета-тест','Beta')}</a><a href="/download">{t('Приложения','Apps')}</a></p>
     </section>
 

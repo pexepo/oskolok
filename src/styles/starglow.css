@@ -878,3 +878,7 @@ html.home-deep .oskolok-app .mobile-cover-stage { opacity: .14; }
 .set-download:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
 .set-download:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }
 .set-download:first-child { color: var(--accent, inherit); border-color: color-mix(in srgb, var(--accent, currentColor) 45%, transparent); }
+
+/* Discord account row in settings */
+.set-row.discord-account { gap: 12px; }
+.discord-avatar { width: 36px; height: 36px; border-radius: 50%; flex: none; object-fit: cover; }

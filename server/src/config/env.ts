@@ -7,6 +7,8 @@ const envSchema = z.object({
   TELEGRAM_MODE: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
   TELEGRAM_BOT_TOKEN: z.string().default(''),
   TELEGRAM_BOT_USERNAME: z.string().regex(/^[a-zA-Z0-9_]{5,32}$/).default('oskolokplayerbot'),
+  // Public application id (not a secret): Discord sign-in on the site and the desktop Rich Presence.
+  DISCORD_CLIENT_ID: z.string().regex(/^\d{15,25}$/).default('1563136390177366148'),
   SOUNDCLOUD_CLIENT_ID: z.string().optional().default(''),
   SOUNDCLOUD_CLIENT_SECRET: z.string().optional().default(''),
   SPOTIFY_CLIENT_ID: z.string().optional().default(''),

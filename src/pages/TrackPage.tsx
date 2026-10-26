@@ -119,7 +119,7 @@ export const TrackPage: React.FC = () => {
           <div className="flex items-center gap-4 pt-3 flex-wrap">
             <button
               onClick={handlePlay}
-              className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-blue-500/25 dark:shadow-[0_0_15px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-blue-500/25 dark:shadow-[0_0_15px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95 transition cursor-pointer"
             >
               {isCurrent && isPlaying ? (
                 <>
@@ -212,7 +212,7 @@ export const TrackPage: React.FC = () => {
             }
             setFullPlayerOpen(true);
           }}
-          className="h-80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-blue-100/90 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs cursor-pointer hover:border-blue-300 dark:hover:border-slate-700 transition-all"
+          className="h-80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-blue-100/90 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs cursor-pointer hover:border-blue-300 dark:hover:border-slate-700 transition"
           title={t('Нажмите, чтобы развернуть караоке', 'Click to expand karaoke')}
         >
           <LyricsBoundary resetKey={track.id}>

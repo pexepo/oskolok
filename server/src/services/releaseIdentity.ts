@@ -67,6 +67,9 @@ const dominantOther = (p: Profile) => { let best = '', n = 0; for (const [k, v] 
 export function foreignReleases(releases: ReleaseFacts[], ctx: ArtistContext): Set<string> {
   const dropped = new Set<string>();
   if (releases.length < 2) return dropped;
+  // A known discography (≥ 5 titles from another source) sharing no title with this page: the whole page is a namesake's.
+  const known = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
+  if (known.size >= 5 && !releases.some(r => [r.title, ...r.tracks.map(t => t.title)].some(t => known.has(key(t))))) return new Set(releases.map(r => r.id));
   // Union-find over releases.
   const parent = releases.map((_, i) => i);
   const find = (i: number): number => parent[i] === i ? i : (parent[i] = find(parent[i]));
@@ -195,7 +198,7 @@ async function decide(artistId: string, referenceTitles: string[]): Promise<{ id
   // Deezer's quota can starve a first look; a partial one is used but retried soon.
   const complete = facts.length >= list.length * 0.95;
   if (ids.size) logger.info({ artistId, dropped: ids.size, of: facts.length, listed: list.length }, 'Namesake releases hidden from artist page');
-  const data = JSON.stringify([...ids]), cacheKey = `dz-foreign:v2:${artistId}:${refsKey(referenceTitles)}`;
+  const data = JSON.stringify([...ids]), cacheKey = `dz-foreign:v3:${artistId}:${refsKey(referenceTitles)}`;
   if (complete) void prisma.artistEnrichment.upsert({ where: { id: cacheKey }, create: { id: cacheKey, data }, update: { data } }).catch(() => {});
   return { ids, complete };
 }
@@ -227,7 +230,7 @@ export async function namesakeReleaseIds(artistId: string, options: { referenceT
     pending.set(raw, job);
   }
   const stored = async () => {
-    const row = await prisma.artistEnrichment.findUnique({ where: { id: `dz-foreign:v2:${raw}` } }).catch(() => null);
+    const row = await prisma.artistEnrichment.findUnique({ where: { id: `dz-foreign:v3:${raw}` } }).catch(() => null);
     return row ? new Set<string>(JSON.parse(row.data)) : new Set<string>();
   };
   const timeout = new Promise<null>(r => setTimeout(() => r(null), options.budgetMs ?? 7000));

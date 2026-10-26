@@ -25,6 +25,8 @@ interface TrackRowProps {
   index?: number;
   playlistId?: string;
   collection?: Track[];
+  /** Overrides what a click plays (the queue page jumps within the queue instead of replacing it). */
+  onPlay?: () => void | Promise<void>;
 }
 
 export const TrackRow: React.FC<TrackRowProps> = ({
@@ -32,6 +34,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   index,
   playlistId,
   collection,
+  onPlay,
 }) => {
   const t = useTranslation();
   const { isCurrent, isPlaying, playTrack, playCollection, togglePlay } = usePlayerStore(useShallow(s => ({ isCurrent: s.currentTrack?.id===track.id, isPlaying: s.currentTrack?.id===track.id&&s.isPlaying, playTrack: s.playTrack, playCollection: s.playCollection, togglePlay: s.togglePlay })));
@@ -47,6 +50,8 @@ export const TrackRow: React.FC<TrackRowProps> = ({
     if (!isPlayable) return;
     if (isCurrent) {
       togglePlay();
+    } else if (onPlay) {
+      await onPlay();
     } else if (collection && collection.length > 0 && index !== undefined) {
       await playCollection(collection, index);
     } else {
@@ -72,7 +77,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
         onMouseEnter={() => { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(() => { apiClient.prefetchTrack(track.id).catch(() => {}); }, 450); }}
         onMouseLeave={() => clearTimeout(hoverTimer.current)}
         className={clsx(
-          'track-row group flex items-center justify-between gap-3 px-3 py-2 rounded-xl transition-all duration-150 select-none',
+          'track-row group flex items-center justify-between gap-3 px-3 py-2 rounded-xl transition-colors duration-150 select-none',
           isCurrent
             ? 'bg-blue-50/70 dark:bg-sky-500/15 text-blue-600 dark:text-sky-300'
             : 'hover:bg-blue-50/40 dark:hover:bg-slate-800/50'

@@ -46,7 +46,7 @@ export const Header: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('Трек, исполнитель или альбом', 'Track, artist or album')}
-          className="w-full bg-[#181818] border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+          className="w-full bg-[#181818] border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
         />
       </form>
     </header>

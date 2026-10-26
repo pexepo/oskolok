@@ -3,7 +3,8 @@ import {PageSkeleton,LoadingSurface,SkeletonRows} from '../components/common/Ske
 import {ZoomCoverButton} from '../components/common/CoverViewer.js';
 import {Link,useNavigate,useParams} from 'react-router-dom';
 import {useQuery} from '@tanstack/react-query';
-import {Play,Shuffle,Search,X} from 'lucide-react';
+import {Play,Shuffle,Search,X,ChevronDown} from 'lucide-react';
+import {Carousel} from '../components/common/Carousel.js';
 import {apiClient} from '../api/apiClient.js';
 import {usePlayerStore} from '../stores/usePlayerStore.js';
 import {ArtworkImage} from '../components/common/ArtworkImage.js';
@@ -18,8 +19,7 @@ import {ArtistUnreleasedSection} from '../components/community/ArtistUnreleasedS
 import type {Release,Track,TrackPopularity} from '../types/index.js';
 import '../styles/artist.css';
 
-type Kind='all'|'album'|'ep'|'single';
-type Order='new'|'old'|'popular'|'unpopular';
+type Order='new'|'popular';
 
 const platformId=(name:string)=>/spotify/i.test(name)?'spotify':/soundcloud/i.test(name)?'soundcloud':/яндекс|yandex/i.test(name)?'yandex':/genius/i.test(name)?'genius':/deezer/i.test(name)?'deezer':'other';
 /** Same song on SoundCloud and in the catalogue: credits, «official audio», file extensions and an «Artist - » prefix don't make it different; remix/cover/live words stay. */
@@ -49,7 +49,7 @@ function PopularityMeter({value,pending,max=100}:{value?:TrackPopularity|null;pe
 
 export function ArtistPage(){
  const {id=''}=useParams(),t=useTranslation();
- const [filter,setFilter]=useState(''),[kind,setKind]=useState<Kind>('all'),[order,setOrder]=useState<Order>('new');
+ const [filter,setFilter]=useState(''),[order,setOrder]=useState<Order>('new'),[topOpen,setTopOpen]=useState(false),[allOpen,setAllOpen]=useState(false),[scOpen,setScOpen]=useState(false);
  const detail=useQuery({queryKey:['artist-details',id],queryFn:()=>apiClient.getArtistDetails(id)});
  const navigate=useNavigate();
  const songs=useQuery({queryKey:['artist-tracks',id],queryFn:()=>apiClient.getArtistTracks(id,1,500)});
@@ -84,20 +84,18 @@ export function ArtistPage(){
   return (r:Release)=>byId.get(r.id)??byTitle.get(titleKey(r.title))??r.popularity;
  },[tracks,pop]);
  const hasPopularity=tracks.some(tr=>pop[tr.id])||releases.some(r=>typeof r.popularity==='number');
- const popular=order==='popular'||order==='unpopular';
- // Popularity orders need data; fall back to newest until it arrives.
- const effectiveOrder:Order=popular&&!hasPopularity?'new':order;
- const kindCount=useMemo(()=>({all:releases.length,album:releases.filter(r=>r.type==='album').length,ep:releases.filter(r=>r.type==='ep').length,single:releases.filter(r=>r.type==='single').length}),[releases]);
- const visible=useMemo(()=>releases
-  .filter(r=>(kind==='all'||r.type===kind)&&(!q||r.title.toLocaleLowerCase().includes(q)||tracks.some(tr=>tr.release?.id===r.id&&tr.title.toLocaleLowerCase().includes(q))))
-  .sort((a,b)=>effectiveOrder==='popular'||effectiveOrder==='unpopular'?byPopularity(releasePopularity(a),releasePopularity(b),effectiveOrder==='popular')||(b.date||'').localeCompare(a.date||'')
-   :effectiveOrder==='old'?(a.date||'9999').localeCompare(b.date||'9999'):(b.date||'').localeCompare(a.date||'')),[releases,kind,q,effectiveOrder,tracks,releasePopularity]);
+ // Popularity order needs data; fall back to the source order until it arrives.
+ const effectiveOrder:Order=order==='popular'&&!hasPopularity?'new':order;
+ const byPop=(list:Track[])=>list.map((tr,i)=>({tr,i})).sort((a,b)=>byPopularity(pop[a.tr.id]?.popularity,pop[b.tr.id]?.popularity,true)||a.i-b.i).map(x=>x.tr);
+ // The catalogue lists the artist's top tracks first, so without popularity data its order is the best guess.
+ const topTracks=useMemo(()=>(hasPopularity?byPop(tracks):tracks).slice(0,10),[tracks,pop,hasPopularity]);
+ const newest=(a:Release,b:Release)=>(b.date||'').localeCompare(a.date||'')||(releasePopularity(b)??-1)-(releasePopularity(a)??-1);
+ const albums=useMemo(()=>releases.filter(r=>r.type!=='single').sort(newest),[releases,releasePopularity]);
+ const singles=useMemo(()=>releases.filter(r=>r.type==='single').sort(newest),[releases,releasePopularity]);
  const filteredTracks=useMemo(()=>{
-  const list=tracks.filter(tr=>(!q||tr.title.toLocaleLowerCase().includes(q))&&(kind==='all'||releases.some(r=>r.id===tr.release?.id&&r.type===kind)));
-  if(effectiveOrder!=='popular'&&effectiveOrder!=='unpopular')return list;
-  // Stable sort: equal popularity keeps the source's own order.
-  return list.map((tr,i)=>({tr,i})).sort((a,b)=>byPopularity(pop[a.tr.id]?.popularity,pop[b.tr.id]?.popularity,effectiveOrder==='popular')||a.i-b.i).map(x=>x.tr);
- },[tracks,q,kind,releases,effectiveOrder,pop]);
+  const list=tracks.filter(tr=>!q||tr.title.toLocaleLowerCase().includes(q)||tr.release?.title.toLocaleLowerCase().includes(q));
+  return effectiveOrder==='popular'?byPop(list):list;
+ },[tracks,q,effectiveOrder,pop]);
 
  if(detail.isPending)return <PageSkeleton label={t('Собираем портрет исполнителя…','Loading artist…')} rows={5}/>;
  if(!data)return <div className="crystal-slab artist-error"><h1>{t('Не удалось открыть артиста','Artist unavailable')}</h1><button className="profile-btn" onClick={()=>detail.refetch()}>{t('Попробовать снова','Retry')}</button></div>;
@@ -106,14 +104,17 @@ export function ArtistPage(){
  const aliases=(genius?.alternateNames||[]).filter(n=>n.trim()&&n.toLocaleLowerCase()!==artist.name.toLocaleLowerCase());
  const shuffled=()=>{const list=[...tracks];for(let i=list.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[list[i],list[j]]=[list[j],list[i]];}return list;};
  const typeLabel=(type?:string)=>type==='single'?t('Сингл','Single'):type==='ep'?'EP':type==='album'?t('Альбом','Album'):t('Релиз','Release');
- const kinds:Array<[Kind,string]>=[['all',t('Все','All')],['album',t('Альбомы','Albums')],['ep','EP'],['single',t('Синглы','Singles')]];
- const orders:Array<[Order,string,boolean]>=[['new',t('Новые','Newest'),true],['old',t('Старые','Oldest'),true],['popular',t('Популярные','Popular'),hasPopularity],['unpopular',t('Непопулярные','Less popular'),hasPopularity]];
+
  const popularityHint=popularity.isFetching?t('Загружаем популярность треков…','Loading track popularity…'):t('Источники не сообщили популярность треков этого исполнителя','No source reported track popularity for this artist');
  const trackRows=(list:Track[],meter:boolean)=>list.map((track,i)=><div key={track.id} className={meter?'artist-track-line':undefined}>
   <TrackRow track={track} index={i} collection={list}/>
   {meter&&<PopularityMeter value={pop[track.id]} pending={popularity.isFetching} max={popMax}/>}
  </div>);
 
+ const releaseCard=(r:Release)=><Link to={'/release/'+encodeURIComponent(r.id)} key={r.id} className="artist-release">
+  <span className="artist-release-cover"><ArtworkImage src={r.artworkUrl} alt={r.title} className="w-full h-full"/><i/><ZoomCoverButton src={r.artworkUrl} title={r.title}/></span>
+  <strong title={r.title}>{r.title}</strong><small>{r.date?.slice(0,4)||'—'} · {typeLabel(r.type)}</small>
+ </Link>;
  return <div className="artist-v2">
   <section className="artist-card crystal-slab">
    <div className="artist-card-banner">
@@ -149,29 +150,35 @@ export function ArtistPage(){
    </ul>}
   </section>
 
+  <section className="artist-tracks crystal-slab artist-top">
+   <div className="artist-toolbar"><h2>{t('Популярные треки','Popular tracks')}</h2>{hasPopularity&&<small className="artist-pop-legend">{t('Популярность','Popularity')}</small>}</div>
+   {songs.isPending?<LoadingSurface loading label={t('Загружаем треки…','Loading tracks…')} skeleton={<SkeletonRows rows={5}/>}/>:songs.isError?<button className="profile-btn" onClick={()=>songs.refetch()}>{t('Повторить загрузку','Retry')}</button>:topTracks.length?<>
+    {trackRows(topTracks.slice(0,topOpen?10:5),true)}
+    {topTracks.length>5&&<button type="button" className="text-button artist-more" onClick={()=>setTopOpen(v=>!v)}>{topOpen?t('Свернуть','Show less'):t('Ещё 5','5 more')}</button>}
+   </>:<p className="artist-empty-line">{t('Треки не найдены','No tracks found')}</p>}
+  </section>
+
+  {albums.length>0&&<Carousel title={t('Альбомы и EP','Albums and EPs')} count={albums.length} className="artist-shelf">{albums.map(releaseCard)}</Carousel>}
+  {singles.length>0&&<Carousel title={t('Синглы','Singles')} count={singles.length} className="artist-shelf">{singles.map(releaseCard)}</Carousel>}
+  {!albums.length&&!singles.length&&!detail.isFetching&&<p className="crystal-slab artist-empty">{t('Релизы не найдены.','No releases found.')}</p>}
+
   <GeniusArtistSection genius={genius} fallback={artist.description}/>
 
-  <section className="artist-releases">
+  {tracks.length>10&&<section className="artist-tracks crystal-slab artist-all">
    <div className="artist-toolbar">
-    <h2>{t('Релизы','Releases')}</h2>
-    <div className="artist-segments" role="radiogroup" aria-label={t('Тип релиза','Release type')}>{kinds.map(([value,label])=><button key={value} role="radio" aria-checked={kind===value} className={kind===value?'is-active':''} disabled={value!=='all'&&!kindCount[value]} onClick={()=>setKind(value)}>{label}<small>{kindCount[value]}</small></button>)}</div>
-    <div className="artist-segments" role="radiogroup" aria-label={t('Сортировка','Sort')}>{orders.map(([value,label,enabled])=><button key={value} role="radio" aria-checked={effectiveOrder===value} className={effectiveOrder===value?'is-active':''} disabled={!enabled} title={!enabled?popularityHint:undefined} onClick={()=>setOrder(value)}>{label}</button>)}</div>
-    <label className="artist-search"><Search size={15}/><input placeholder={t('Найти трек или релиз','Find a track or release')} value={filter} onChange={e=>setFilter(e.target.value)}/>{filter&&<button type="button" aria-label={t('Очистить','Clear')} onClick={()=>setFilter('')}><X size={13}/></button>}</label>
+    <h2><button type="button" className="artist-all-toggle" aria-expanded={allOpen} onClick={()=>setAllOpen(v=>!v)}>{t('Все треки','All tracks')}<small>{tracks.length}</small><ChevronDown size={18} className={allOpen?'is-open':''}/></button></h2>
+    {allOpen&&<>
+     <div className="artist-segments" role="radiogroup" aria-label={t('Сортировка','Sort')}>{([['new',t('Как в каталоге','Catalogue order')],['popular',t('Популярные','Popular')]] as Array<[Order,string]>).map(([value,label])=><button key={value} role="radio" aria-checked={effectiveOrder===value} className={effectiveOrder===value?'is-active':''} disabled={value==='popular'&&!hasPopularity} title={value==='popular'&&!hasPopularity?popularityHint:undefined} onClick={()=>setOrder(value)}>{label}</button>)}</div>
+     <label className="artist-search"><Search size={15}/><input placeholder={t('Найти трек или релиз','Find a track or release')} value={filter} onChange={e=>setFilter(e.target.value)}/>{filter&&<button type="button" aria-label={t('Очистить','Clear')} onClick={()=>setFilter('')}><X size={13}/></button>}</label>
+    </>}
    </div>
-   {!hasPopularity&&!popularity.isFetching&&tracks.length>0&&<p className="artist-note">{t('Сортировка по популярности недоступна: источники не сообщили этот показатель.','Popularity sorting is unavailable: no source reported it.')}</p>}
-   {visible.length?<div className="artist-release-grid">{visible.map(r=><Link to={'/release/'+encodeURIComponent(r.id)} key={r.id} className="artist-release">
-    <span className="artist-release-cover"><ArtworkImage src={r.artworkUrl} alt={r.title} className="w-full h-full"/><i/><ZoomCoverButton src={r.artworkUrl} title={r.title}/></span>
-    <strong>{r.title}</strong><small>{r.date?.slice(0,4)||'—'} · {typeLabel(r.type)}</small>
-   </Link>)}</div>:<p className="crystal-slab artist-empty">{t('Релизы не найдены.','No releases found.')}</p>}
-  </section>
+   {allOpen&&(filteredTracks.length?trackRows(filteredTracks,true):<p className="artist-empty-line">{t('Треки не найдены','No tracks found')}</p>)}
+  </section>}
 
-  <section className="artist-tracks crystal-slab">
-   <div className="artist-toolbar"><h2>{t('Треки','Tracks')}</h2>{q&&<small>{filteredTracks.length} {t('найдено','found')}</small>}{hasPopularity&&<small className="artist-pop-legend">{t('Популярность','Popularity')}</small>}</div>
-   {songs.isPending?<LoadingSurface loading label={t('Загружаем треки…','Loading tracks…')} skeleton={<SkeletonRows rows={8}/>}/>:songs.isError?<button className="profile-btn" onClick={()=>songs.refetch()}>{t('Повторить загрузку','Retry')}</button>:filteredTracks.length?trackRows(filteredTracks,true):<p className="artist-empty-line">{t('Треки не найдены','No tracks found')}</p>}
-  </section>
   {soundcloudOnly.length>0&&<section className="artist-tracks crystal-slab artist-tracks--extra">
    <div className="artist-toolbar"><h2><span className="artist-extra-logo"><ServiceLogo id="soundcloud" size={18}/></span>{t('Только на SoundCloud','Only on SoundCloud')}</h2><small>{soundcloudOnly.length}</small></div>
-   {trackRows(soundcloudOnly,false)}
+   {trackRows(soundcloudOnly.slice(0,scOpen?soundcloudOnly.length:6),false)}
+   {soundcloudOnly.length>6&&<button type="button" className="text-button artist-more" onClick={()=>setScOpen(v=>!v)}>{scOpen?t('Свернуть','Show less'):t(`Показать все (${soundcloudOnly.length})`,`Show all (${soundcloudOnly.length})`)}</button>}
   </section>}
   <ArtistUnreleasedSection artistName={artist.name} artistIds={[artist.id,data.linked?.spotifyId,data.linked?.soundcloudId].filter((v):v is string=>Boolean(v))}/>
  </div>;

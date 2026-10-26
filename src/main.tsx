@@ -1,4 +1,5 @@
 import { isAppPath, isSitePath, redirectTarget } from './routing.js';
+import { captureDiscordRedirect } from './discord/capture.js';
 
 const container = document.getElementById('root')!;
 const read = (fn: () => boolean) => { try { return fn(); } catch { return false; } };
@@ -8,6 +9,7 @@ if (fileMode) {
   // Desktop fallback build: hash routing, player only.
   void import('./appEntry.js').then(m => m.startApp(container));
 } else {
+  captureDiscordRedirect();
   const target = redirectTarget(location.pathname, location.search, location.hash, {
     userAgent: navigator.userAgent,
     search: location.search,

@@ -60,6 +60,35 @@ export function deezerArtist(name: string): Promise<DzArtist | null> {
   });
 }
 
+const byIdCache = memo<DzArtist | null>(24 * HOUR);
+export function deezerArtistById(id: string | number): Promise<DzArtist | null> {
+  return byIdCache(String(id), async () => {
+    const a = await getJson(`${DEEZER}/artist/${encodeURIComponent(String(id))}`);
+    return a?.id ? { id: Number(a.id), name: String(a.name), fans: Number(a.nb_fan) || 0 } : null;
+  });
+}
+
+const namesakesCache = memo<DzArtist[]>(24 * HOUR);
+const songKey = (title: string) => normalizeMusicText(title.replace(/\s*[([].*$/, ''));
+/** The listener's own artist, not a namesake: the Deezer id their tracks carry, else the namesake whose
+ * catalogue shares a song title with those tracks, else the most followed one. */
+export async function deezerArtistFor(name: string, known: Track[]): Promise<DzArtist | null> {
+  const want = latinFold(name);
+  const own = known.find(t => t.source === 'deezer' && t.artist.sourceId && latinFold(t.artist.name.split(/\s*,\s*/)[0]) === want);
+  if (own) { const exact = await deezerArtistById(own.artist.sourceId!).catch(() => null); if (exact) return exact; }
+  const namesakes = await namesakesCache(want, async () => ((await getJson(`${DEEZER}/search/artist?q=${encodeURIComponent(name)}&limit=10`))?.data || [])
+    .filter((a: any) => latinFold(String(a.name || '')) === want)
+    .map((a: any) => ({ id: Number(a.id), name: String(a.name), fans: Number(a.nb_fan) || 0 }))
+    .sort((a: DzArtist, b: DzArtist) => b.fans - a.fans));
+  if (namesakes.length < 2 || !known.length) return namesakes[0] || null;
+  const titles = new Set(known.map(t => songKey(t.title)));
+  for (const a of namesakes.slice(0, 4)) {
+    const top = await artistTopTracks(a, 50).catch(() => [] as Track[]);
+    if (top.some(t => titles.has(songKey(t.title)))) return a;
+  }
+  return namesakes[0];
+}
+
 const topCache = memo<Track[]>(12 * HOUR);
 export function artistTopTracks(artist: DzArtist, limit = 25): Promise<Track[]> {
   return topCache(`${artist.id}:${limit}`, async () => ((await getJson(`${DEEZER}/artist/${artist.id}/top?limit=${limit}`))?.data || [])

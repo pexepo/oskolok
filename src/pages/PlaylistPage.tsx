@@ -233,7 +233,7 @@ export const PlaylistPage: React.FC = () => {
               onClick={handleSaveToLibrary}
               disabled={isSaving || isSaved}
               className={clsx(
-                'flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm transition-all shadow-xs select-none cursor-pointer',
+                'flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm transition shadow-xs select-none cursor-pointer',
                 isSaved
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                   : 'bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-[#162b50] dark:text-slate-200 border border-blue-200/80 dark:border-slate-700 active:scale-95'

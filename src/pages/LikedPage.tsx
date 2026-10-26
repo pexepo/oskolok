@@ -132,7 +132,7 @@ export const LikedPage: React.FC = () => {
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder={t('Найти в понравившихся...', 'Find in liked...')}
-            className="w-full bg-white/80 dark:bg-slate-900/60 border border-blue-200/80 dark:border-slate-700 rounded-xl pl-10 pr-9 py-2 text-sm text-[#162b50] dark:text-slate-100 placeholder-[#7188a3] dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 dark:focus:border-sky-400 shadow-xs transition-all"
+            className="w-full bg-white/80 dark:bg-slate-900/60 border border-blue-200/80 dark:border-slate-700 rounded-xl pl-10 pr-9 py-2 text-sm text-[#162b50] dark:text-slate-100 placeholder-[#7188a3] dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 dark:focus:border-sky-400 shadow-xs transition"
           />
           {filterQuery && (
             <button

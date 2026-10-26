@@ -62,7 +62,7 @@ export const LibraryPage: React.FC = () => {
               className="group inline-flex items-center gap-1.5 font-black text-2xl md:text-3xl text-[#162b50] dark:text-slate-100 hover:text-blue-600 dark:hover:text-sky-400 transition-colors"
             >
               <span>{t('Мне нравится', 'Liked')}</span>
-              <ChevronRight size={26} className="text-[#7188a3] dark:text-slate-400 group-hover:translate-x-1 group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-all stroke-[2.5]" />
+              <ChevronRight size={26} className="text-[#7188a3] dark:text-slate-400 group-hover:translate-x-1 group-hover:text-blue-600 dark:group-hover:text-sky-400 transition stroke-[2.5]" />
             </NavLink>
             <div className="text-xs font-semibold text-[#5a6e85] dark:text-slate-400 mt-0.5">
               {likedTracks.length} {t(likedTracks.length === 1 ? 'трек' : likedTracks.length > 1 && likedTracks.length < 5 ? 'трека' : 'треков', likedTracks.length === 1 ? 'track' : 'tracks')}

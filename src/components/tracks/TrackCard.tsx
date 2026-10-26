@@ -44,7 +44,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({ track, collection, index }
         onMouseEnter={() => {
           apiClient.prefetchTrack(track.id).catch(() => {});
         }}
-        className="frost-surface group relative bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border border-blue-100/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-700 p-3.5 rounded-2xl transition-all duration-300 flex flex-col justify-between select-none shadow-xs hover:shadow-md"
+        className="frost-surface group relative bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-800/80 border border-blue-100/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-700 p-3.5 rounded-2xl transition duration-300 flex flex-col justify-between select-none shadow-xs hover:shadow-md"
       >
         <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-blue-50/50 dark:bg-slate-800/40">
           <ArtworkImage src={track.artworkUrl} alt={track.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 rounded-xl" />
@@ -52,7 +52,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({ track, collection, index }
           {/* Hover Play Button */}
           <button
             onClick={handlePlay}
-            className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200 cursor-pointer"
+            className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition duration-200 cursor-pointer"
           >
             {isCurrent && isPlaying ? (
               <Pause size={18} className="fill-white dark:fill-slate-950" />

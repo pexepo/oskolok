@@ -50,6 +50,7 @@ export class AudioManager {
   /** The transition now playing, for the player's «сводим» chip; null when none. */
   public mixNow: { preset: MixPlan['preset']; beatmatched: boolean; from?: number; to?: number } | null = null;
   private crossfadeAdvance = false;
+  private mixWarmed = '';
   private elementGains = new Map<HTMLAudioElement, GainNode>();
   private volumeRamps = new Map<HTMLAudioElement, ReturnType<typeof setInterval>>();
   private currentTrack: Track | null = null;
@@ -414,6 +415,9 @@ export class AudioManager {
     if (this.stopAfterCurrent || queueManager.getState().repeatMode === 'one') return;
     const nextTrack = queueManager.peekNextTrack(), current = this.currentTrack;
     if (!nextTrack || !current || dur - cur > 90) return;
+    // The wave appends its next batch after the track started, so the usual prefetch may have missed B:
+    // warm B (audio + beat analysis) here, or it starts seconds late and the transition falls apart.
+    if (this.mixWarmed !== nextTrack.id) { this.mixWarmed = nextTrack.id; apiClient.prefetchTrack(nextTrack.id, true).catch(() => {}); apiClient.prefetchTrack(current.id, true).catch(() => {}); }
     // Analyses are asked for in the last 90 s; whatever has arrived by the planned point is used.
     const a = mixAnalysis(current.id) ?? null, b = mixAnalysis(nextTrack.id) ?? null;
     const plan = planMix(a, b, dur, secs || 6, this.getMixSettings());
@@ -427,9 +431,8 @@ export class AudioManager {
     this.rampElement(incoming, 0, 0);
     this.pendingMix = { el: incoming, out, plan, a, b };
     this.setMixNow({ preset: plan.preset, beatmatched: plan.beatmatched, from: a?.bpm, to: b?.bpm });
-    const release = () => { if (this.fading === out) this.releaseFading(out); };
-    out.addEventListener('ended', release, { once: true });
-    setTimeout(release, (plan.at + plan.duration - cur) * 1000 + 600);
+    // A keeps playing until B really sounds (startPendingMix sets the end of the hand-over) or A itself ends.
+    out.addEventListener('ended', () => { if (this.fading === out) this.releaseFading(out); }, { once: true });
     this.crossfadeAdvance = true;
     try { void this.next('natural'); } finally { this.crossfadeAdvance = false; }
   }
@@ -438,7 +441,7 @@ export class AudioManager {
     const m = this.pendingMix; if (!m || m.el !== el) return;
     this.pendingMix = null;
     const ctx = this.equalizerContext, outChain = this.mixChains.get(m.out), inChain = this.mixChains.get(el), outGain = this.elementGains.get(m.out), inGain = this.elementGains.get(el);
-    if (!ctx || !outChain || !inChain || !outGain || !inGain) { this.rampElement(el, 1, m.plan.duration); return; }
+    if (!ctx || !outChain || !inChain || !outGain || !inGain) { this.rampElement(el, 1, m.plan.duration); this.rampElement(m.out, 0, m.plan.duration); setTimeout(() => { if (this.fading === m.out) this.releaseFading(m.out); }, m.plan.duration * 1000 + 600); return; }
     const elapsed = Math.max(0, m.out.currentTime - m.plan.at), p0 = Math.min(.95, elapsed / m.plan.duration);
     const frac = (x: number) => x - Math.floor(x);
     if (m.plan.beatmatched && m.a && m.b) {
@@ -453,6 +456,7 @@ export class AudioManager {
     } else if (m.plan.bStart > 0) { try { el.currentTime = m.plan.bStart + elapsed; } catch { /* plays from the start */ } }
     runMix(ctx, m.plan, p0, { chain: outChain, gain: outGain }, { chain: inChain, gain: inGain }, m.a?.beat ?? .5);
     const left = m.plan.duration * (1 - p0);
+    setTimeout(() => { if (this.fading === m.out) this.releaseFading(m.out); }, left * 1000 + 600);
     setTimeout(() => {
       if (this.audio !== el) return;
       resetChain(ctx, inChain, .3); this.setMixNow(null);

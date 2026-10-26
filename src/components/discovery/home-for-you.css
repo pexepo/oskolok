@@ -40,3 +40,8 @@
 @media(max-width:640px){.hfy-row{grid-template-columns:1fr}.hfy-moment{padding:16px}.hfy-activities{flex-wrap:nowrap;overflow-x:auto;margin:0 -4px;padding:0 4px 4px}.hfy-activities button{flex:none}.hfy-activities{scrollbar-width:none}.hfy-activities::-webkit-scrollbar{display:none}.hfy-card{min-height:0}}
 @media(hover:none){.hfy-recent__play{opacity:1;transform:none;width:30px;height:30px}}
 @media(prefers-reduced-motion:reduce){.hfy-card,.hfy-activities button,.hfy-recent__play{transition:none}.hfy-card:hover{transform:none}}
+
+/* «Популярно в Осколке» */
+.hfy-popular { margin: 22px 0 6px; }
+.hfy-popular .hfy-recent__item { width: 100%; min-width: 0; }
+.hfy-popular__rank { position: absolute; left: 8px; bottom: 6px; font-style: normal; font-size: 28px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 2px 12px rgba(10, 20, 40, .55); pointer-events: none; }

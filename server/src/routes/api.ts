@@ -30,6 +30,7 @@ import {friendsRoutes} from '../controllers/friendsController.js';
 import {rewardRoutes} from '../controllers/rewardsController.js';
 import {recordingRoutes} from '../controllers/recordingController.js';
 import {sitePublicRoutes,siteProtectedRoutes} from '../controllers/siteController.js';
+import {discordPublicRoutes,discordRoutes} from '../controllers/discordController.js';
 import {trackFactsController} from '../services/trackFacts.js';
 const router = Router();
 router.use('/admin',adminRoutes);
@@ -39,7 +40,9 @@ router.get('/unreleased/:id/cover',unreleasedCover);
 router.get('/artwork',rateLimit({windowMs:60000,limit:300,standardHeaders:'draft-7',legacyHeaders:false}),artworkController);
 // Public site: beta applications, their status and the release catalogue need no Telegram session.
 router.use('/site',sitePublicRoutes);
+router.use('/auth/discord',discordPublicRoutes);
 router.use(userIdentity);
+router.use(discordRoutes);
 router.use('/site',siteProtectedRoutes);
 router.use(recordingRoutes);
 router.use('/content',userContentRoutes);
@@ -133,6 +136,7 @@ router.post('/recommendations/wave', recommendationController.getWave);
 router.post('/recommendations/wave/feedback', postWaveFeedback);
 
 // Global charts (VK Музыка / Яндекс Музыка / Spotify)
+router.get('/charts/oskolok', chartsController.getOskolok);
 router.get('/charts', chartsController.getChart);
 
 export default router;

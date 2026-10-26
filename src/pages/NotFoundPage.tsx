@@ -18,7 +18,7 @@ export const NotFoundPage: React.FC = () => {
 
       <NavLink
         to="/"
-        className="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 font-extrabold text-sm shadow-lg shadow-blue-600/20 dark:shadow-[0_0_15px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95 transition-all"
+        className="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 dark:bg-sky-500 dark:hover:bg-sky-400 text-white dark:text-slate-950 font-extrabold text-sm shadow-lg shadow-blue-600/20 dark:shadow-[0_0_15px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95 transition"
       >
         <Home size={18} />
         <span>{t('На главную', 'Go home')}</span>

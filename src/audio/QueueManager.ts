@@ -59,6 +59,13 @@ export class QueueManager {
     this.state.currentIndex = insertIndex;
   }
 
+  /** Moves the cursor to a track already in the queue (picked in the queue list). */
+  public jumpTo(index: number): Track | null {
+    if (index < 0 || index >= this.state.playbackQueue.length) return null;
+    this.state.currentIndex = index;
+    return this.state.playbackQueue[index];
+  }
+
   public playNext(track: Track): void {
     if (this.state.playbackQueue.length === 0) {
       this.setQueue([track], 0);

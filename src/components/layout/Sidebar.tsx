@@ -47,7 +47,7 @@ export const Sidebar: React.FC = () => {
             to={item.path}
             className={({ isActive }) =>
               clsx(
-                'flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group',
+                'flex items-center gap-4 px-4 py-3 rounded-lg text-sm font-medium transition duration-200 group',
                 isActive
                   ? 'bg-zinc-800/80 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'

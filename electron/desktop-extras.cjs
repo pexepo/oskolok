@@ -53,7 +53,7 @@ function setup({ electron, getMain, dir, origin, discordClientId }) {
   const closeMini = () => { if (mini && !mini.isDestroyed()) mini.close(); };
   const toggleMini = () => { if (mini && !mini.isDestroyed() && mini.isVisible()) closeMini(); else openMini(); };
 
-  ipcMain.handle('desktop-info', event => fromMain(event) ? { discord: !!discordClientId, shortcut: shortcutOn ? SHORTCUT : '' } : null);
+  ipcMain.handle('desktop-info', event => { if (!fromMain(event)) return null; if (prefs.discord && !discord.ready) void discord.connect(); return { discord: !!discordClientId, discordUser: discord.user || null, shortcut: shortcutOn ? SHORTCUT : '' }; });
   ipcMain.on('desktop-now-playing', (event, state) => {
     if (!fromMain(event)) return;
     last = sanitize(state);

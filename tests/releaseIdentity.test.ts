@@ -55,3 +55,9 @@ it('keeps only the card artist’s groups when the Deezer page’s hits belong t
   const out = foreignReleases([band, rapper, rapper2, latin], { topAlbums: ['b1'], referenceTitles: ['Substitute', 'ОКО'], relatedNames: ['Smokie'], trustedTitles: ['ОКО'] });
   expect([...out].sort()).toEqual(['b1', 'l1']);
 });
+
+it('drops a whole page that shares nothing with a known discography', () => {
+  const r = (id: string, title: string) => ({ id, title, genres: [], coArtists: [], tracks: [{ title }] });
+  const out = foreignReleases([r('1', 'Notte Viva'), r('2', 'Resta Con Me')], { topAlbums: ['1'], referenceTitles: [], relatedNames: [], trustedTitles: ['Один', 'Два', 'Три', 'Четыре', 'Пять'] });
+  expect([...out].sort()).toEqual(['1', '2']);
+});

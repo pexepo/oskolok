@@ -35,7 +35,7 @@ export const GlassLayers: React.FC<{ className?: string; filterId?: string }> = 
 export const GlassEffect: React.FC<GlassEffectProps> = ({ children, className = "", style = {}, href, target = "_blank" }) => {
   const content = (
     <div
-      className={`relative flex font-semibold overflow-hidden text-black cursor-pointer transition-all duration-700 ${className}`}
+      className={`relative flex font-semibold overflow-hidden text-black cursor-pointer transition duration-700 ${className}`}
       style={{ boxShadow: "0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1)", transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)", ...style }}
     >
       <div className="absolute inset-0 z-0 overflow-hidden" style={{ ...inherit, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", filter: "url(#glass-distortion)", isolation: "isolate" }} />
@@ -51,7 +51,7 @@ export const GlassDock: React.FC<{ icons: DockIcon[]; href?: string }> = ({ icon
   <GlassEffect href={href} className="rounded-3xl p-3 hover:p-4 hover:rounded-[2rem]">
     <div className="flex items-center justify-center gap-2 rounded-3xl p-3 py-0 px-0.5 overflow-hidden">
       {icons.map((icon, index) => (
-        <img key={index} src={icon.src} alt={icon.alt} className="w-16 h-16 transition-all duration-700 hover:scale-110 cursor-pointer"
+        <img key={index} src={icon.src} alt={icon.alt} className="w-16 h-16 transition duration-700 hover:scale-110 cursor-pointer"
           style={{ transformOrigin: "center center", transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)" }} onClick={icon.onClick} />
       ))}
     </div>
@@ -60,7 +60,7 @@ export const GlassDock: React.FC<{ icons: DockIcon[]; href?: string }> = ({ icon
 
 export const GlassButton: React.FC<{ children: React.ReactNode; href?: string }> = ({ children, href }) => (
   <GlassEffect href={href} className="rounded-3xl px-10 py-6 hover:px-11 hover:py-7 hover:rounded-[2rem] overflow-hidden">
-    <div className="transition-all duration-700 hover:scale-95" style={{ transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)" }}>{children}</div>
+    <div className="transition duration-700 hover:scale-95" style={{ transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)" }}>{children}</div>
   </GlassEffect>
 );
 

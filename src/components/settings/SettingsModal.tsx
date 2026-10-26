@@ -6,6 +6,8 @@ import {Sun, Moon, MonitorSmartphone, Sparkles, Settings2, Check, Send} from 'lu
 import {getPreferredSource,setPreferredSource,recordingBetaEnabled,setRecordingBetaEnabled,inTelegramMiniApp} from '../../utils/playbackPreferences.js';
 import {ServiceLogo} from '../discovery/MusicAccounts.js';
 import {autoplayEnabled,setAutoplayEnabled} from '../../stores/waveSettings.js';
+import {startDiscord,type DiscordUser} from '../../discord/discordAuth.js';
+import {apiClient} from '../../api/apiClient.js';
 import {desktopExtrasAvailable,desktopInfo,getDesktopPrefs,setDesktopPrefs,toggleMiniPlayer} from '../../desktop/desktopBridge.js';
 import {useLanguageStore,useTranslation} from '../../stores/useLanguageStore.js';
 import {useThemeStore, type ThemeMode} from '../../stores/useThemeStore.js';
@@ -72,7 +74,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
         </label>
       </section>
-      {desktopExtrasAvailable()?<DesktopSettings/>:<section className="set-group"><h4>{t('Компьютер','Desktop')}</h4><div className="set-row"><span>{t('Приложение для компьютера','Desktop app')}<small>{t('Статус «Слушает Осколок» в Discord, мини-плеер поверх окон и горячая клавиша — только в приложении.','Discord “Listening to Oskolok” status, the floating mini player and a global shortcut live in the app.')}</small></span><DesktopDownloads/></div></section>}
+      <DiscordSettings/>
+      {desktopExtrasAvailable()?<DesktopSettings/>:<section className="set-group"><h4>{t('Компьютер','Desktop')}</h4><div className="set-row"><span>{t('Приложение для компьютера','Desktop app')}<small>{t('Статус «Слушает Осколок» в Discord, мини-плеер поверх окон и горячая клавиша — только в приложении: Discord разрешает менять статус лишь программе на том же компьютере.','Discord “Listening to Oskolok” status, the floating mini player and a global shortcut live in the app: Discord lets only a program on the same computer set your status.')}</small></span><DesktopDownloads/></div></section>}
       <PrivacySettings/>
       <p className="set-eq-note">{t('Эквалайзер, скорость, тон и реверберация — в кнопке «Звук» на плашке плеера.','Equalizer, speed, pitch and reverb live under «Sound» on the player bar.')}</p>
     </div>:null}
@@ -95,11 +98,29 @@ function PerformanceRow(){
  </div>;
 }
 
+/** Discord: the linked account (sign-in on the site) and where the «Слушает» status comes from. */
+function DiscordSettings(){
+  const t=useTranslation();
+  const [linked,setLinked]=React.useState<DiscordUser|null|undefined>(undefined),[busy,setBusy]=React.useState(false);
+  React.useEffect(()=>{void apiClient.request<{linked:DiscordUser|null}>('/discord').then(d=>setLinked(d.linked)).catch(()=>setLinked(null));},[]);
+  const unlink=async()=>{setBusy(true);try{await apiClient.request('/discord/link',{method:'DELETE'});setLinked(null);}finally{setBusy(false);}};
+  return <section className="set-group">
+    <h4>Discord</h4>
+    <div className="set-row discord-account">
+      {linked?<img src={linked.avatarUrl||''} alt="" className="discord-avatar" hidden={!linked.avatarUrl}/>:null}
+      <span>{linked?t(`Подключён: ${linked.globalName||linked.username}`,`Connected: ${linked.globalName||linked.username}`):t('Аккаунт Discord','Discord account')}
+        <small>{linked?t(`@${linked.username} · теперь можно входить в Осколок через Discord`,`@${linked.username} · you can now sign in to Oskolok with Discord`):t('Подключите, чтобы входить в Осколок через Discord','Connect to sign in to Oskolok with Discord')}</small></span>
+      {linked===undefined?null:linked?<button type="button" className="sg-btn" disabled={busy} onClick={()=>void unlink()}>{t('Отключить','Disconnect')}</button>
+        :<button type="button" className="sg-btn sg-btn--primary" onClick={()=>void startDiscord('link')}>{t('Подключить','Connect')}</button>}
+    </div>
+  </section>;
+}
+
 /** Desktop client only: the floating mini-player and Discord status. */
 function DesktopSettings(){
   const t=useTranslation();
   const [prefs,setPrefs]=React.useState(getDesktopPrefs);
-  const [info,setInfo]=React.useState<{discord:boolean;shortcut:string}|null>(null);
+  const [info,setInfo]=React.useState<{discord:boolean;discordUser?:{username:string;globalName?:string}|null;shortcut:string}|null>(null);
   React.useEffect(()=>{void desktopInfo().then(setInfo);},[]);
   const update=(patch:Partial<typeof prefs>)=>{setDesktopPrefs(patch);setPrefs(getDesktopPrefs());};
   return <section className="set-group">
@@ -111,7 +132,7 @@ function DesktopSettings(){
       <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
     </label>
     {info?.discord?<label className={`set-row set-check ${prefs.discord?'is-on':''}`}>
-      <span>{t('Статус в Discord','Discord status')}<small>{t('«Слушает Осколок»: трек, артист и кнопка «Слушать в Осколке» в профиле Discord','“Listening to Oskolok”: track, artist and a “Listen in Oskolok” button on your Discord profile')}</small></span>
+      <span>{t('Статус в Discord','Discord status')}<small>{info.discordUser===undefined?null:info.discordUser?t(`Discord на этом компьютере: ${info.discordUser.globalName||info.discordUser.username}. `,`Discord on this computer: ${info.discordUser.globalName||info.discordUser.username}. `):t('Discord не запущен или ещё не подключился. ','Discord is not running or not connected yet. ')}{t('«Слушает Осколок»: трек, артист и кнопка «Слушать в Осколке» в профиле Discord','“Listening to Oskolok”: track, artist and a “Listen in Oskolok” button on your Discord profile')}</small></span>
       <input type="checkbox" checked={prefs.discord} onChange={e=>update({discord:e.target.checked})}/>
       <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
     </label>:info&&<div className="set-row"><span>{t('Статус в Discord','Discord status')}<small>{t('В этой версии приложения его нет. Скачайте новую — настройки и вход сохранятся.','This app version does not have it. Download the new one — settings and sign-in stay.')}</small></span><DesktopDownloads/></div>}

@@ -7,7 +7,7 @@ import { TrackRow } from '../components/tracks/TrackRow.js';
 import { useTranslation } from '../stores/useLanguageStore.js';
 export const QueuePage: React.FC = () => {
   const t = useTranslation();
-  const { queueState, removeFromQueue, clearQueue } = usePlayerStore(useShallow(s => ({ queueState: s.queueState, removeFromQueue: s.removeFromQueue, clearQueue: s.clearQueue })));
+  const { queueState, removeFromQueue, clearQueue, playQueueIndex } = usePlayerStore(useShallow(s => ({ queueState: s.queueState, removeFromQueue: s.removeFromQueue, clearQueue: s.clearQueue, playQueueIndex: s.playQueueIndex })));
   const { playbackQueue, currentIndex } = queueState;
 
   const currentTrack = playbackQueue[currentIndex] || null;
@@ -70,6 +70,7 @@ export const QueuePage: React.FC = () => {
                       track={track}
                       index={idx}
                       collection={nextTracks}
+                      onPlay={() => playQueueIndex(queueIndex)}
                     />
                   </div>
                   <button

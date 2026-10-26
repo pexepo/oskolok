@@ -23,6 +23,10 @@ export interface WaveV2Options extends WaveRequestV2 {
   recentArtists: string[];
   /** Wave tracks played to the end this session. */
   finished?: WaveSignal[];
+  /** Per-session rotation offset (served.ts), so a restarted wave does not repeat the last one. */
+  salt?: number;
+  /** The session's opening batch (set when the salt is folded into `batch`). */
+  first?: boolean;
 }
 export type WaveEmptyReason = 'empty-collection' | 'no-match' | 'unavailable';
 export interface WaveV2Result {
@@ -65,6 +69,7 @@ export async function moodArtists(lang: WaveLang, sub: SubgenreDef | undefined, 
 }
 
 export async function buildWaveV2(options: WaveV2Options): Promise<WaveV2Result> {
+  if (options.salt) options = { ...options, first: !options.batch, batch: options.batch + options.salt, salt: 0 };
   const limit = Math.max(1, Math.min(40, options.limit || 20));
   const taste = await loadTaste(options.userId);
   // Everything but anime themes and «из коллекции» is built around the listener's own taste (v3).
@@ -73,7 +78,7 @@ export async function buildWaveV2(options: WaveV2Options): Promise<WaveV2Result>
   if (options.language === 'all') return legacyAllLanguages(options, taste, limit);
   const lang = options.language as WaveLang;
   const sub = subgenreOf(lang, options.subgenre), mood = moodOf(lang, options.mood);
-  const excluded = new Set(options.excludeTrackIds.slice(-300));
+  const excluded = new Set(options.excludeTrackIds.slice(-1200));
   const skippedIds = new Set(options.skipped.map(s => s.id));
   const recentArtists = new Set(options.recentArtists.slice(-8).map(artistKey));
   const sessionSkips = new Map<string, number>();

@@ -67,7 +67,7 @@ class DiscordPresence {
         if (!socket) continue;
         this.socket = socket;
         socket.on('data', chunk => this.onData(chunk));
-        socket.on('close', () => { this.socket = null; this.ready = false; this.sentKey = ''; this.retryAt = Date.now() + 15000; this.scheduleReconnect(15000); });
+        socket.on('close', () => { this.socket = null; this.ready = false; this.user = null; this.sentKey = ''; this.retryAt = Date.now() + 15000; this.scheduleReconnect(15000); });
         socket.on('error', () => {});
         socket.write(encode(0, { v: 1, client_id: this.clientId }));
         return;
@@ -80,7 +80,7 @@ class DiscordPresence {
     const { frames, rest } = decode(Buffer.concat([this.buffer, chunk]));
     this.buffer = rest;
     for (const f of frames) {
-      if (f.op === 1 && f.data && f.data.evt === 'READY') { this.ready = true; this.flush(); }
+      if (f.op === 1 && f.data && f.data.evt === 'READY') { this.ready = true; const u = f.data.data && f.data.data.user; this.user = u ? { id: String(u.id), username: String(u.username || ''), globalName: u.global_name || undefined } : null; this.flush(); }
       else if (f.op === 2) { if (this.socket) this.socket.destroy(); } // closed by Discord (e.g. wrong client id)
       else if (f.op === 3 && this.socket) this.socket.write(encode(4, f.data)); // ping → pong
     }

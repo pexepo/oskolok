@@ -9,7 +9,7 @@ import {VirtualTrackRows} from '../playlist/VirtualTrackRows.js';
 import { useTranslation } from '../../stores/useLanguageStore.js';
 export const QueueDrawer: React.FC = () => {
   const t = useTranslation();
-  const { queueState, isQueueOpen, setQueueOpen, playTrack, removeFromQueue, clearQueue } = usePlayerStore(useShallow(s => ({ queueState: s.queueState, isQueueOpen: s.isQueueOpen, setQueueOpen: s.setQueueOpen, playTrack: s.playTrack, removeFromQueue: s.removeFromQueue, clearQueue: s.clearQueue })));
+  const { queueState, isQueueOpen, setQueueOpen, playQueueIndex, removeFromQueue, clearQueue } = usePlayerStore(useShallow(s => ({ queueState: s.queueState, isQueueOpen: s.isQueueOpen, setQueueOpen: s.setQueueOpen, playQueueIndex: s.playQueueIndex, removeFromQueue: s.removeFromQueue, clearQueue: s.clearQueue })));
 
   const playbackQueue = queueState?.playbackQueue || [];
   const currentIndex = queueState?.currentIndex ?? -1;
@@ -87,7 +87,7 @@ export const QueueDrawer: React.FC = () => {
                         className="group flex items-center justify-between gap-2 p-2 rounded-xl hover:bg-blue-50/60 dark:hover:bg-slate-800/60 transition-colors"
                       >
                         <button
-                          onClick={() => playTrack(track)}
+                          onClick={() => void playQueueIndex(queueIndex)}
                           className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
                         >
                           <div className="relative group/img">

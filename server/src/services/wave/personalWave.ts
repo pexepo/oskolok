@@ -16,10 +16,11 @@ import { HIGH_ENERGY, LOW_ENERGY, INSTRUMENTAL_TEXT, REMIX_TEXT, LOW_QUALITY, is
 import { trackIdentity } from '../trackRanking.js';
 import { logger } from '../../utils/logger.js';
 import { activityOf, moodOf, subgenreOf, waveSubgenres, type ActivityDef, type WaveLang } from './taxonomy.js';
-import { artistFreshTracks, artistRadio, artistTopTracks, deezerArtist, relatedArtists, themedPlaylistTracks, type DzArtist } from './sources.js';
+import { artistFreshTracks, artistRadio, artistTopTracks, deezerArtist, deezerArtistFor, relatedArtists, themedPlaylistTracks, type DzArtist } from './sources.js';
 import { artistKey, type Taste } from './profile.js';
 import { languageOf } from './language.js';
 import { recencyScore, trackYear } from './freshness.js';
+import { namesakeReleaseIds } from '../releaseIdentity.js';
 import { dedupe, moodArtists, sceneArtists, spread, type WaveV2Options, type WaveV2Result } from './waveV2.js';
 
 export interface PersonalWaveOptions extends WaveV2Options {
@@ -85,7 +86,7 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
   const nowYear = new Date().getFullYear();
 
   /* ---------- session signals ---------- */
-  const excluded = new Set(options.excludeTrackIds.slice(-300));
+  const excluded = new Set(options.excludeTrackIds.slice(-1200));
   const skippedIds = new Set(options.skipped.map(s => s.id));
   const sessionSkips = new Map<string, number>();
   options.skipped.slice(-40).forEach((s, i, all) => sessionSkips.set(artistKey(s.artist), (sessionSkips.get(artistKey(s.artist)) || 0) + (i >= all.length - 12 ? 1.5 : 1)));
@@ -119,7 +120,7 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
   // The four strongest artists always seed; six more rotate per batch among those that still matter (≥ 20 % of the top).
   const topW = ranked[0]?.[1].w || 0;
   const seedList = [...ranked.slice(0, 4), ...rotate(ranked.slice(4, 20).filter(([, e]) => e.w >= topW * 0.2), batch * 3).slice(0, 6)];
-  const seedArtists = await Promise.all(seedList.map(([, e]) => settle(deezerArtist(e.name), null)));
+  const seedArtists = await Promise.all(seedList.map(([, e]) => settle(deezerArtistFor(e.name, e.tracks), null, 9000)));
   const seedRelated = await Promise.all(seedArtists.map(a => a ? settle(relatedArtists(a), [] as DzArtist[]) : Promise.resolve([] as DzArtist[])));
   const seedLang = new Map<string, WaveLang>();
   seedList.forEach(([key, e], i) => {
@@ -182,9 +183,15 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
   const candidates: Candidate[] = [];
   const add = (tracks: Track[], origin: Origin, via?: string) => tracks.forEach(track => candidates.push({ track, origin, via }));
   const tasks: Promise<void>[] = [];
+  // Deezer files namesakes under one profile (pyrokinesis the rapper and a metal band): their releases stay out.
+  const ownReleases = async (artist: DzArtist, titles: string[]) => {
+    const foreign = await settle(namesakeReleaseIds(String(artist.id), { referenceTitles: titles, budgetMs: 2500 }), new Set<string>(), 3000);
+    return (t: Track) => !foreign.has(t.release?.id?.split(':').at(-1) || '');
+  };
   for (const s of rotate(seeds, batch).slice(0, niche ? 3 : 5)) tasks.push((async () => {
-    const [fresh, top] = await Promise.all([settle(artistFreshTracks(s.artist!, 24, 2), [] as Track[]), settle(artistTopTracks(s.artist!, niche ? 25 : 12), [] as Track[])]);
-    add([...fresh, ...(niche ? top.slice(8) : top)], coldStart ? 'anchor' : 'familiar', s.name);
+    const [fresh, top, own] = await Promise.all([settle(artistFreshTracks(s.artist!, 24, 2), [] as Track[]), settle(artistTopTracks(s.artist!, niche ? 25 : 12), [] as Track[]),
+      ownReleases(s.artist!, (seedWeight.get(s.key)?.tracks || []).map(t => t.title))]);
+    add([...fresh, ...(niche ? top.slice(8) : top)].filter(own), coldStart ? 'anchor' : 'familiar', s.name);
   })());
   // Round-robin over the seeds the neighbours came from, so one loud corner of the taste does not take the whole batch.
   const byVia = new Map<string, typeof neighbourList>();
@@ -192,8 +199,9 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
   const fair: typeof neighbourList = [];
   for (let round = 0; fair.length < neighbourList.length && round < 24; round++) byVia.forEach(list => { if (list[round]) fair.push(list[round]); });
   fair.slice(0, niche ? 12 : 10).forEach(([, n], i) => tasks.push((async () => {
-    const [top, fresh] = await Promise.all([settle(artistTopTracks(n.artist, 8), [] as Track[]), i < 4 ? settle(artistFreshTracks(n.artist, 18, 1), [] as Track[]) : Promise.resolve([] as Track[])]);
-    add([...fresh, ...top], 'neighbour', n.via);
+    const [top, fresh, own] = await Promise.all([settle(artistTopTracks(n.artist, 8), [] as Track[]), i < 4 ? settle(artistFreshTracks(n.artist, 18, 1), [] as Track[]) : Promise.resolve([] as Track[]),
+      i < 4 ? ownReleases(n.artist, []) : Promise.resolve(() => true)]);
+    add([...fresh, ...top].filter(own), 'neighbour', n.via);
   })()));
   // Deezer's artist radio for the two strongest seeds: its own co-listening picks.
   if (!activity?.strict) seeds.slice(0, 2).forEach(s => tasks.push(settle(artistRadio(s.artist!, 30), [] as Track[]).then(list => add(list, 'radio', s.name))));
@@ -241,7 +249,7 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
     const t = c.track, key = primary(t), pop = t.popularity ?? 40, year = trackYear(t);
     const via = c.via ? artistKey(c.via) : '', known = seedWeight.get(key)?.w || 0, near = neighbours.get(key)?.score || 0;
     const text = `${t.title} ${t.release?.title || ''}`;
-    let score = Math.random() * 5;
+    let score = Math.random() * 8;
     if (c.origin === 'familiar') score += 10 + Math.min(14, known * 0.8);
     else if (c.origin === 'neighbour') score += 6 + Math.min(22, near * 10);
     else if (c.origin === 'radio') score += 7 + Math.min(10, near * 6) + (known > 3 ? 3 : 0);
@@ -306,7 +314,7 @@ export async function buildPersonalWave(options: PersonalWaveOptions, taste: Tas
   // Open the stream with something close (Yandex starts from the familiar), then let it flow.
   const ordered = [...picked].sort((a, b) => b.score - a.score);
   const firstClose = ordered.findIndex(s => s.c.origin === 'familiar' || s.c.origin === 'replay');
-  if (firstClose > 0 && batch === 0) ordered.unshift(...ordered.splice(firstClose, 1));
+  if (firstClose > 0 && (options.first ?? batch === 0)) ordered.unshift(...ordered.splice(firstClose, 1));
   const tracks = spread(dedupe(ordered.map(s => ({ ...s.t, recommendationReason: options.describe ? options.describe(s.t, s.c.via, reasonOf(s), s.c.origin) : reasonOf(s) }))), 2);
   logger.info({ lang, subgenre: sub?.id, mood: mood?.id, activity: activity?.id, mode: options.mode, seeds: seeds.length, neighbours: neighbourList.length, candidates: candidates.length, picked: tracks.length, coldStart }, 'Personal wave batch');
   return { tracks, status: 'ok', moodUnverified: !!mood && !moodKnown, version: taste.version };

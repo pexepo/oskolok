@@ -21,6 +21,20 @@ import { yandexQueryHint } from '../services/yandex/yandexSearchHint.js';
 import { logger } from '../utils/logger.js';
 
 import { proxyAudio } from '../utils/audioProxy.js';
+const likedCache = new Map<string, { at: number; value: { tracks: Set<string>; artists: Set<string> } }>();
+/** The listener's liked track ids and artists (cached a minute: a search burst while typing asks once). */
+async function likedSignals(userId: string) {
+  const hit = likedCache.get(userId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.value;
+  const rows = await prisma.likedTrack.findMany({ where: { userId }, select: { trackId: true, trackData: true }, orderBy: { addedAt: 'desc' }, take: 2000 }).catch(() => []);
+  const artists = new Set<string>();
+  for (const r of rows) { try { const name = JSON.parse(r.trackData)?.artist?.name; if (name) artists.add(normalizeMusicText(String(name).split(',')[0])); } catch { /* skip */ } }
+  const value = { tracks: new Set(rows.map(r => r.trackId)), artists };
+  likedCache.set(userId, { at: Date.now(), value });
+  if (likedCache.size > 500) likedCache.delete(likedCache.keys().next().value!);
+  return value;
+}
+
 export class TrackController {
   public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -132,6 +146,12 @@ export class TrackController {
         // Yandex's own order is a strong relevance signal: its top tracks and best artist lead ties.
         hint.priors(pool).forEach((weight, id) => priors.set(id, Math.max(priors.get(id) || 0, weight)));
         hint.priors(artistsPool.map(a => ({ id: a.id, title: '', artist: { name: a.name } }))).forEach((weight, id) => priors.set(id, Math.max(priors.get(id) || 0, weight)));
+      }
+      // Personal ties: among equally relevant answers, what the listener liked comes first (Spotify does the same).
+      const mine = res.locals?.userId ? await likedSignals(res.locals.userId) : null;
+      if (mine) for (const item of [...pool, ...artistsPool.map(a => ({ id: a.id, artist: { name: a.name } }))]) {
+        const bonus = (mine.tracks.has(item.id) ? 14 : 0) + (mine.artists.has(normalizeMusicText(item.artist.name.split(',')[0])) ? 8 : 0);
+        if (bonus) priors.set(item.id, (priors.get(item.id) || 0) + bonus);
       }
       const altQuery = !hint ? null : hint.query !== effectiveQuery ? hint.query : effectiveQuery !== q ? q : null;
       const best = (track: Track) => altQuery ? Math.max(score(track, effectiveQuery), score(track, altQuery)) : score(track, effectiveQuery);

@@ -15,6 +15,7 @@ import { initializeTelegram } from './telegram/runtime.js';
 import { initPerformance } from './utils/performance.js';
 import { tr } from './stores/useLanguageStore.js';
 import { registerServiceWorker } from './utils/serviceWorker.js';
+import { finishDiscordRedirect } from './discord/discordAuth.js';
 
 /** The player (/app and native shells). Loaded on demand so the public site ships none of it. */
 export function startApp(container: HTMLElement) {
@@ -23,7 +24,7 @@ export function startApp(container: HTMLElement) {
   try { localStorage.setItem('oskolok_app_seen', '1'); } catch { /* Private mode. */ }
   registerServiceWorker();
   const root = ReactDOM.createRoot(container);
-  initializeTelegram().then(() => root.render(
+  finishDiscordRedirect().catch(() => {}).then(() => initializeTelegram()).then(() => root.render(
     <React.StrictMode>
       <App />
     </React.StrictMode>

@@ -5,9 +5,8 @@ import { SearchResult, Track } from '../types/index.js';
 import { apiClient } from '../api/apiClient.js';
 import { TrackRow } from '../components/tracks/TrackRow.js';
 import { ShardArtwork } from '../components/tracks/ShardArtwork.js';
-import { RecommendationShelf } from '../components/discovery/RecommendationShelf.js';
 import { LoadingSurface, SkeletonCards, SkeletonRows } from '../components/common/Skeleton.js';
-import { HomeDailyMixes } from '../components/discovery/HomeDailyMixes.js';
+import { scopedStorageKey } from '../telegram/runtime.js';
 import { ConsentCard } from '../components/settings/ConsentCard.js';
 import { SearchSuggestions } from '../components/discovery/SearchSuggestions.js';
 import { useLibraryStore } from '../stores/useLibraryStore.js';
@@ -27,6 +26,9 @@ const searchCache = new Map<string, { at: number; value: SearchResult }>();
 const cachedSearch = (q: string) => { const hit = searchCache.get(q.toLocaleLowerCase()); return hit && Date.now() - hit.at < 5 * 60_000 ? hit.value : null; };
 const rememberSearch = (q: string, value: SearchResult) => { searchCache.set(q.toLocaleLowerCase(), { at: Date.now(), value }); if (searchCache.size > 30) searchCache.delete(searchCache.keys().next().value!); };
 
+const RECENT = 'search-recent';
+const readRecent = (): string[] => { try { const v = JSON.parse(localStorage.getItem(scopedStorageKey(RECENT)) || '[]'); return Array.isArray(v) ? v.filter(x => typeof x === 'string').slice(0, 10) : []; } catch { return []; } };
+const writeRecent = (list: string[]) => { try { localStorage.setItem(scopedStorageKey(RECENT), JSON.stringify(list.slice(0, 10))); } catch { /* private mode */ } };
 const norm = (text: string) => text.normalize('NFKC').toLocaleLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 export const SearchPage: React.FC = () => {
@@ -51,6 +53,8 @@ export const SearchPage: React.FC = () => {
   const playCollection = usePlayerStore(s => s.playCollection);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [recent, setRecent] = useState(readRecent);
+  const remember = (q: string) => { const next = [q, ...readRecent().filter(x => x.toLocaleLowerCase() !== q.toLocaleLowerCase())]; writeRecent(next); setRecent(next.slice(0, 10)); };
 
   useEffect(() => { setInputVal(queryParam); setActiveTab('all'); }, [queryParam]);
 
@@ -73,13 +77,14 @@ export const SearchPage: React.FC = () => {
     setLoading(true);
     setErrorMsg(null);
     const cached = cachedSearch(queryParam.trim());
-    if (cached) { setResults(cached); setLoading(false); return; }
+    if (cached) { setResults(cached); setLoading(false); if (cached.tracks.length || cached.artists.length) remember(queryParam.trim()); return; }
     setAlbumPage(1);setLoadingAlbums(false);setAlbumError('');
     apiClient
       .search(queryParam.trim(), 1, 25, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
         rememberSearch(queryParam.trim(), res);
+        if (res.tracks.length || res.artists.length) remember(queryParam.trim());
         setResults(res);
         if (res?.tracks?.length) apiClient.prefetchTrack(res.tracks[0].id).catch(() => {});
       })
@@ -165,8 +170,13 @@ export const SearchPage: React.FC = () => {
       ) : !queryParam.trim() ? (
         <div className="search-start">
           <ConsentCard />
-          <HomeDailyMixes />
-          <RecommendationShelf title={t('Собрано для вас', 'Picked for you')} />
+          {recent.length > 0 && <section className="search-recent">
+            <div className="search-recent__head"><h2>{t('Недавние запросы', 'Recent searches')}</h2><button type="button" className="text-button" onClick={() => { writeRecent([]); setRecent([]); }}>{t('Очистить', 'Clear')}</button></div>
+            <div className="search-recent__list">{recent.map(q => <span key={q} className="search-recent__chip">
+              <button type="button" onClick={() => handleSearch(q)}><Search size={14} />{q}</button>
+              <button type="button" aria-label={t(`Убрать «${q}»`, `Remove “${q}”`)} onClick={() => { const next = readRecent().filter(x => x !== q); writeRecent(next); setRecent(next); }}><X size={13} /></button>
+            </span>)}</div>
+          </section>}
         </div>
       ) : isEmpty || !results ? (
         <div className="search-message crystal-slab">

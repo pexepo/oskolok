@@ -101,6 +101,8 @@ interface PlayerState {
   /** The friend of the running «Волна на двоих». */
   waveBlend: WaveBlend | null;
   loadMoreWaveTracks: () => Promise<void>;
+  /** Plays a track that is already in the queue; the queue (and a running wave) stays as it is. */
+  playQueueIndex: (index: number) => Promise<void>;
   /** Swap the not-yet-played wave tail for a batch that reflects fresh feedback. */
   refreshWaveQueue: () => Promise<void>;
   setWaveSettings: (patch: Partial<WaveSettings>) => void;
@@ -409,6 +411,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     loadMoreWaveTracks: async () => { await refillWave(); },
+
+    playQueueIndex: async (index) => {
+      const track = queueManager.jumpTo(index);
+      if (!track) return;
+      await audioManager.playTrack(track);
+      set({ queueState: queueManager.getState() });
+    },
 
     refreshWaveQueue: async () => {
       const state = get();

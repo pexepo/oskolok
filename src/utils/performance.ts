@@ -56,8 +56,20 @@ function sampleFps(): Promise<number> {
   });
 }
 
+/** Background drift (blobs, holo, sparks) sits under frosted glass: every moving frame makes every backdrop blur
+ * recompute. While the page scrolls they pause, so scrolling gets the whole frame budget. A class, not React state. */
+function pauseAmbientWhileScrolling() {
+  const html = document.documentElement;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  document.addEventListener('scroll', () => {
+    if (!timer) html.classList.add('is-scrolling'); else clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; html.classList.remove('is-scrolling'); }, 220);
+  }, { capture: true, passive: true });
+}
+
 /** Run once before the first render. */
 export function initPerformance() {
+  pauseAmbientWhileScrolling();
   const mode = savedMode(), detected = levelFor(readDevice());
   const level = mode === 'auto' ? detected : mode;
   apply(level);

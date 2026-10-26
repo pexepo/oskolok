@@ -13,6 +13,7 @@ import {HomeDailyMixes} from './HomeDailyMixes.js';
 import {openDevicesPanel} from '../connect/ConnectLayer.js';
 import {otherDevices,useConnectStore} from '../../connect/connect.js';
 import type {Track} from '../../types/index.js';
+import {Carousel} from '../common/Carousel.js';
 import './home-for-you.css';
 
 type Activity=NonNullable<WaveSettings['activity']>;
@@ -58,6 +59,7 @@ export function HomeForYou(){
           </button>)}
         </div>
       </div>
+      <OskolokPopular/>
       <div className="hfy-row">
         {week.data&&week.data.plays>0?<NavLink to="/stats" className="hfy-card hfy-stats sg-glass">
           <span className="hfy-card__label">{t('Ваша неделя','Your week')}</span>
@@ -85,4 +87,16 @@ export function HomeForYou(){
       <HomeDailyMixes/>
     </section>
   </div>;
+}
+
+/** «Популярно в Осколке»: what the listeners here play this week (only songs at least two people played). */
+function OskolokPopular(){
+  const t=useTranslation(),playCollection=usePlayerStore(s=>s.playCollection);
+  const query=useQuery({queryKey:['charts','oskolok'],queryFn:()=>apiClient.request<Array<{track:Track;listeners:number}>>('/charts/oskolok'),staleTime:10*60000,retry:1});
+  const tracks=useMemo(()=>(query.data||[]).map(x=>x.track),[query.data]);
+  if(tracks.length<4)return null;
+  return <Carousel title={t('Популярно в Осколке','Popular on Oskolok')} className="hfy-popular">{(query.data||[]).map((x,i)=><button key={x.track.id} type="button" className="hfy-recent__item" onClick={()=>void playCollection(tracks,i,undefined,'home-popular')} title={`${x.track.artist.name} - ${x.track.title}`}>
+    <span className="hfy-recent__art"><ShardArtwork src={x.track.artworkUrl} alt="" index={i}/><i className="hfy-recent__play" aria-hidden="true"><Play size={16} fill="currentColor"/></i><em className="hfy-popular__rank">{i+1}</em></span>
+    <b>{x.track.title}</b><small>{x.track.artist.name} · {t(`${x.listeners} слуш.`,`${x.listeners} listeners`)}</small>
+  </button>)}</Carousel>;
 }

@@ -264,3 +264,9 @@ html body .interference-modal.np-v2 .np-lyrics { animation: np-fade .6s ease .12
 .mix-slider { display: grid; grid-template-columns: 110px minmax(0, 1fr) 44px; align-items: center; gap: 10px; }
 .mix-slider input { width: 100%; accent-color: var(--accent, #6ea8ff); }
 .mix-slider output { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; opacity: .75; }
+
+/* Tactile press feedback on the things people tap most (transform only, compositor-friendly). */
+.oskolok-app .artist-release:active .artist-release-cover { transform: scale(.97); transition-duration: .12s; }
+.oskolok-app :is(.release-icon, .artist-play, .profile-btn, .sg-btn, .offline-toggle):active:not(:disabled) { transform: scale(.96); }
+.oskolok-app :is(.release-icon, .artist-play, .profile-btn, .sg-btn, .offline-toggle) { transition: transform .18s cubic-bezier(.2, .8, .2, 1), background-color .2s, color .2s, box-shadow .2s; }
+@media (prefers-reduced-motion: reduce) { .oskolok-app :is(.release-icon, .artist-play, .profile-btn, .sg-btn, .offline-toggle, .artist-release-cover) { transition: none; } }
