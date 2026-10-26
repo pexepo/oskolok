@@ -9,8 +9,9 @@ if (fileMode) {
   // Desktop fallback build: hash routing, player only.
   void import('./appEntry.js').then(m => m.startApp(container));
 } else {
-  captureDiscordRedirect();
-  const target = redirectTarget(location.pathname, location.search, location.hash, {
+  // Back from Discord: stay in the player, whatever this browser usually opens.
+  const fromDiscord = captureDiscordRedirect();
+  const target = fromDiscord ? null : redirectTarget(location.pathname, location.search, location.hash, {
     userAgent: navigator.userAgent,
     search: location.search,
     hash: location.hash,

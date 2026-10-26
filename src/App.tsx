@@ -19,6 +19,7 @@ import { LeaveWarning } from './components/common/LeaveWarning.js';
 
 import { useTranslation } from './stores/useLanguageStore.js';
 import { APP_BASE } from './routing.js';
+import { ToastContainer } from './components/common/ToastContainer.js';
 // Rarely opened screens load on demand so the first paint ships less JavaScript.
 const SearchPage = lazy(() => import('./pages/SearchPage.js').then(m => ({ default: m.SearchPage })));
 const LikedPage = lazy(() => import('./pages/LikedPage.js').then(m => ({ default: m.LikedPage })));
@@ -92,7 +93,7 @@ export const App: React.FC = () => {
               <Route path="jam/:id" element={<JamJoinRoute />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
-          </Routes> : <Routes><Route path="/users/:id" element={<PublicProfilePage />} /><Route path="*" element={<LoginPage />} /></Routes>}
+          </Routes> : <><Routes><Route path="/users/:id" element={<PublicProfilePage />} /><Route path="*" element={<LoginPage />} /></Routes><ToastContainer /></>}
         </Suspense>
         <LeaveWarning />
   </>);

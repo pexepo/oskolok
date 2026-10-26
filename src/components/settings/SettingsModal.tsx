@@ -8,6 +8,7 @@ import {ServiceLogo} from '../discovery/MusicAccounts.js';
 import {autoplayEnabled,setAutoplayEnabled} from '../../stores/waveSettings.js';
 import {startDiscord,type DiscordUser} from '../../discord/discordAuth.js';
 import {apiClient} from '../../api/apiClient.js';
+import {useToastStore} from '../../stores/useToastStore.js';
 import {desktopExtrasAvailable,desktopInfo,getDesktopPrefs,setDesktopPrefs,toggleMiniPlayer} from '../../desktop/desktopBridge.js';
 import {useLanguageStore,useTranslation} from '../../stores/useLanguageStore.js';
 import {useThemeStore, type ThemeMode} from '../../stores/useThemeStore.js';
@@ -102,7 +103,7 @@ function PerformanceRow(){
 function DiscordSettings(){
   const t=useTranslation();
   const [linked,setLinked]=React.useState<DiscordUser|null|undefined>(undefined),[busy,setBusy]=React.useState(false);
-  React.useEffect(()=>{void apiClient.request<{linked:DiscordUser|null}>('/discord').then(d=>setLinked(d.linked)).catch(()=>setLinked(null));},[]);
+  React.useEffect(()=>{const load=()=>void apiClient.request<{linked:DiscordUser|null}>('/discord').then(d=>setLinked(d.linked)).catch(()=>setLinked(null));load();window.addEventListener('oskolok-discord',load);return()=>window.removeEventListener('oskolok-discord',load);},[]);
   const unlink=async()=>{setBusy(true);try{await apiClient.request('/discord/link',{method:'DELETE'});setLinked(null);}finally{setBusy(false);}};
   return <section className="set-group">
     <h4>Discord</h4>
@@ -111,7 +112,7 @@ function DiscordSettings(){
       <span>{linked?t(`Подключён: ${linked.globalName||linked.username}`,`Connected: ${linked.globalName||linked.username}`):t('Аккаунт Discord','Discord account')}
         <small>{linked?t(`@${linked.username} · теперь можно входить в Осколок через Discord`,`@${linked.username} · you can now sign in to Oskolok with Discord`):t('Подключите, чтобы входить в Осколок через Discord','Connect to sign in to Oskolok with Discord')}</small></span>
       {linked===undefined?null:linked?<button type="button" className="sg-btn" disabled={busy} onClick={()=>void unlink()}>{t('Отключить','Disconnect')}</button>
-        :<button type="button" className="sg-btn sg-btn--primary" onClick={()=>void startDiscord('link')}>{t('Подключить','Connect')}</button>}
+        :<button type="button" className="sg-btn sg-btn--primary" disabled={busy} onClick={()=>{setBusy(true);void startDiscord('link').catch(e=>useToastStore.getState().addToast((e as Error).message,'warning')).finally(()=>setBusy(false));}}>{busy?t('Ждём Discord…','Waiting for Discord…'):t('Подключить','Connect')}</button>}
     </div>
   </section>;
 }

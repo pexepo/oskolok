@@ -1,5 +1,5 @@
 import {dedupeReleases} from '../services/releaseDedupe.js';
-import {namesakeReleaseIds} from '../services/releaseIdentity.js';
+import {namesakeDecisionReady,namesakeReleaseIds} from '../services/releaseIdentity.js';
 import {pickMatch} from '../services/importMatch.js';
 import type {Request,Response,NextFunction} from 'express';
 import {z} from 'zod';
@@ -141,7 +141,8 @@ function refreshArtistDetails(id:string){
   let pending=detailsInFlight.get(id);
   if(!pending){
     pending=computeArtistDetails(id).then(data=>{
-      if(data){detailsCache.set(id,{at:Date.now(),data});if(detailsCache.size>400)detailsCache.delete(detailsCache.keys().next().value!);
+      // A namesake check still running (Deezer pages of hundreds of releases): keep this answer only half a minute.
+      if(data){const pending=data.namesakePending;delete data.namesakePending;detailsCache.set(id,{at:pending?Date.now()-DETAILS_FRESH+30_000:Date.now(),data});if(detailsCache.size>400)detailsCache.delete(detailsCache.keys().next().value!);
         const next=data.linked?.spotifyId||data.linked?.deezerId;if(next&&next!==id&&!id.startsWith('spotify:')&&!detailsCache.has(next))void refreshArtistDetails(next).catch(()=>{});}
       return data;
     }).finally(()=>detailsInFlight.delete(id));
@@ -207,9 +208,10 @@ async function computeArtistDetails(id:string):Promise<any>{
       spotifyReleases=await spotifyService.getArtistReleases(link.spotifyId).catch(()=>null);
     }
     const homonym=link.homonym,primary=link.primary;
-    // Spotify paused: the discography it would have added comes from Spotify tracks already cached locally.
-    if(!spotifyReleases&&!homonym&&spotifyService.rateLimitedUntil()){const sid=link.spotifyId||(await geniusProfilePromise as {spotifyId?:string}|null)?.spotifyId;if(sid){const cached=await spotifyService.cachedReleases(String(sid).replace(/^spotify:artist:/,''),artist.name);if(cached.length)spotifyReleases=cached as never;}}
-    let spotifyIdForReleases=link.spotifyId;
+    // Spotify paused or failing (a namesake card included: the cache is keyed by this card's own Spotify id):
+    // the discography it would have added comes from Spotify tracks already cached locally.
+    if(!spotifyReleases?.length){const sid=link.spotifyId||(await geniusProfilePromise as {spotifyId?:string}|null)?.spotifyId;if(sid){const cached=await spotifyService.cachedReleases(String(sid).replace(/^spotify:artist:/,''),artist.name);if(cached.length)spotifyReleases=cached as never;}}
+    let spotifyIdForReleases=link.spotifyId,namesakePending=false;
     if(spotifyReleases){releases.push(...spotifyReleases);releaseSource='Spotify';}
     let catalogArtist=artist.source==='deezer'?artist:undefined;
     // A thin duplicate profile (same folded name, a fraction of the audience) defers to the real one.
@@ -219,7 +221,7 @@ async function computeArtistDetails(id:string):Promise<any>{
       const namesakes=namesakeReleaseIds(catalogArtist.sourceId||catalogArtist.id,{referenceTitles:(spotifyReleases||[]).map(r=>r.title)});
       const extra:any[]=[];let page=0;while(page<5){const data=await deezer(`artist/${catalogArtist.sourceId}/albums?limit=100&index=${page*100}`);extra.push(...(data.data||[]).map(release));if(!data.next)break;page++;}
       // Deezer files namesakes under one profile; their releases stay off this page.
-      const foreign=await namesakes;if(foreign.size)for(let i=extra.length-1;i>=0;i--)if(foreign.has(String(extra[i].id).split(':').at(-1)||''))extra.splice(i,1);
+      const foreign=await namesakes;if(!namesakeDecisionReady(catalogArtist.sourceId||catalogArtist.id))namesakePending=true;if(foreign.size)for(let i=extra.length-1;i>=0;i--)if(foreign.has(String(extra[i].id).split(':').at(-1)||''))extra.splice(i,1);
       // Verify shared discography before merging same-named artists across services.
       if(!spotifyReleases?.length||titleOverlap(spotifyReleases.map(r=>r.title),extra.map(r=>r.title))>0){releases.push(...extra);releaseSource=spotifyReleases?.length?'Spotify · Deezer':'Deezer';}
     }catch{}}
@@ -256,6 +258,6 @@ async function computeArtistDetails(id:string):Promise<any>{
     if(soundcloudArtist)metrics.splice(1,0,{platform:'SoundCloud',label:'Подписчики',value:soundcloudArtist.followersCount,url:soundcloudArtist.permalinkUrl||`https://soundcloud.com/search/people?q=${encodeURIComponent(artist.name)}`,note:undefined});
     const spotifyCardId=spotifyArtist?.id||(spotifyId?`spotify:artist:${spotifyId}`:undefined);
     const linked={spotifyId:spotifyCardId,soundcloudId:soundcloudArtist?.id,deezerId:catalogArtist?.id};
-    return {linked,bannerUrl:genius?.header,artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource,genius:geniusOwn?geniusProfile||undefined:undefined,homonym:homonym&&primary?primary:undefined};
+    return {namesakePending,linked,bannerUrl:genius?.header,artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource,genius:geniusOwn?geniusProfile||undefined:undefined,homonym:homonym&&primary?primary:undefined};
   }
 }
