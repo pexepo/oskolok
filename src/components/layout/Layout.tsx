@@ -1,3 +1,4 @@
+import { ChannelInvite } from '../common/ChannelInvite.js';
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { PageSkeleton } from '../common/Skeleton.js';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -169,6 +170,7 @@ export const Layout: React.FC = () => {
       </main>
 
       <GreetingToast />
+      <ChannelInvite />
       <PerformanceAdvice />
 
       {/* Docked Bottom Player for Non-Home Pages */}

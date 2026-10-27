@@ -8,6 +8,7 @@ import {getPreferredSource,setPreferredSource,recordingBetaEnabled,setRecordingB
 import {ServiceLogo} from '../discovery/MusicAccounts.js';
 import {autoplayEnabled,setAutoplayEnabled} from '../../stores/waveSettings.js';
 import {Link} from 'react-router-dom';
+import {APP_VERSION,APP_RELEASE_DATE} from '../../version.js';
 import {DesktopDownloads} from './DiscordSettings.js';
 import {desktopExtrasAvailable,desktopInfo,getDesktopPrefs,setDesktopPrefs,toggleMiniPlayer} from '../../desktop/desktopBridge.js';
 import {useLanguageStore,useTranslation} from '../../stores/useLanguageStore.js';
@@ -85,11 +86,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       <p className="set-eq-note">{t('Эквалайзер, скорость, тон и реверберация — в кнопке «Звук» на плашке плеера.','Equalizer, speed, pitch and reverb live under «Sound» on the player bar.')}</p>
     </div>:null}
     <div className="set-footer">
-      <small>{t('Осколок · закрытый бета-тест','Oskolok · closed beta')}</small>
+      <VersionMark/>
       <button type="button" className="sg-btn sg-btn--primary" onClick={onClose}>{t('Готово','Done')}</button>
     </div>
   </Modal>;
 };
+
+/** The release number, drawn big: a shard-cut glass numeral with the cover-blue sheen of the brand. */
+function VersionMark(){
+  const t=useTranslation(),[major,minor]=APP_VERSION.split('.');
+  const date=new Date(APP_RELEASE_DATE).toLocaleDateString(t('ru-RU','en-US'),{day:'numeric',month:'long',year:'numeric'});
+  return <div className="set-version" aria-label={t(`Осколок, версия ${APP_VERSION}, ${date}`,`Oskolok version ${APP_VERSION}, ${date}`)}>
+    <span className="set-version-num" aria-hidden="true">{major}<i>.</i>{minor}</span>
+    <span className="set-version-text" aria-hidden="true"><b>{t('Осколок','Oskolok')}</b><small>{t(`Версия ${APP_VERSION} · ${date}`,`Version ${APP_VERSION} · ${date}`)}</small><small>{t('Закрытый бета-тест','Closed beta')}</small></span>
+  </div>;
+}
 
 /** Effects level: «Авто» follows the hardware check, the rest force a level. */
 function PerformanceRow(){

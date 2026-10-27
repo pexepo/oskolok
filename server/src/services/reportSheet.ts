@@ -7,7 +7,7 @@ export interface ReportSheetRow {
   user: string; page?: string; track?: string; attachments: number; diagnostics?: string;
 }
 
-const KIND_RU: Record<string, string> = { bug: 'Ошибка приложения', playback: 'Не воспроизводится', source: 'Неверный источник', lyrics: 'Текст', timing: 'Тайминг', other: 'Своя причина' };
+const KIND_RU: Record<string, string> = { bug: 'Ошибка приложения', playback: 'Не воспроизводится', source: 'Неверный источник', lyrics: 'Текст', timing: 'Тайминг', catalog: 'Не тот артист/релиз', other: 'Своя причина' };
 
 /** Fire-and-forget: a sheet outage must never fail or slow down the report itself. */
 export function sendReportToSheet(row: ReportSheetRow): void {

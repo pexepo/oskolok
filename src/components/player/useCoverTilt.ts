@@ -1,7 +1,7 @@
 import React from 'react';
 
 type Orientation = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
-const MAX_X = 7, MAX_Y = 9;
+const MAX_X = 3.5, MAX_Y = 4.5;
 
 /**
  * Tidal/Spotify-style cover: it leans toward the pointer and a faint holographic sheen follows it. Phones without a

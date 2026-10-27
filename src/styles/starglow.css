@@ -883,3 +883,21 @@ html.home-deep .oskolok-app .mobile-cover-stage { opacity: .14; }
 .set-row.discord-account { gap: 12px; }
 .discord-avatar { width: 36px; height: 36px; border-radius: 50%; flex: none; object-fit: cover; }
 .set-stack { display: contents; }
+
+/* Settings footer: the release number as a big glass numeral. */
+.set-version { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.set-version-num {
+  position: relative; font-size: 46px; line-height: .9; font-weight: 800; letter-spacing: -.06em; font-variant-numeric: lining-nums;
+  background: linear-gradient(135deg, #1c3f9e 0%, #3f6bff 36%, #8a5cff 62%, #2fa7ff 100%);
+  background-size: 220% 220%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 6px 18px rgba(106, 125, 255, .35));
+  animation: set-version-sheen 7s ease-in-out infinite alternate;
+}
+.set-version-num i { font-style: normal; color: #3f6bff; -webkit-text-fill-color: #3f6bff; margin: 0 .02em; }
+.dark .set-version-num { background-image: linear-gradient(135deg, #e9f2ff 0%, #8fb5ff 34%, #6a7dff 52%, #c38cff 70%, #ffffff 100%); }
+.dark .set-version-num i { color: #8fb5ff; -webkit-text-fill-color: #8fb5ff; }
+.set-version-text { display: grid; gap: 1px; min-width: 0; }
+.set-version-text b { font-size: 13px; font-weight: 700; color: var(--sg-ink, inherit); }
+.set-version-text small { font-size: 11px; color: var(--sg-muted); letter-spacing: .02em; }
+@keyframes set-version-sheen { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .set-version-num { animation: none; } }

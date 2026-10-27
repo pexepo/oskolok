@@ -3,6 +3,7 @@ import {PageSkeleton,LoadingSurface,SkeletonRows} from '../components/common/Ske
 import {ZoomCoverButton} from '../components/common/CoverViewer.js';
 import {Link,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {artistPath} from '../utils/artistPath.js';
+import {WrongCatalogButton} from '../components/common/WrongCatalogButton.js';
 import {useQuery} from '@tanstack/react-query';
 import {Play,Shuffle,Search,X,ChevronDown} from 'lucide-react';
 import {Carousel} from '../components/common/Carousel.js';
@@ -142,6 +143,7 @@ export function ArtistPage(){
       <button className="profile-btn" disabled={tracks.length<2} onClick={()=>play(shuffled(),0)}><Shuffle size={16}/>{t('Вперемешку','Shuffle')}</button>
       <ArtistFollowButton artist={artist}/>
      </div>
+     <WrongCatalogButton subject={{type:'artist',id:artist.id,name:artist.name}}/>
     </div>
    </div>
    {metrics.length>0&&<ul className="artist-card-stats" aria-label={t('Аудитория на площадках','Audience by platform')}>

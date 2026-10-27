@@ -114,7 +114,6 @@ export const FullPlayerModal: React.FC = () => {
   // Controls take the cover's colour instead of the app blue; the variables are registered, so they glide between tracks.
   const [accent, setAccent] = React.useState(() => coverAccent([]));
   React.useEffect(() => { let live = true; void paletteFromArtwork(currentTrack?.artworkUrl).then(p => { if (live) setAccent(coverAccent(p)); }); return () => { live = false; }; }, [currentTrack?.artworkUrl]);
-  useCoverTilt(artRef, isFullPlayerOpen && !!currentTrack);
   const [notesSlot, setNotesSlot] = React.useState<HTMLDivElement | null>(null), [notesOpen, setNotesOpen] = React.useState(false);
   // Notes open/close re-lays the player out once; FLIP then carries the track pieces from where they were (transform only):
   // the cover column folds into a header above the notes. The lyrics stay put — the explained line is where it was read.
@@ -182,6 +181,8 @@ export const FullPlayerModal: React.FC = () => {
     focusSeen.current = focus;
     if (!reduceMotion) modalRef.current?.querySelector<HTMLElement>('.np-lyrics > .interference-lyrics')?.animate([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
   }, [focus, reduceMotion]);
+  // The big cover only: in the compact header (lyrics only, notes) it stays still.
+  useCoverTilt(artRef, isFullPlayerOpen && !!currentTrack && !notesOpen && focus !== 'lyrics');
   const notesHost = React.useMemo(() => ({ slot: notesSlot, setOpen: setNotesOpenFlip }), [notesSlot, setNotesOpenFlip]);
 
   React.useEffect(() => {
