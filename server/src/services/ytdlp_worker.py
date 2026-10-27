@@ -121,6 +121,20 @@ def names_match(artist, channel):
     ca = consonants(a)
     return len(ca) >= 5 and ca in consonants(c)
 
+def yt_query(q):
+    """YouTube reads a word starting with "-" as an exclusion: "Android Girl -Hello ver.-" would hide the very
+    upload it looks for. Leading dashes go; the words stay."""
+    return re.sub(r'(^|\s)[-\u2013\u2014]+(?=\S)', r'\1', q or '')
+
+VERSION_TAG = re.compile(r'[(\[]([^)\]]+)[)\]]|(?<!\S)-(\S[^-]*?\S)-(?!\S)')
+def version_tags(title):
+    """Edition marks a release carries in brackets or between dashes ("-Hello ver.-", "(Reloaded)", "(Extended Mix)"):
+    an upload without them is another recording of the song. Credits, remasters and "Original Mix" are not editions."""
+    tags = [fold(a or b) for a, b in VERSION_TAG.findall(title or '')]
+    return [t for t in tags if t and not re.search(r'^(feat|ft|prod|with|from|explicit|clean|original|bonus)\b|remaster|\bmono\b|\bstereo\b|^\d{4}$', t)]
+
+NON_LATIN_TITLE = re.compile(r'[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]')
+
 def has_version(text, version):
     words = lambda s: re.sub(r"[^\w]+", " ", s.lower()).strip()
     return f" {words(version)} " in f" {words(text)} "
@@ -165,7 +179,7 @@ def find_original(req_id, req):
     def search(q):
         try:
             # Each thread keeps its own YoutubeDL instance (see get_flat_ydl).
-            return (get_flat_ydl().extract_info(f'ytsearch12:{q}', download=False) or {}).get('entries') or []
+            return (get_flat_ydl().extract_info(f'ytsearch12:{yt_query(q)}', download=False) or {}).get('entries') or []
         except Exception:
             return []
     queries = [f'{clean_artist} - {clean_title}', f'{clean_artist} {clean_title}', f'{clean_title} {clean_artist}']
@@ -230,10 +244,17 @@ def find_original(req_id, req):
             return
     safe_print({'id': req_id, 'success': True, 'reissue': reissue, 'cutoff': cutoff, 'candidate': None})
 
-def ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords):
+def ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists=(), album=''):
+    """Also asks with the album: a generic title («Ouvertüre») is buried under other works without it."""
+    song = ytmusic_song_query(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists, '')
+    if not song and album and fold(album) != fold(clean_title):
+        song = ytmusic_song_query(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists, album)
+    return song
+
+def ytmusic_song_query(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists, album):
     """YouTube Music's song search lists the label's "Artist - Topic" audio even when the video search is empty or full of re-uploads."""
     try:
-        q = f'{clean_artist} {clean_title}'.strip()
+        q = yt_query(f'{clean_artist} {clean_title} {album}'.strip())
         if not hasattr(tls, 'ydl_music'):
             tls.ydl_music = yt_dlp.YoutubeDL({**flat_opts, 'playlistend': 8})
         info = tls.ydl_music.extract_info('https://music.youtube.com/search?q=' + urllib.parse.quote(q) + '#songs', download=False)
@@ -252,6 +273,8 @@ def ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifi
             continue
         if any(has_version((entry.get('title') or '').lower(), kw) and kw not in allowed_keywords for kw in modifier_keywords):
             continue
+        if any(t not in cand for t in version_tags(clean_title)):
+            continue
         picked.append(entry['id'])
         if len(picked) >= 3:
             break
@@ -265,10 +288,14 @@ def ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifi
             continue
         channel = full.get('channel') or full.get('uploader') or ''
         artists = ' '.join(full.get('artists') or [full.get('artist') or ''])
-        if clean_artist and not (names_match(clean_artist, channel) or names_match(clean_artist, artists) or (channel.endswith('- Topic') and names_match(clean_artist, channel[:-8]))):
+        if clean_artist and not any(names_match(a, channel) or names_match(a, artists) or (channel.endswith('- Topic') and names_match(a, channel[:-8])) for a in (clean_artist, *alt_artists)):
             continue
         dur = full.get('duration') or 0
-        if target_dur > 30 and dur and (abs(dur - target_dur) > 8 or is_pitched(dur, target_dur)):
+        # The label's own song under the exact title may be a different master a few seconds off (199 s on YouTube,
+        # 210 s on Deezer): up to 6% is still that song. Anything else keeps the strict check.
+        exact_title = fold(full.get('track') or full.get('title') or '').startswith(title_fold)
+        lenient = exact_title and dur and abs(dur - target_dur) <= max(8, target_dur * 0.06)
+        if target_dur > 30 and dur and not lenient and (abs(dur - target_dur) > 8 or is_pitched(dur, target_dur)):
             continue
         result = {'streamUrl': full['url'], 'duration': dur or target_dur, 'title': full.get('track') or full.get('title') or clean_title, 'channel': channel or clean_artist, 'score': 1000}
         reissue = reissue_of(full)
@@ -392,13 +419,16 @@ def handle_request(req):
         clean_title = req.get('cleanTitle', '')
         clean_artist = req.get('cleanArtist', '')
         target_dur = req.get('targetDuration', 0)
+        alt_artists = [a for a in (req.get('altArtists') or []) if isinstance(a, str) and a.strip()][:4]
+        any_artist = lambda name: any(names_match(a, name) for a in (clean_artist, *alt_artists))
+        tags = version_tags(clean_title)
 
         # 1. High-speed flat search (fetches up to 6 metadata candidates in ~1.5s)
         search_query = query
         if not search_query.startswith('ytsearch'):
-            search_query = f'ytsearch6:{query or (clean_artist + " - " + clean_title)}'
+            search_query = f'ytsearch6:{yt_query(query or (clean_artist + " - " + clean_title))}'
         elif search_query.startswith('ytsearch2:'):
-            search_query = 'ytsearch6:' + search_query[10:]
+            search_query = 'ytsearch6:' + yt_query(search_query[10:])
 
         ydl_flat = get_flat_ydl()
         info = ydl_flat.extract_info(search_query, download=False)
@@ -442,9 +472,9 @@ def handle_request(req):
             cand_title_lower = cand_title.lower()
 
             # Compare folded so a Cyrillic channel matches a Latin catalogue name.
-            artist_channel = names_match(clean_artist, cand_channel)
+            artist_channel = any_artist(cand_channel)
             topic_channel = cand_channel.lower().endswith('- topic')
-            if artist_compact and not (artist_channel or (topic_channel and names_match(clean_artist, cand_channel[:-8]))):
+            if artist_compact and not (artist_channel or (topic_channel and any_artist(cand_channel[:-8]))):
                 continue
 
             # Resilient title matching
@@ -454,9 +484,13 @@ def handle_request(req):
                 matches_count = sum(1 for t in title_tokens if t in folded_cand)
                 ratio = matches_count / max(1, len(title_tokens))
                 has_match = (fold(clean_title) in folded_cand) or (ratio >= 0.4) or (len(title_tokens) <= 2 and matches_count >= 1)
+                if has_match and any(t not in folded_cand for t in tags):
+                    continue
                 if has_match:
                     score += int(ratio * 150)
-                else:
+                # The artist's own channel titles the song in Japanese or Korean («おねがい！ナニトゾタノムちゃん»)
+                # while the catalogue has it romanised: the same length to the second is the match.
+                elif not (artist_channel and target_dur > 30 and dur_sec and abs(dur_sec - target_dur) <= 1 and NON_LATIN_TITLE.search(cand_title)):
                     continue
 
             # Penalize unwanted modifiers if not explicitly part of title or artist
@@ -529,13 +563,13 @@ def handle_request(req):
             if exact:
                 candidates = exact
             elif req.get('music', True):
-                song = ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords)
+                song = ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists, req.get('album') or '')
                 if song and abs((song.get('duration') or target_dur) - target_dur) <= 3:
                     safe_print({'id': req_id, 'success': True, 'candidate': song})
                     return
 
         if not candidates:
-            song = ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords) if req.get('music', True) else None
+            song = ytmusic_song(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, alt_artists, req.get('album') or '') if req.get('music', True) else None
             if not song and req.get('music', True):
                 song = topic_upload(clean_title, clean_artist, target_dur, allowed_keywords, modifier_keywords, entries)
             if song:

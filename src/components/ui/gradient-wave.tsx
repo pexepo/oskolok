@@ -77,6 +77,10 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
     return () => { alive = false; };
   }, [artworkUrl]);
 
+  // The shader keeps running across tracks; its colours drift to the new cover's instead of jumping.
+  const targetRef = useRef<Float32Array>(new Float32Array(palette.flat().map(v => v)));
+  useEffect(() => { targetRef.current = new Float32Array(palette.flat()); restartRef.current(); }, [palette]);
+
   // Below «full» the backdrop is the static gradient of the cover's colours: no WebGL frame loop.
   const animated = usePerformance(s => s.level) === 'full';
   useEffect(() => {
@@ -110,7 +114,18 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
       const position = gl.getAttribLocation(program, 'a_position');
       gl.enableVertexAttribArray(position);
       gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform3fv(gl.getUniformLocation(program, 'u_colors[0]'), new Float32Array(palette.flat()));
+      const colorsAt = gl.getUniformLocation(program, 'u_colors[0]');
+      const current = new Float32Array(targetRef.current);
+      let blendAt = 0;
+      // Eases the uniform toward the target palette; true while still on its way.
+      const blend = (now: number) => {
+        const target = targetRef.current, dt = blendAt ? Math.min((now - blendAt) / 1000, .1) : 0, k = 1 - Math.exp(-dt * 4.5);
+        blendAt = now;
+        let moving = false;
+        for (let i = 0; i < current.length; i++) { const d = target[i] - current[i]; if (Math.abs(d) > .002) { current[i] += d * k; moving = true; } else current[i] = target[i]; }
+        gl.uniform3fv(colorsAt, current);
+        return moving;
+      };
       const resolution = gl.getUniformLocation(program, 'u_resolution');
       const time = gl.getUniformLocation(program, 'u_time');
       const resize = () => {
@@ -124,29 +139,33 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
           gl.viewport(0, 0, width, height);
         }
       };
-      const draw = () => {
+      let moving = false;
+      const draw = (now = performance.now()) => {
         resize();
+        moving = reduced.matches ? (current.set(targetRef.current), gl.uniform3fv(colorsAt, current), false) : blend(now);
         gl.uniform2f(resolution, canvas.width, canvas.height);
         gl.uniform1f(time, elapsed);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       };
       const tick = (now: number) => {
-        if (disposed || document.hidden || reduced.matches || !isPlayingRef.current) return;
-        if (now - last >= 50) {
-          elapsed += last ? Math.min((now - last) / 1000, .1) : 0;
+        // Paused, the frame loop still runs while the colours travel to a new cover; the waves themselves stay still.
+        if (disposed || document.hidden || reduced.matches || (!isPlayingRef.current && !moving)) return;
+        if (now - last >= (isPlayingRef.current ? 50 : 16)) {
+          if (isPlayingRef.current) elapsed += last ? Math.min((now - last) / 1000, .1) : 0;
           last = now;
-          draw();
+          draw(now);
         }
         frame = requestAnimationFrame(tick);
       };
       const start = () => {
         cancelAnimationFrame(frame);
-        last = 0;
+        last = 0; blendAt = 0;
         draw();
-        if (!document.hidden && !reduced.matches && isPlayingRef.current) frame = requestAnimationFrame(tick);
+        moving = true;
+        if (!document.hidden && !reduced.matches) frame = requestAnimationFrame(tick);
       };
       restartRef.current = start;
-      const observer = new ResizeObserver(draw);
+      const observer = new ResizeObserver(() => draw());
       observer.observe(canvas);
       document.addEventListener('visibilitychange', start);
       reduced.addEventListener('change', start);
@@ -170,7 +189,7 @@ export function GradientWave({ artworkUrl, isPlaying, isDark = false }: { artwor
       if (fragment) gl.deleteShader(fragment);
       return undefined;
     }
-  }, [palette, animated]);
+  }, [animated]);
 
   useEffect(() => { restartRef.current(); }, [isPlaying]);
 

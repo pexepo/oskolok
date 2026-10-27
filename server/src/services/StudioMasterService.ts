@@ -567,6 +567,8 @@ export class StudioMasterService {
       // searches bury under re-uploads.
       `${cleanArtist} ${cleanTitle} "Provided to YouTube"`,
     ];
+    // Compilations credit the label first («BRN1NG BRAIN SOUND INDUSTRIES, Onion Room»): every credited name may own the upload.
+    const altArtists = track.artist.name.split(',').slice(1).map(name => name.trim()).filter(Boolean);
     const allowSoundCloud = preferredSource === 'soundcloud' || (!preferredSource && track.source !== 'youtube' && track.source !== 'licensed');
     const allowYouTube = !preferredSource || preferredSource === 'youtube';
     let workerAnswered = false;
@@ -591,7 +593,7 @@ export class StudioMasterService {
     const viaWorker = async (query: string): Promise<ResolvedMaster | null> => {
       try {
         logger.info({ trackId: track.id, query }, 'Resolving studio master via warm Python worker');
-        const res = await this.sendWorkerRequest({ action: 'resolve', query, cleanTitle, cleanArtist, targetDuration }, 15000);
+        const res = await this.sendWorkerRequest({ action: 'resolve', query, cleanTitle, cleanArtist, targetDuration, altArtists, album: track.release?.title }, 25000);
         workerAnswered = true;
         if (res.success && res.candidate?.streamUrl) {
           const best = res.candidate;

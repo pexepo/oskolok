@@ -5,6 +5,9 @@ import {useShallow} from 'zustand/react/shallow';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Columns2, TextQuote, Disc3 } from 'lucide-react';
+import { coverAccent } from './coverAccent.js';
+import { useCoverTilt } from './useCoverTilt.js';
+import { paletteFromArtwork } from '../../utils/releasePalette.js';
 import { scopedStorageKey } from '../../telegram/runtime.js';
 import { ChevronDown, Info, Music2, SlidersHorizontal, Moon, MoreHorizontal, UsersRound, Flag, Sparkles, Play, Pause } from 'lucide-react';
 import { openJamPanel } from '../../connect/jam.js';
@@ -43,6 +46,7 @@ import { setNativeBars } from '../../utils/nativeShell.js';
 
 export const FullPlayerModal: React.FC = () => {
   const reduceMotion=useReducedMotion();
+  const artRef = React.useRef<HTMLDivElement>(null);
   const t=useTranslation(),[mediaOpen,setMediaOpen]=React.useState(false),[showInfo,setShowInfo]=React.useState(false),[showArtists,setShowArtists]=React.useState(false);
   const { isDark } = useThemeStore();
   const {
@@ -107,6 +111,10 @@ export const FullPlayerModal: React.FC = () => {
 
   const playlistList = Array.isArray(playlists) ? playlists : [];
   const modalRef = React.useRef<HTMLDivElement>(null);
+  // Controls take the cover's colour instead of the app blue; the variables are registered, so they glide between tracks.
+  const [accent, setAccent] = React.useState(() => coverAccent([]));
+  React.useEffect(() => { let live = true; void paletteFromArtwork(currentTrack?.artworkUrl).then(p => { if (live) setAccent(coverAccent(p)); }); return () => { live = false; }; }, [currentTrack?.artworkUrl]);
+  useCoverTilt(artRef, isFullPlayerOpen && !!currentTrack);
   const [notesSlot, setNotesSlot] = React.useState<HTMLDivElement | null>(null), [notesOpen, setNotesOpen] = React.useState(false);
   // Notes open/close re-lays the player out once; FLIP then carries the track pieces from where they were (transform only):
   // the cover column folds into a header above the notes. The lyrics stay put — the explained line is where it was read.
@@ -211,6 +219,7 @@ export const FullPlayerModal: React.FC = () => {
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 56, scale: .985, borderRadius: 32 }}
           animate={{ opacity: 1, y: 0, scale: 1, borderRadius: 0, transition: { duration: .46, ease: [.2, .8, .2, 1] } }}
           exit={reduceMotion ? { opacity: 0, transition: { duration: .15 } } : { opacity: 0, y: 48, scale: .985, borderRadius: 32, transition: { duration: .3, ease: [.4, 0, .8, .4] } }}
+          style={{ '--np-accent': accent.color, '--np-hue': `${accent.hue}deg`, '--np-sat': accent.sat } as React.CSSProperties}
           role="dialog" aria-modal="true" aria-label={t('Полноэкранный плеер', 'Full-screen player')} data-playing={isPlaying ? "true" : "false"}
           className="interference-modal np-v2 fixed inset-0 z-50 bg-[#f0f4f9] dark:bg-[#070c14] flex flex-col justify-between p-6 md:p-8 select-none overflow-hidden text-[#162b50] dark:text-slate-100 transition-colors duration-300"
         >
@@ -251,11 +260,12 @@ export const FullPlayerModal: React.FC = () => {
             <div ref={setNotesSlot} className="np-notes-slot interference-lyrics lyrics-v3" />
             {/* Cover column: artwork, scrub bar, title — then our controls (Apple-style "now playing"). */}
             <div ref={trackPanelRef} id="mobile-player-info" role={isMobile?'tabpanel':undefined} aria-labelledby={isMobile?'mobile-player-info-tab':undefined} aria-hidden={isMobile&&mobileView!=='info'} className="interference-track np-panel">
-              <div className="np-art">
-                <ArtworkImage src={currentTrack.artworkUrl} alt={currentTrack.title} className="w-full h-full" iconSize={88} zoomable />
+              <div className="np-art" ref={artRef}>
+                <ArtworkImage key={currentTrack.artworkUrl} src={currentTrack.artworkUrl} alt={currentTrack.title} className="w-full h-full np-art-image" iconSize={88} />
+                <span className="np-holo" aria-hidden="true" />
               </div>
               <div className="np-progress"><LiveProgressBar /></div>
-              <div className="np-heading">
+              <div className="np-heading" key={currentTrack.id}>
                 <h2 title={displayTitle}><NavLink to={currentTrack.release?.id ? `/release/${encodeURIComponent(currentTrack.release.id)}` : `/track/${encodeURIComponent(currentTrack.id)}`} onClick={() => setFullPlayerOpen(false)} className="np-title-link">{displayTitle}</NavLink></h2>
                 <button type="button" className="np-artists" onClick={() => setShowArtists(true)} title={t('Исполнители трека', 'Track artists')} aria-haspopup="dialog">{artistName}</button>
                 {/* Why the wave played this: people asked for it instead of a silent algorithm. */}

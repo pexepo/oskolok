@@ -392,3 +392,9 @@ html body .interference-lyrics .lyrics-attribution.lyrics-attribution--more { ju
 .lyrics-credit-more__panel :is(span, a, button, strong) { color: inherit !important; }
 @keyframes lyrics-credit-in { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (prefers-reduced-motion: reduce) { .lyrics-credit-more__panel { animation: none; } }
+
+/* «Подготовка аннотаций…»: Genius notes are still on their way; the line fades in and out without moving the text. */
+html body .interference-lyrics.lyrics-v3 .lyrics-notes-loading { display: inline-flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 11px; opacity: .72; animation: lyrics-notes-in .3s ease both; }
+html body .interference-lyrics.lyrics-v3 .lyrics-notes-loading .luma-spin { --luma-size: 14px; --luma-offset: 7px; }
+@keyframes lyrics-notes-in { from { opacity: 0; transform: translate3d(0, -3px, 0); } }
+@media (prefers-reduced-motion: reduce) { html body .interference-lyrics.lyrics-v3 .lyrics-notes-loading { animation: none; } }

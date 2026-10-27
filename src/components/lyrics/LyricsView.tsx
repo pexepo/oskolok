@@ -1,3 +1,4 @@
+import LumaSpin from '../ui/luma-spin.js';
 import {Modal} from '../common/Modal.js';
 import {FileUploader} from '../common/FileUploader.js';
 import {useReportStore} from '../common/ReportDialog.js';
@@ -76,16 +77,26 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   const boundaries=useMemo(()=>[...new Set(lines.flatMap(line=>[line.time,line.end]))].sort((a,b)=>a-b),[lines]);
   const gaps=useMemo(()=>lyricGaps(lines),[lines]),gapByLine=useMemo(()=>new Map(gaps.map(gap=>[gap.index,gap])),[gaps]);
   // Genius referents: fetched per song, matched to the lines shown here.
+  // A new track's lyrics surface softly instead of replacing the old ones in one frame.
+  const fadedFor=useRef('');
   useEffect(()=>{
-    setNotes(null);setNote(null);
+    if(!lines.length||fadedFor.current===trackId)return;
+    fadedFor.current=trackId;
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches)containerRef.current?.animate([{opacity:0,filter:'blur(6px)'},{opacity:1,filter:'none'}],{duration:480,easing:'cubic-bezier(.2,.8,.2,1)'});
+  },[lines,trackId]);
+  const [notesLoading,setNotesLoading]=useState(false);
+  useEffect(()=>{
+    setNotes(null);setNote(null);setNotesLoading(false);
     if(!enabled||!trackName||!artistName)return;
+    setNotesLoading(true);
     const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
     // Genius can be slow or briefly unreachable; a failed lookup is asked again twice before giving up.
     const load=(attempt:number)=>apiClient.getLyricsAnnotations(trackId,trackName,artistName,controller.signal).then(data=>{
       if(controller.signal.aborted)return;
-      if(data?.referents?.length)setNotes(data);
+      if(data?.referents?.length){setNotes(data);setNotesLoading(false);}
       else if(data?.transient&&attempt<2)timer=setTimeout(()=>load(attempt+1),2500*(attempt+1));
-    }).catch(()=>{if(!controller.signal.aborted&&attempt<2)timer=setTimeout(()=>load(attempt+1),2500*(attempt+1));});
+      else setNotesLoading(false);
+    }).catch(()=>{if(controller.signal.aborted)return;if(attempt<2)timer=setTimeout(()=>load(attempt+1),2500*(attempt+1));else setNotesLoading(false);});
     void load(0);
     return()=>{controller.abort();clearTimeout(timer);};
   },[trackId,trackName,artistName,enabled]);
@@ -261,7 +272,7 @@ export const LyricsView=React.memo(function LyricsView({enabled=true,trackId,tra
   const attributionNode=attributionInner?<div className="lyrics-attribution lyrics-attribution--more"><LyricsCreditMore>{attributionInner}</LyricsCreditMore></div>:null;
   const drawer=lineNotes.size>0&&!editor?<GeniusDrawer open={note!==null} line={noteLines[shownNote.current.line]?.text} referents={drawerReferents} song={notes?.song} onClose={closeNote} translateTo={translateOn?(translated?.target||language):undefined} artwork={artwork}/>:null;
   return <section className="interference-lyrics lyrics-v3" data-notes-open={note?'true':undefined} data-notes-docked={notesSlot?'true':undefined} data-translated={lineTranslations?'true':undefined}>
-    <div className="lyrics-toolbar"><div><span className="eyebrow">{t('Текст песни','Lyrics')}</span>{timingLabel&&<p>{timingLabel}</p>}</div><div className="lyrics-toolbar-actions"><button className={`text-button lyrics-translate-toggle${translateOn?' is-on':''}`} onClick={()=>setTranslateOn(v=>!v)} disabled={!leadTexts.length&&!translateOn} aria-pressed={translateOn} aria-busy={translating} title={translateOn?t('Скрыть перевод','Hide translation'):t('Перевести текст','Translate lyrics')}>{translating?<UniqueLoading size="sm" label={t('Переводим…','Translating…')}/>:<Languages size={17}/>}<span>{t('Перевод','Translate')}</span></button><button className="text-button" onClick={()=>setSettings(true)} aria-label={t('Настройки текста','Lyrics settings')}><Settings2 size={17}/></button></div></div>
+    <div className="lyrics-toolbar"><div><span className="eyebrow">{t('Текст песни','Lyrics')}</span>{timingLabel&&<p>{timingLabel}</p>}{notesLoading&&lines.length>0&&<p className="lyrics-notes-loading" role="status"><LumaSpin size="sm"/>{t('Подготовка аннотаций…','Preparing annotations…')}</p>}</div><div className="lyrics-toolbar-actions"><button className={`text-button lyrics-translate-toggle${translateOn?' is-on':''}`} onClick={()=>setTranslateOn(v=>!v)} disabled={!leadTexts.length&&!translateOn} aria-pressed={translateOn} aria-busy={translating} title={translateOn?t('Скрыть перевод','Hide translation'):t('Перевести текст','Translate lyrics')}>{translating?<UniqueLoading size="sm" label={t('Переводим…','Translating…')}/>:<Languages size={17}/>}<span>{t('Перевод','Translate')}</span></button><button className="text-button" onClick={()=>setSettings(true)} aria-label={t('Настройки текста','Lyrics settings')}><Settings2 size={17}/></button></div></div>
     {error&&<p className="lyrics-error" role="alert">{error}</p>}
     {loadFailed&&<button type="button" className="text-button" onClick={()=>setReload(value=>value+1)}>{t('Повторить загрузку','Retry loading')}</button>}
     <div ref={containerRef} className={`lyrics-scroll ${follow?'':'is-manual'}`} onWheel={()=>setFollow(false)} onTouchMove={()=>setFollow(false)}>
