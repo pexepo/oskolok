@@ -1,3 +1,4 @@
+import {isAppShell} from '../utils/nativeShell.js';
 import { create } from 'zustand';
 import { useThemeStore } from '../stores/useThemeStore.js';
 import { tr } from '../stores/useLanguageStore.js';
@@ -45,7 +46,8 @@ export async function initializeTelegram() {
     catch(error){
       // No network: the last signed-in profile opens the player in offline mode with the downloaded music.
       const cached=readOfflineSession();
-      if(cached){useTelegramStore.setState(cached);useOfflineMode.setState({offline:true});return;}
+      // Only the installed apps start offline: the web has no offline mode.
+      if(cached&&isAppShell()){useTelegramStore.setState(cached);useOfflineMode.setState({offline:true});return;}
       throw error;
     }
     const json=await response.json();

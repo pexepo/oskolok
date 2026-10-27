@@ -1,3 +1,4 @@
+import { artistPath } from '../../utils/artistPath.js';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {useOpenArtist,isReupload,performerNames} from '../tracks/TrackCredits.js';
 import { createPortal } from 'react-dom';
@@ -191,7 +192,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
     onClose();
     // A re-upload's artist id is the uploader's account: find the performer by name instead.
     if (reupload || performerNames(track.artist.name).length > 1) void openArtistByName(performerNames(track.artist.name)[0] || track.artist.name, track);
-    else navigate(`/artist/${encodeURIComponent(track.artist.id)}`);
+    else navigate(artistPath(track.artist.id, track.release?.id));
   };
   const handleOpenUploader = () => {
     onClose();

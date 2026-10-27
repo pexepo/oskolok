@@ -2,13 +2,13 @@ import React from 'react';
 import {usePerformance,readDevice,type PerfMode} from '../../utils/performance.js';
 import {Modal} from '../common/Modal.js';
 import {PrivacySettings} from './PrivacySettings.js';
-import {Sun, Moon, MonitorSmartphone, Sparkles, Settings2, Check, Send} from 'lucide-react';
+import {OfflineSettings} from '../../offline/OfflineUI.js';
+import {Sun, Moon, MonitorSmartphone, Sparkles, Settings2, Check, Send, ChevronRight} from 'lucide-react';
 import {getPreferredSource,setPreferredSource,recordingBetaEnabled,setRecordingBetaEnabled,inTelegramMiniApp} from '../../utils/playbackPreferences.js';
 import {ServiceLogo} from '../discovery/MusicAccounts.js';
 import {autoplayEnabled,setAutoplayEnabled} from '../../stores/waveSettings.js';
-import {startDiscord,type DiscordUser} from '../../discord/discordAuth.js';
-import {apiClient} from '../../api/apiClient.js';
-import {useToastStore} from '../../stores/useToastStore.js';
+import {Link} from 'react-router-dom';
+import {DesktopDownloads} from './DiscordSettings.js';
 import {desktopExtrasAvailable,desktopInfo,getDesktopPrefs,setDesktopPrefs,toggleMiniPlayer} from '../../desktop/desktopBridge.js';
 import {useLanguageStore,useTranslation} from '../../stores/useLanguageStore.js';
 import {useThemeStore, type ThemeMode} from '../../stores/useThemeStore.js';
@@ -75,8 +75,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
         </label>
       </section>
-      <DiscordSettings/>
-      {desktopExtrasAvailable()?<DesktopSettings/>:<section className="set-group"><h4>{t('Компьютер','Desktop')}</h4><div className="set-row"><span>{t('Приложение для компьютера','Desktop app')}<small>{t('Статус «Слушает Осколок» в Discord, мини-плеер поверх окон и горячая клавиша — только в приложении: Discord разрешает менять статус лишь программе на том же компьютере.','Discord “Listening to Oskolok” status, the floating mini player and a global shortcut live in the app: Discord lets only a program on the same computer set your status.')}</small></span><DesktopDownloads/></div></section>}
+      <section className="set-group">
+        <h4>{t('Telegram и Discord','Telegram and Discord')}</h4>
+        <Link className="set-row set-row--button" to="/profile?tab=settings#listening-status" onClick={onClose}><span>{t('Статус «Слушает», аккаунты и сессия','“Listening” status, accounts and session')}<small>{t('Всё про Telegram и Discord — в профиле, в настройках','Everything about Telegram and Discord is in your profile settings')}</small></span><ChevronRight size={15}/></Link>
+      </section>
+      {desktopExtrasAvailable()?<DesktopSettings/>:<section className="set-group"><h4>{t('Компьютер','Desktop')}</h4><div className="set-row"><span>{t('Приложение для компьютера','Desktop app')}<small>{t('Мини-плеер поверх окон, горячая клавиша, статус в Discord и оффлайн-музыка — только в приложении.','The floating mini player, a global shortcut, Discord status and offline music live in the app.')}</small></span><DesktopDownloads/></div></section>}
+      <OfflineSettings onNavigate={onClose}/>
       <PrivacySettings/>
       <p className="set-eq-note">{t('Эквалайзер, скорость, тон и реверберация — в кнопке «Звук» на плашке плеера.','Equalizer, speed, pitch and reverb live under «Sound» on the player bar.')}</p>
     </div>:null}
@@ -99,29 +103,12 @@ function PerformanceRow(){
  </div>;
 }
 
-/** Discord: the linked account (sign-in on the site) and where the «Слушает» status comes from. */
-function DiscordSettings(){
-  const t=useTranslation();
-  const [linked,setLinked]=React.useState<DiscordUser|null|undefined>(undefined),[busy,setBusy]=React.useState(false);
-  React.useEffect(()=>{const load=()=>void apiClient.request<{linked:DiscordUser|null}>('/discord').then(d=>setLinked(d.linked)).catch(()=>setLinked(null));load();window.addEventListener('oskolok-discord',load);return()=>window.removeEventListener('oskolok-discord',load);},[]);
-  const unlink=async()=>{setBusy(true);try{await apiClient.request('/discord/link',{method:'DELETE'});setLinked(null);}finally{setBusy(false);}};
-  return <section className="set-group">
-    <h4>Discord</h4>
-    <div className="set-row discord-account">
-      {linked?<img src={linked.avatarUrl||''} alt="" className="discord-avatar" hidden={!linked.avatarUrl}/>:null}
-      <span>{linked?t(`Подключён: ${linked.globalName||linked.username}`,`Connected: ${linked.globalName||linked.username}`):t('Аккаунт Discord','Discord account')}
-        <small>{linked?t(`@${linked.username} · теперь можно входить в Осколок через Discord`,`@${linked.username} · you can now sign in to Oskolok with Discord`):t('Подключите, чтобы входить в Осколок через Discord','Connect to sign in to Oskolok with Discord')}</small></span>
-      {linked===undefined?null:linked?<button type="button" className="sg-btn" disabled={busy} onClick={()=>void unlink()}>{t('Отключить','Disconnect')}</button>
-        :<button type="button" className="sg-btn sg-btn--primary" disabled={busy} onClick={()=>{setBusy(true);void startDiscord('link').catch(e=>useToastStore.getState().addToast((e as Error).message,'warning')).finally(()=>setBusy(false));}}>{busy?t('Ждём Discord…','Waiting for Discord…'):t('Подключить','Connect')}</button>}
-    </div>
-  </section>;
-}
 
-/** Desktop client only: the floating mini-player and Discord status. */
+/** Desktop client only: the floating mini-player (Discord status lives with Telegram in the profile). */
 function DesktopSettings(){
   const t=useTranslation();
   const [prefs,setPrefs]=React.useState(getDesktopPrefs);
-  const [info,setInfo]=React.useState<{discord:boolean;discordUser?:{username:string;globalName?:string}|null;shortcut:string}|null>(null);
+  const [info,setInfo]=React.useState<{shortcut:string}|null>(null);
   React.useEffect(()=>{void desktopInfo().then(setInfo);},[]);
   const update=(patch:Partial<typeof prefs>)=>{setDesktopPrefs(patch);setPrefs(getDesktopPrefs());};
   return <section className="set-group">
@@ -132,18 +119,6 @@ function DesktopSettings(){
       <input type="checkbox" checked={prefs.miniOnMinimize} onChange={e=>update({miniOnMinimize:e.target.checked})}/>
       <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
     </label>
-    {info?.discord?<label className={`set-row set-check ${prefs.discord?'is-on':''}`}>
-      <span>{t('Статус в Discord','Discord status')}<small>{info.discordUser===undefined?null:info.discordUser?t(`Discord на этом компьютере: ${info.discordUser.globalName||info.discordUser.username}. `,`Discord on this computer: ${info.discordUser.globalName||info.discordUser.username}. `):t('Discord не запущен или ещё не подключился. ','Discord is not running or not connected yet. ')}{t('«Слушает Осколок»: трек, артист и кнопка «Слушать в Осколке» в профиле Discord','“Listening to Oskolok”: track, artist and a “Listen in Oskolok” button on your Discord profile')}</small></span>
-      <input type="checkbox" checked={prefs.discord} onChange={e=>update({discord:e.target.checked})}/>
-      <i className="set-check-box" aria-hidden="true"><Check size={14} strokeWidth={3}/></i>
-    </label>:info&&<div className="set-row"><span>{t('Статус в Discord','Discord status')}<small>{t('В этой версии приложения его нет. Скачайте новую — настройки и вход сохранятся.','This app version does not have it. Download the new one — settings and sign-in stay.')}</small></span><DesktopDownloads/></div>}
   </section>;
 }
 
-/** Public builds (see DEPLOY.md, /downloads): the current platform first. */
-function DesktopDownloads(){
-  const mac=/Mac/i.test(navigator.platform||navigator.userAgent);
-  const links:Array<[string,string]>=[['Windows','/downloads/Oskolok-Setup.exe'],['macOS · Apple Silicon','/downloads/Oskolok-arm64.dmg'],['macOS · Intel','/downloads/Oskolok-x64.dmg']];
-  if(mac)links.push(links.shift()!);
-  return <span className="set-downloads">{links.map(([label,href])=><a key={href} className="set-download" href={href} download>{label}</a>)}</span>;
-}

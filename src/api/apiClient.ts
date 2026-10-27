@@ -34,7 +34,7 @@ class ApiClient {
   public matchImport(artist:string,title:string):Promise<{track:Track|null;candidates:Track[]}>{return this.request('/imports/match',{method:'POST',body:JSON.stringify({artist,title})});}
   public suggestions(q:string,signal?:AbortSignal):Promise<SearchResult>{return this.request(`/suggestions?q=${encodeURIComponent(q)}`,{signal});}
   public getRelease(id:string):Promise<Release>{return this.request(`/releases/${encodeURIComponent(id)}`);}
-  public getArtistDetails(id:string):Promise<ArtistDetails>{return this.request(`/artists/${encodeURIComponent(id)}/details`);}
+  public getArtistDetails(id:string,from?:string):Promise<ArtistDetails>{return this.request(`/artists/${encodeURIComponent(id)}/details${from?`?from=${encodeURIComponent(from)}`:''}`);}
   public getTrackPopularity(artist:string,tracks:Array<{id:string;title:string;artistId?:string}>):Promise<Record<string,TrackPopularity|null>>{return this.request('/artists/popularity',{method:'POST',body:JSON.stringify({artist,tracks})});}
   public getGeniusRelease(artist:string,title:string):Promise<GeniusRelease|null>{return this.request(`/releases/genius?${new URLSearchParams({artist,title})}`);}
   private baseUrl = apiBase;
@@ -145,8 +145,8 @@ class ApiClient {
     return this.request<Artist>(`/artists/${encodeURIComponent(id)}`);
   }
 
-  public async getArtistTracks(id: string, page = 1, limit = 20): Promise<Track[]> {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  public async getArtistTracks(id: string, page = 1, limit = 20, from?: string): Promise<Track[]> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), ...(from ? { from } : {}) });
     return this.request<Track[]>(`/artists/${encodeURIComponent(id)}/tracks?${params.toString()}`);
   }
 

@@ -31,6 +31,8 @@ export interface ArtistDetails {
   linked?:{spotifyId?:string;soundcloudId?:string;deezerId?:string};
   /** Set when a better-known artist owns this name: the card borrows nothing from that artist and points to it. */
   homonym?:{id:string;name:string;avatarUrl?:string};
+  /** Other people Deezer files under this name: open one by its release so its own discography shows. */
+  namesakes?:Array<{id:string;from:string;name:string;title:string;cover?:string;year?:number;count:number}>;
 }
 /** Track popularity normalised to 0–100 (Spotify popularity, Deezer rank or Last.fm listeners) plus the source's raw figure. */
 export interface TrackPopularity {popularity:number;source:'spotify'|'deezer'|'lastfm';rank?:number;plays?:number;listeners?:number}

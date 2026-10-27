@@ -1,5 +1,5 @@
 import {dedupeReleases} from '../services/releaseDedupe.js';
-import {namesakeDecisionReady,namesakeReleaseIds} from '../services/releaseIdentity.js';
+import {artistPersona,namesakeDecisionReady} from '../services/releaseIdentity.js';
 import {pickMatch} from '../services/importMatch.js';
 import type {Request,Response,NextFunction} from 'express';
 import {z} from 'zod';
@@ -127,7 +127,9 @@ export const catalogController={
     res.json({data:await trackPopularity(artist,tracks)});
   }),
   artistDetails:asyncRoute(async(req,res)=>{
-    const data=await artistDetailsCached(req.params.id);
+    // The release the listener came from names which of several same-named artists this page is.
+    const from=typeof req.query.from==='string'&&/^(deezer:album:)?\d{1,15}$/.test(req.query.from)?req.query.from.replace('deezer:album:',''):undefined;
+    const data=await artistDetailsCached(req.params.id,from);
     if(!data){res.status(404).json({error:{message:'Артист не найден.'}});return;}
     res.json({data});
   })
@@ -137,27 +139,28 @@ export const catalogController={
 // an older one at once while a single refresh runs behind it, and the card a Deezer/SoundCloud page redirects to is warmed in advance.
 const DETAILS_FRESH=20*60_000,DETAILS_STALE=24*3600_000;
 const detailsCache=new Map<string,{at:number;data:any}>(),detailsInFlight=new Map<string,Promise<any>>();
-function refreshArtistDetails(id:string){
-  let pending=detailsInFlight.get(id);
+function refreshArtistDetails(id:string,from?:string){
+  const cacheId=from?`${id}@${from}`:id;
+  let pending=detailsInFlight.get(cacheId);
   if(!pending){
-    pending=computeArtistDetails(id).then(data=>{
+    pending=computeArtistDetails(id,from).then(data=>{
       // A namesake check still running (Deezer pages of hundreds of releases): keep this answer only half a minute.
-      if(data){const pending=data.namesakePending;delete data.namesakePending;detailsCache.set(id,{at:pending?Date.now()-DETAILS_FRESH+30_000:Date.now(),data});if(detailsCache.size>400)detailsCache.delete(detailsCache.keys().next().value!);
-        const next=data.linked?.spotifyId||data.linked?.deezerId;if(next&&next!==id&&!id.startsWith('spotify:')&&!detailsCache.has(next))void refreshArtistDetails(next).catch(()=>{});}
+      if(data){const pending=data.namesakePending;delete data.namesakePending;detailsCache.set(cacheId,{at:pending?Date.now()-DETAILS_FRESH+30_000:Date.now(),data});if(detailsCache.size>400)detailsCache.delete(detailsCache.keys().next().value!);
+        const next=data.linked?.spotifyId||data.linked?.deezerId;if(next&&!from&&next!==id&&!id.startsWith('spotify:')&&!detailsCache.has(next))void refreshArtistDetails(next).catch(()=>{});}
       return data;
-    }).finally(()=>detailsInFlight.delete(id));
-    detailsInFlight.set(id,pending);
+    }).finally(()=>detailsInFlight.delete(cacheId));
+    detailsInFlight.set(cacheId,pending);
   }
   return pending;
 }
-async function artistDetailsCached(id:string){
-  const hit=detailsCache.get(id),age=hit?Date.now()-hit.at:Infinity;
+async function artistDetailsCached(id:string,from?:string){
+  const hit=detailsCache.get(from?`${id}@${from}`:id),age=hit?Date.now()-hit.at:Infinity;
   if(hit&&age<DETAILS_FRESH)return hit.data;
-  if(hit&&age<DETAILS_STALE){void refreshArtistDetails(id).catch(()=>{});return hit.data;}
-  return refreshArtistDetails(id);
+  if(hit&&age<DETAILS_STALE){void refreshArtistDetails(id,from).catch(()=>{});return hit.data;}
+  return refreshArtistDetails(id,from);
 }
 
-async function computeArtistDetails(id:string):Promise<any>{
+async function computeArtistDetails(id:string,from?:string):Promise<any>{
   {
     let artist:Artist|null=id.startsWith('soundcloud:')?await soundCloudService.getArtist(id):id.startsWith('deezer:')?await officialCatalogService.getArtist(id):await spotifyService.getArtist(id);
     if(!artist)return null;
@@ -211,17 +214,21 @@ async function computeArtistDetails(id:string):Promise<any>{
     // Spotify paused or failing (a namesake card included: the cache is keyed by this card's own Spotify id):
     // the discography it would have added comes from Spotify tracks already cached locally.
     if(!spotifyReleases?.length){const sid=link.spotifyId||(await geniusProfilePromise as {spotifyId?:string}|null)?.spotifyId;if(sid){const cached=await spotifyService.cachedReleases(String(sid).replace(/^spotify:artist:/,''),artist.name);if(cached.length)spotifyReleases=cached as never;}}
-    let spotifyIdForReleases=link.spotifyId,namesakePending=false;
+    let spotifyIdForReleases=link.spotifyId,namesakePending=false,namesakes:Array<{id:string;from:string;name:string;title:string;cover?:string;year?:number;count:number}>=[];
     if(spotifyReleases){releases.push(...spotifyReleases);releaseSource='Spotify';}
     let catalogArtist=artist.source==='deezer'?artist:undefined;
-    // A thin duplicate profile (same folded name, a fraction of the audience) defers to the real one.
-    if(catalogArtist){const rival=bestArtistMatch((await officialCatalogService.search(artist.name,{limit:1}).catch(()=>null))?.artists||[],artist.name);if(rival&&rival.id!==catalogArtist.id&&(rival.followersCount||0)>Math.max(50,(catalogArtist.followersCount||0)*5))catalogArtist=rival;}
     if(!catalogArtist && !homonym){const candidates=await officialCatalogService.search(artist.name,{limit:1});catalogArtist=bestArtistMatch(candidates.artists,artist!.name);}
     if(catalogArtist&&!homonym){try{
-      const namesakes=namesakeReleaseIds(catalogArtist.sourceId||catalogArtist.id,{referenceTitles:(spotifyReleases||[]).map(r=>r.title)});
+      // Same-named Deezer profiles are pooled; the persona keeps this artist's releases from all of them.
+      const personaJob=artistPersona(catalogArtist.sourceId||catalogArtist.id,{referenceTitles:(spotifyReleases||[]).map(r=>r.title),seedAlbum:from});
       const extra:any[]=[];let page=0;while(page<5){const data=await deezer(`artist/${catalogArtist.sourceId}/albums?limit=100&index=${page*100}`);extra.push(...(data.data||[]).map(release));if(!data.next)break;page++;}
       // Deezer files namesakes under one profile; their releases stay off this page.
-      const foreign=await namesakes;if(!namesakeDecisionReady(catalogArtist.sourceId||catalogArtist.id))namesakePending=true;if(foreign.size)for(let i=extra.length-1;i>=0;i--)if(foreign.has(String(extra[i].id).split(':').at(-1)||''))extra.splice(i,1);
+      const persona=await personaJob;if(!persona||!namesakeDecisionReady(catalogArtist.sourceId||catalogArtist.id))namesakePending=true;
+      if(persona){
+        for(let i=extra.length-1;i>=0;i--)if(persona.foreign.has(String(extra[i].id).split(':').at(-1)||''))extra.splice(i,1);
+        extra.push(...persona.borrowed.map(release));
+        namesakes=persona.others.map(o=>({id:`deezer:artist:${o.profileId}`,from:o.seedAlbum,name:o.name,title:o.title,cover:o.cover,year:o.year,count:o.count}));
+      }
       // Verify shared discography before merging same-named artists across services.
       if(!spotifyReleases?.length||titleOverlap(spotifyReleases.map(r=>r.title),extra.map(r=>r.title))>0){releases.push(...extra);releaseSource=spotifyReleases?.length?'Spotify · Deezer':'Deezer';}
     }catch{}}
@@ -258,6 +265,6 @@ async function computeArtistDetails(id:string):Promise<any>{
     if(soundcloudArtist)metrics.splice(1,0,{platform:'SoundCloud',label:'Подписчики',value:soundcloudArtist.followersCount,url:soundcloudArtist.permalinkUrl||`https://soundcloud.com/search/people?q=${encodeURIComponent(artist.name)}`,note:undefined});
     const spotifyCardId=spotifyArtist?.id||(spotifyId?`spotify:artist:${spotifyId}`:undefined);
     const linked={spotifyId:spotifyCardId,soundcloudId:soundcloudArtist?.id,deezerId:catalogArtist?.id};
-    return {namesakePending,linked,bannerUrl:genius?.header,artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource,genius:geniusOwn?geniusProfile||undefined:undefined,homonym:homonym&&primary?primary:undefined};
+    return {namesakePending,namesakes:homonym?[]:namesakes,linked,bannerUrl:genius?.header,artist:{...artist,avatarUrl:genius?.image||spotifyArtist?.avatarUrl||artist.avatarUrl||catalogArtist?.avatarUrl},imageSource:genius?.image?'Genius':spotifyArtist?.avatarUrl?'Spotify':artist.source,geniusUrl:genius?.url,metrics,releases,releaseSource,genius:geniusOwn?geniusProfile||undefined:undefined,homonym:homonym&&primary?primary:undefined};
   }
 }

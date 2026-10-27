@@ -1,3 +1,4 @@
+import { isAppShell } from './utils/nativeShell.js';
 import {AppUpdates} from './components/common/AppUpdates.js';
 import React,{useEffect,lazy,Suspense} from 'react';
 import {LoadingState} from './components/common/LoadingState.js';
@@ -8,7 +9,7 @@ import {DesktopUpdateBanner} from './desktop/DesktopUpdateBanner.js';
 import {useTelegramStore} from './telegram/runtime.js';
 import {useConsentStore} from './telemetry/consent.js';
 import './telemetry/wire.js';
-import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout.js';
 import { HomePage } from './pages/HomePage.js';
@@ -79,7 +80,7 @@ export const App: React.FC = () => {
               <Route path="playlist/:id" element={<PlaylistPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="stats" element={<StatsPage />} />
-              <Route path="offline" element={<OfflinePage />} />
+              <Route path="offline" element={isAppShell() ? <OfflinePage /> : <Navigate to="/collection" replace />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="track/:id" element={<TrackPage />} />
               <Route path="artist/:id" element={<ArtistPage />} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foreignReleases, type ReleaseFacts } from '../server/src/services/releaseIdentity.js';
+import { foreignReleases, splitPersona, type ReleaseFacts } from '../server/src/services/releaseIdentity.js';
 
 const r = (id: string, title: string, label: string, genres: number[], tracks: Array<[string, string]>, coArtists: Array<{ id: number; name: string }> = []): ReleaseFacts =>
   ({ id, title, label, genres, coArtists, tracks: tracks.map(([t, isrc]) => ({ title: t, isrc })) });
@@ -60,4 +60,40 @@ it('drops a whole page that shares nothing with a known discography', () => {
   const r = (id: string, title: string) => ({ id, title, genres: [], coArtists: [], tracks: [{ title }] });
   const out = foreignReleases([r('1', 'Notte Viva'), r('2', 'Resta Con Me')], { topAlbums: ['1'], referenceTitles: [], relatedNames: [], trustedTitles: ['Один', 'Два', 'Три', 'Четыре', 'Пять'] });
   expect([...out].sort()).toEqual(['1', '2']);
+});
+
+describe('one artist over several same-named Deezer profiles (Deezer «Clout»)', () => {
+  // 206095887: the Russian rapper plus Portuguese singles; 11597: a 1978 band, Latin singles and more of the rapper.
+  const p = (id: string, title: string, label: string, year: number, profileId: string, tracks: Array<[string, string]>, coArtists: Array<{ id: number; name: string }> = []): ReleaseFacts =>
+    ({ ...r(id, title, label, [116], tracks, coArtists), year, profileId });
+  const pool = [
+    p('kat', 'КАТАРСИС', 'AC1D', 2025, '206095887', [['у тРуПа', 'FRX202500001']]),
+    p('xd', 'XD', 'AC1D', 2024, '206095887', [['XD', 'FRX202400001']]),
+    p('sue', 'Suécia', 'cloutfilms', 2022, '206095887', [['Suécia', 'BRX202200001']], [{ id: 206095887, name: 'Clout' }, { id: 71974802, name: 'LUKA' }]),
+    p('oko', 'ОКО', 'AC1D', 2026, '11597', [['Миром правит', 'RUAJF2611461']], [{ id: 206095887, name: 'Clout' }]),
+    p('pro', 'Просыпаться', 'Clout', 2023, '11597', [['Просыпаться', 'FRX202300001']]),
+    { ...p('sub', 'Substitute', 'BR Music', 1978, '11597', [['Substitute', 'NLB120600001'], ['Save Me', 'NLB120600002']]), genres: [132] },
+    { ...p('uf', 'Under Fire', 'BR Music', 1978, '11597', [['Under Fire', 'NLB120600003']]), genres: [132] },
+    { ...p('best', 'The Best Of Clout', 'BR Music', 2018, '11597', [['Substitute', 'NLB120600001']]), genres: [132] },
+    p('bel', 'Bellaka (feat. Jeycyn)', '12187745 Records DK', 2026, '11597', [['Bellaka (feat. Jeycyn)', 'QTA7T2600503']], [{ id: 49878452, name: 'Jeycyn' }]),
+    p('culo', 'Culo Pa Mi (feat. Jeycyn)', 'Another Level Music Group', 2024, '11597', [['Culo Pa Mi (feat. Jeycyn)', 'QZZ7R2468527']], [{ id: 49878452, name: 'Jeycyn' }]),
+  ];
+  const ctx = { artistName: 'Clout', relatedNames: [], referenceTitles: [] };
+  const rapper = ['kat', 'oko', 'pro', 'xd'];
+
+  it('gathers the rapper from both profiles when opened from his own profile', () => {
+    const { own } = splitPersona(pool, { ...ctx, openedId: '206095887', topAlbums: ['kat'] });
+    expect([...own].sort()).toEqual(rapper);
+  });
+
+  it('gives the same page when opened through the band profile from one of his releases', () => {
+    const { own, others } = splitPersona(pool, { ...ctx, openedId: '11597', topAlbums: ['sub', 'bel'], seedAlbum: 'oko' });
+    expect([...own].sort()).toEqual(rapper);
+    expect(others.map(o => o.profileId).sort()).toEqual(['11597', '206095887']);
+  });
+
+  it('keeps the band page to the band: hits of a namesake on the same profile do not vouch for it', () => {
+    const { own } = splitPersona(pool, { ...ctx, openedId: '11597', topAlbums: ['sub', 'bel'] });
+    expect([...own].sort()).toEqual(['best', 'sub', 'uf']);
+  });
 });

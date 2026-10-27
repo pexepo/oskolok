@@ -1,3 +1,4 @@
+import {isAppShell} from '../utils/nativeShell.js';
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Plus, ChevronRight, Play, Heart, BarChart3, ArrowDownToLine } from 'lucide-react';
@@ -34,7 +35,7 @@ export function CollectionPage() {
     try{await createPlaylist(title.trim());setTitle('');setIsModalOpen(false);}catch{setError(t('Не удалось создать плейлист. Попробуйте ещё.', 'Could not create the playlist. Try again.'));}finally{setBusy(false);}
   };
   return <div className="collection-page">
-    <div className="collection-heading"><span className="eyebrow">{t('Ваша музыка, ваши грани', 'Your music, your facets')}</span><h1>{t('Моя', 'My')} <em>{t('коллекция', 'collection')}</em></h1><NavLink to="/profile?tab=import" className="secondary-button collection-import">{t('Перенести музыку', 'Transfer music')} <Plus size={16}/></NavLink> <NavLink to="/stats" className="secondary-button collection-import collection-stats-link">{t('Мои итоги', 'My stats')} <BarChart3 size={16}/></NavLink> <NavLink to="/offline" className="secondary-button collection-import collection-stats-link">{t('Скачанное', 'Downloads')} <ArrowDownToLine size={16}/></NavLink></div>
+    <div className="collection-heading"><span className="eyebrow">{t('Ваша музыка, ваши грани', 'Your music, your facets')}</span><h1>{t('Моя', 'My')} <em>{t('коллекция', 'collection')}</em></h1><NavLink to="/profile?tab=import" className="secondary-button collection-import">{t('Перенести музыку', 'Transfer music')} <Plus size={16}/></NavLink> <NavLink to="/stats" className="secondary-button collection-import collection-stats-link">{t('Мои итоги', 'My stats')} <BarChart3 size={16}/></NavLink> {isAppShell()&&<NavLink to="/offline" className="secondary-button collection-import collection-stats-link">{t('Скачанное', 'Downloads')} <ArrowDownToLine size={16}/></NavLink>}</div>
     <section><div className="section-heading collection-section"><h2>{t('Плейлисты', 'Playlists')} <i/></h2><NavLink to="/playlists" className="text-button">{t('Все плейлисты', 'All playlists')} <ChevronRight size={14}/></NavLink></div>
       <div className="collection-playlists">
         {playlists.slice(0,5).map((pl,i)=><div className="collection-tile-wrap" key={pl.id}><NavLink to={`/playlist/${encodeURIComponent(pl.id)}`} className="collection-tile">

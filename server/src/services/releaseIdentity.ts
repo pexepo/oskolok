@@ -14,6 +14,9 @@ export interface ReleaseFacts {
   genres: number[];
   coArtists: Array<{ id: number; name: string }>;
   tracks: Array<{ title: string; isrc?: string }>;
+  /** Release year (Deezer's original date), and the Deezer profile the release was listed on when pooled. */
+  year?: number;
+  profileId?: string;
 }
 export interface ArtistContext {
   /** Album ids of the artist's top tracks, most popular first. */
@@ -27,6 +30,7 @@ export interface ArtistContext {
 }
 
 const key = (title: string) => title.toLocaleLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').replace(/\s*[([][^)\]]*[)\]]/g, '').replace(/[^\p{L}\p{N}]/gu, '');
+const nameKey = (name: string) => name.toLocaleLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]/gu, '');
 // Aggregators every act can use; sharing one says nothing about who released what.
 const GENERIC_LABEL = /^(independent|independiente|self[- ]?released|unsigned|none|n\/a|distrokid|tunecore|cd ?baby|amuse|routenote|believe|ditto( music)?|unitedmasters|records dk|\d+ records dk|onerpm|freshtunes|zvonko digital|soundon|level|spinnup|awal|symphonic|vydia|the orchard|label worx|imusician)$/i;
 const OTHER_SCRIPTS: Array<[string, RegExp]> = [
@@ -60,17 +64,10 @@ const ROMANCE = /[ñãõçáéíóú¿¡]|(?<![\p{L}])(?:la|el|los|las|de|del|qu
 const romance = (items: ReleaseFacts[]) => { const titles = items.flatMap(r => [r.title, ...r.tracks.map(t => t.title)]); return ratio(titles.filter(t => ROMANCE.test(t)).length, titles.length); };
 const dominantOther = (p: Profile) => { let best = '', n = 0; for (const [k, v] of p.other) if (v > n) { best = k; n = v; } return ratio(n, p.letters) >= 0.25 ? best : ''; };
 
-/**
- * Ids of releases that belong to someone else with the same name. Conservative: a group is dropped only when it is
- * plainly unlike the artist's own group and shares no title with what is known to be the artist's.
- */
-export function foreignReleases(releases: ReleaseFacts[], ctx: ArtistContext): Set<string> {
-  const dropped = new Set<string>();
-  if (releases.length < 2) return dropped;
-  // A known discography (≥ 5 titles from another source) sharing no title with this page: the whole page is a namesake's.
-  const known = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
-  if (known.size >= 5 && !releases.some(r => [r.title, ...r.tracks.map(t => t.title)].some(t => known.has(key(t))))) return new Set(releases.map(r => r.id));
-  // Union-find over releases.
+/** Releases one act's catalogue ties together: the label as typed, featured artists, repeated songs. */
+function clusterReleases(releases: ReleaseFacts[], artistName = ''): ReleaseFacts[][] {
+  // Every namesake self-releases under its own name and is credited as «Clout»: neither ties two releases together.
+  const own = nameKey(artistName);
   const parent = releases.map((_, i) => i);
   const find = (i: number): number => parent[i] === i ? i : (parent[i] = find(parent[i]));
   const join = (a: number, b: number) => { const x = find(a), y = find(b); if (x !== y) parent[y] = x; };
@@ -79,43 +76,26 @@ export function foreignReleases(releases: ReleaseFacts[], ctx: ArtistContext): S
   releases.forEach((r, i) => {
     const label = r.label?.trim();
     // Exact spelling: self-released «rizza» and «Rizza» are two people, «Warner Music Russia» is one label.
-    if (label && !GENERIC_LABEL.test(label)) link(`l:${label}`, i);
-    for (const a of r.coArtists) link(`a:${a.id}`, i);
+    if (label && !GENERIC_LABEL.test(label) && (!own || nameKey(label) !== own)) link(`l:${label}`, i);
+    for (const a of r.coArtists) if (!own || nameKey(a.name) !== own) link(`a:${a.id}`, i);
     for (const t of new Set([r.title, ...r.tracks.map(t => t.title)].map(key))) if (t.length >= 3) link(`t:${t}`, i);
   });
   const groups = new Map<number, ReleaseFacts[]>();
   releases.forEach((r, i) => { const g = find(i); groups.set(g, [...(groups.get(g) || []), r]); });
-  if (groups.size < 2) return dropped;
-
-  const refs = new Set(ctx.referenceTitles.map(key).filter(k => k.length >= 2));
-  const topRank = new Map(ctx.topAlbums.map((id, i) => [id, i] as const));
-  const evidence = (items: ReleaseFacts[]) => items.reduce((sum, r) => {
-    const rank = topRank.get(r.id);
-    const own = [r.title, ...r.tracks.map(t => t.title)].some(t => refs.has(key(t)));
-    return sum + (rank !== undefined ? 1 / (1 + rank / 5) : 0) + (own ? 0.5 : 0);
-  }, 0);
-  const trusted = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
-  const refEvidence = (items: ReleaseFacts[]) => items.filter(r => [r.title, ...r.tracks.map(t => t.title)].some(t => trusted.has(key(t)))).length;
-  let scored = [...groups.values()].map(items => ({ items, evidence: evidence(items) })).sort((a, b) => b.evidence - a.evidence || b.items.length - a.items.length);
-  // The page's most played songs belong to a namesake (a 1970s band on the page of a Russian rapper whose
-  // Spotify discography is the card): the group holding the known titles is home, and the rest must look like it.
-  const byRefs = [...scored].sort((a, b) => refEvidence(b.items) - refEvidence(a.items));
-  const namesakePage = trusted.size > 0 && refEvidence(byRefs[0].items) > 0 && refEvidence(scored[0].items) === 0;
-  if (namesakePage) scored = [byRefs[0], ...scored.filter(g => g !== byRefs[0]).map(g => ({ ...g, evidence: refEvidence(g.items) }))];
-  const anchor = scored[0];
-  // Without any sign of whose page this is, there is nothing to compare against.
-  if (anchor.evidence <= 0) return dropped;
-
-  const home = profile(anchor.items);
-  const scene = ctx.relatedNames.length ? ratio(ctx.relatedNames.filter(n => /\p{Script=Cyrillic}/u.test(n)).length, ctx.relatedNames.length) : 0;
+  return [...groups.values()];
+}
+const medianYear = (items: ReleaseFacts[]) => { const ys = items.map(r => r.year).filter((y): y is number => !!y).sort((a, b) => a - b); return ys.length ? ys[ys.length >> 1] : undefined; };
+/** How much a group looks like the artist's own one: script, ISRC country, title style, genre, era. Below −2 is someone else. */
+function homeJudge(homeItems: ReleaseFacts[], relatedNames: string[]) {
+  const home = profile(homeItems);
+  const scene = relatedNames.length ? ratio(relatedNames.filter(n => /\p{Script=Cyrillic}/u.test(n)).length, relatedNames.length) : 0;
   const homeSlavic = ratio(home.cyr, home.letters) >= 0.3 || ratio(home.slavicIsrc, home.isrcs) >= 0.3 || scene >= 0.4;
   const homeOther = dominantOther(home);
   const homeLower = ratio(home.lower, home.styled), homeCaps = ratio(home.caps, home.styled);
   const homeGenres = new Set([...home.genres.keys()]);
-
-  for (const group of scored.slice(1)) {
-    if (group.evidence > 0) continue;
-    const p = profile(group.items);
+  const homeYear = medianYear(homeItems);
+  return (items: ReleaseFacts[]) => {
+    const p = profile(items);
     const cyr = ratio(p.cyr, p.letters), slavic = ratio(p.slavicIsrc, p.isrcs), other = dominantOther(p);
     let score = 0;
     if (homeSlavic) {
@@ -131,9 +111,92 @@ export function foreignReleases(releases: ReleaseFacts[], ctx: ArtistContext): S
       if (caps >= 0.6 && homeCaps < 0.2) score -= 0.5;
     }
     if (p.genres.size && homeGenres.size) score += [...p.genres.keys()].some(g => homeGenres.has(g)) ? 0.5 : -0.5;
-    if (homeSlavic && group.items.some(r => r.coArtists.some(a => /\p{Script=Cyrillic}/u.test(a.name)))) score += 1;
+    if (homeSlavic && items.some(r => r.coArtists.some(a => /\p{Script=Cyrillic}/u.test(a.name)))) score += 1;
     // A Russian page with a group of Spanish/Portuguese songs («La Vida Continua», «Sabadão, Bb») is a Latin namesake.
-    if (homeSlavic && cyr === 0 && romance(group.items) >= 0.3) score -= 1.5;
+    if (homeSlavic && cyr === 0 && romance(items) >= 0.3) score -= 1.5;
+    // A 1978 band and a 2025 rapper: a career rarely spans decades on both sides of a namesake split.
+    const year = medianYear(items);
+    if (homeYear && year && Math.abs(homeYear - year) > 12) score -= 3;
+    return score;
+  };
+}
+
+/**
+ * The persona behind an artist page when Deezer scatters one act over several same-named profiles and files strangers
+ * under each of them. Releases of every such profile are pooled and clustered; the anchor is the release the listener
+ * came from (`seedAlbum`), else a trusted discography, else the opened profile's top tracks. Releases on the opened
+ * profile stay unless they plainly look like someone else (without a seed); releases from the other profiles join only when they look
+ * like the anchor. Whatever is left is offered as other artists of that name.
+ */
+export function splitPersona(releases: ReleaseFacts[], ctx: ArtistContext & { openedId: string; seedAlbum?: string; artistName?: string }): { own: Set<string>; others: Array<{ profileId: string; ids: string[] }> } {
+  const opened = (r: ReleaseFacts) => !r.profileId || r.profileId === ctx.openedId;
+  const groups = clusterReleases(releases, ctx.artistName);
+  const trusted = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
+  const refs = new Set(ctx.referenceTitles.map(key).filter(k => k.length >= 2));
+  const titlesOf = (items: ReleaseFacts[]) => items.flatMap(r => [r.title, ...r.tracks.map(t => t.title)]).map(key);
+  const topRank = new Map(ctx.topAlbums.map((id, i) => [id, i] as const));
+  const seeded = ctx.seedAlbum ? groups.find(g => g.some(r => r.id === ctx.seedAlbum)) : undefined;
+  const trustHits = (items: ReleaseFacts[]) => titlesOf(items).filter(t => trusted.has(t)).length;
+  // Without a seed, the opened profile's hits (or the known titles) say whose page this is.
+  const evidence = (items: ReleaseFacts[]) => seeded ? trustHits(items) : items.reduce((sum, r) => {
+    const rank = topRank.get(r.id);
+    return sum + (rank !== undefined ? 1 / (1 + rank / 5) : 0) + ([r.title, ...r.tracks.map(t => t.title)].some(t => refs.has(key(t))) ? 0.5 : 0);
+  }, 0) + trustHits(items) * 2;
+  const anchor = seeded || [...groups].sort((a, b) => evidence(b) - evidence(a) || b.length - a.length)[0];
+  const own = new Set<string>();
+  if (!anchor || (!seeded && evidence(anchor) <= 0)) {
+    for (const r of releases) if (opened(r)) own.add(r.id);
+  } else {
+    const judge = homeJudge(anchor, ctx.relatedNames);
+    for (const g of groups) {
+      // Hits only pick the anchor: a namesake's songs chart on the same profile too. A known title is proof.
+      const score = g === anchor || trustHits(g) > 0 ? Infinity : judge(g);
+      // A seed names the persona outright: the opened profile then vouches for nothing.
+      const onOpened = !seeded && g.some(opened);
+      if (score === Infinity || (onOpened ? score > -2 : score >= 2)) for (const r of g) own.add(r.id);
+    }
+  }
+  const others = new Map<string, string[]>();
+  for (const r of releases) if (!own.has(r.id)) { const k = r.profileId || ctx.openedId; others.set(k, [...(others.get(k) || []), r.id]); }
+  return { own, others: [...others].map(([profileId, ids]) => ({ profileId, ids })) };
+}
+
+/**
+ * Ids of releases that belong to someone else with the same name. Conservative: a group is dropped only when it is
+ * plainly unlike the artist's own group and shares no title with what is known to be the artist's.
+ */
+export function foreignReleases(releases: ReleaseFacts[], ctx: ArtistContext): Set<string> {
+  const dropped = new Set<string>();
+  if (releases.length < 2) return dropped;
+  // A known discography (≥ 5 titles from another source) sharing no title with this page: the whole page is a namesake's.
+  const known = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
+  if (known.size >= 5 && !releases.some(r => [r.title, ...r.tracks.map(t => t.title)].some(t => known.has(key(t))))) return new Set(releases.map(r => r.id));
+  const groups = clusterReleases(releases);
+  if (groups.length < 2) return dropped;
+
+  const refs = new Set(ctx.referenceTitles.map(key).filter(k => k.length >= 2));
+  const topRank = new Map(ctx.topAlbums.map((id, i) => [id, i] as const));
+  const evidence = (items: ReleaseFacts[]) => items.reduce((sum, r) => {
+    const rank = topRank.get(r.id);
+    const own = [r.title, ...r.tracks.map(t => t.title)].some(t => refs.has(key(t)));
+    return sum + (rank !== undefined ? 1 / (1 + rank / 5) : 0) + (own ? 0.5 : 0);
+  }, 0);
+  const trusted = new Set((ctx.trustedTitles || []).map(key).filter(k => k.length >= 2));
+  const refEvidence = (items: ReleaseFacts[]) => items.filter(r => [r.title, ...r.tracks.map(t => t.title)].some(t => trusted.has(key(t)))).length;
+  let scored = groups.map(items => ({ items, evidence: evidence(items) })).sort((a, b) => b.evidence - a.evidence || b.items.length - a.items.length);
+  // The page's most played songs belong to a namesake (a 1970s band on the page of a Russian rapper whose
+  // Spotify discography is the card): the group holding the known titles is home, and the rest must look like it.
+  const byRefs = [...scored].sort((a, b) => refEvidence(b.items) - refEvidence(a.items));
+  const namesakePage = trusted.size > 0 && refEvidence(byRefs[0].items) > 0 && refEvidence(scored[0].items) === 0;
+  if (namesakePage) scored = [byRefs[0], ...scored.filter(g => g !== byRefs[0]).map(g => ({ ...g, evidence: refEvidence(g.items) }))];
+  const anchor = scored[0];
+  // Without any sign of whose page this is, there is nothing to compare against.
+  if (anchor.evidence <= 0) return dropped;
+
+  const judge = homeJudge(anchor.items, ctx.relatedNames);
+  for (const group of scored.slice(1)) {
+    if (group.evidence > 0) continue;
+    const score = judge(group.items);
     if (score <= -2 || (namesakePage && score < 2)) for (const r of group.items) dropped.add(r.id);
   }
   return dropped;
@@ -178,29 +241,68 @@ async function releaseFacts(id: string, artistId: string): Promise<ReleaseFacts 
   return facts;
 }
 
-const decided = new Map<string, { ids: Set<string>; until: number }>();
+/** A Deezer album as an artist page lists it (only what the page shows). */
+export interface PooledAlbum { id: number; title: string; cover_xl?: string; cover_big?: string; cover_medium?: string; release_date?: string; record_type?: string; nb_tracks?: number; explicit_lyrics?: boolean; link?: string }
+export interface PersonaDecision {
+  /** Album ids (numeric strings) of this persona, from every same-named profile. */
+  own: Set<string>;
+  /** Albums listed on the opened profile that belong to someone else. */
+  foreign: Set<string>;
+  /** The persona's albums found on other same-named profiles, ready to show. */
+  borrowed: PooledAlbum[];
+  /** Other people of that name: their profile and one release to open them by. */
+  others: Array<{ profileId: string; name: string; seedAlbum: string; title: string; cover?: string; year?: number; count: number }>;
+}
+const slim = (a: any): PooledAlbum => ({ id: Number(a.id), title: String(a.title || ''), cover_xl: a.cover_xl, cover_big: a.cover_big, cover_medium: a.cover_medium, release_date: a.release_date, record_type: a.record_type, nb_tracks: a.nb_tracks, explicit_lyrics: a.explicit_lyrics, link: a.link });
+const decided = new Map<string, { decision: PersonaDecision; until: number }>();
 /** Decisions depend on the titles known to be the artist's (a linked Spotify discography). */
 const refsKey = (titles: string[]) => { let h = 0; for (const t of [...new Set(titles.map(key))].sort().join('|')) h = Math.imul(h ^ t.charCodeAt(0), 16777619) >>> 0; return h.toString(36); };
-const pending = new Map<string, Promise<Set<string>>>();
+const pending = new Map<string, Promise<PersonaDecision>>();
 const DECISION_TTL = 12 * 3600_000;
-async function decide(artistId: string, referenceTitles: string[]): Promise<{ ids: Set<string>; complete: boolean }> {
-  const [albums, top, related] = await Promise.all([dz(`artist/${artistId}/albums?limit=300`), dz(`artist/${artistId}/top?limit=25`), dz(`artist/${artistId}/related?limit=20`)]);
-  const list: any[] = albums?.data || [];
-  if (list.length < 2 || list.length > 400) return { ids: new Set(), complete: !!albums };
-  const facts = (await Promise.all(list.map(a => releaseFacts(String(a.id), artistId)))).filter((f): f is ReleaseFacts => !!f);
+const toJson = (d: PersonaDecision) => JSON.stringify({ ...d, own: [...d.own], foreign: [...d.foreign] });
+const fromJson = (raw: string): PersonaDecision => { const d = JSON.parse(raw); return { ...d, own: new Set(d.own), foreign: new Set(d.foreign) }; };
+async function decide(artistId: string, referenceTitles: string[], seedAlbum: string | undefined, cacheKey: string): Promise<{ decision: PersonaDecision; complete: boolean }> {
+  const [info, albums, top, related] = await Promise.all([dz(`artist/${artistId}`), dz(`artist/${artistId}/albums?limit=300`), dz(`artist/${artistId}/top?limit=25`), dz(`artist/${artistId}/related?limit=20`)]);
+  const list: any[] = (albums?.data || []).slice(0, 400);
+  // Deezer splits one act over several same-named profiles and puts strangers in each: pool them all.
+  const name = String(info?.name || '');
+  const siblings: any[] = name ? ((await dz(`search/artist?q=${encodeURIComponent(name)}&limit=25`))?.data || [])
+    .filter((a: any) => String(a.id) !== artistId && nameKey(String(a.name || '')) === nameKey(name) && Number(a.nb_album || 0) > 0 && Number(a.nb_album) <= 400)
+    .sort((a: any, b: any) => Number(b.nb_fan || 0) - Number(a.nb_fan || 0)).slice(0, 4) : [];
+  const siblingLists = await Promise.all(siblings.map(async a => ({ profileId: String(a.id), name: String(a.name), albums: ((await dz(`artist/${a.id}/albums?limit=300`))?.data || []) as any[] })));
+  const pool = new Map<string, { album: any; profileId: string }>();
+  for (const album of list) pool.set(String(album.id), { album, profileId: artistId });
+  for (const s of siblingLists) for (const album of s.albums) if (!pool.has(String(album.id))) pool.set(String(album.id), { album, profileId: s.profileId });
+  const entries = [...pool.values()];
+  const facts = (await Promise.all(entries.map(async ({ album, profileId }) => {
+    const f = await releaseFacts(String(album.id), profileId);
+    return f ? { ...f, profileId, year: Number(String(album.release_date || '').slice(0, 4)) || undefined } : null;
+  }))).filter((f): f is NonNullable<typeof f> => !!f);
   const topTracks: any[] = top?.data || [];
-  const ids = foreignReleases(facts, {
+  const split = splitPersona(facts, {
+    openedId: artistId, artistName: name, seedAlbum: seedAlbum && pool.has(seedAlbum) ? seedAlbum : undefined,
     topAlbums: topTracks.map(t => String(t.album?.id || '')).filter(Boolean),
     referenceTitles: [...referenceTitles, ...topTracks.slice(0, 10).map(t => String(t.title || ''))],
     relatedNames: (related?.data || []).map((a: any) => String(a.name || '')),
     trustedTitles: referenceTitles,
   });
+  // A release fetched by nobody (quota) is left to the profile that listed it.
+  for (const { album, profileId } of entries) if (profileId === artistId && !facts.some(f => f.id === String(album.id))) split.own.add(String(album.id));
+  const decision: PersonaDecision = {
+    own: split.own,
+    foreign: new Set(list.map(a => String(a.id)).filter(id => !split.own.has(id))),
+    borrowed: entries.filter(e => e.profileId !== artistId && split.own.has(String(e.album.id))).map(e => slim(e.album)),
+    others: split.others.filter(o => o.ids.length >= 2 || o.profileId !== artistId).map(o => {
+      const albumsOf = o.ids.map(id => pool.get(id)!.album).sort((a, b) => String(b.release_date || '').localeCompare(String(a.release_date || '')));
+      const lead = albumsOf.find(a => a.record_type === 'album') || albumsOf[0];
+      return { profileId: o.profileId, name: o.profileId === artistId ? name : siblingLists.find(s => s.profileId === o.profileId)?.name || name, seedAlbum: String(lead.id), title: String(lead.title || ''), cover: lead.cover_medium, year: Number(String(lead.release_date || '').slice(0, 4)) || undefined, count: o.ids.length };
+    }).sort((a, b) => b.count - a.count).slice(0, 4),
+  };
   // Deezer's quota can starve a first look; a partial one is used but retried soon.
-  const complete = facts.length >= list.length * 0.95;
-  if (ids.size) logger.info({ artistId, dropped: ids.size, of: facts.length, listed: list.length }, 'Namesake releases hidden from artist page');
-  const data = JSON.stringify([...ids]), cacheKey = `dz-foreign:v3:${artistId}:${refsKey(referenceTitles)}`;
-  if (complete) void prisma.artistEnrichment.upsert({ where: { id: cacheKey }, create: { id: cacheKey, data }, update: { data } }).catch(() => {});
-  return { ids, complete };
+  const complete = facts.length >= entries.length * 0.95;
+  if (decision.foreign.size || decision.borrowed.length) logger.info({ artistId, seedAlbum, dropped: decision.foreign.size, borrowed: decision.borrowed.length, of: facts.length, profiles: 1 + siblings.length }, 'Artist persona decided');
+  if (complete) { const data = toJson(decision); void prisma.artistEnrichment.upsert({ where: { id: cacheKey }, create: { id: cacheKey, data }, update: { data } }).catch(() => {}); }
+  return { decision, complete };
 }
 
 /** Whether a finished decision for this artist is at hand (callers cache their own results briefly until it is). */
@@ -211,28 +313,35 @@ export function namesakeDecisionReady(artistId: string): boolean {
 }
 
 /**
- * Deezer album ids (numeric strings) on this artist's page that belong to a namesake. Answers within `budgetMs`;
- * a first look that takes longer keeps running in the background and an older decision (or nothing) is used meanwhile.
+ * Which releases are this artist's when Deezer mixes namesakes into one profile and spreads one act over several.
+ * Answers within `budgetMs`; a first look that takes longer keeps running in the background and an older decision
+ * (or null) is used meanwhile. `seedAlbum`: the Deezer album the listener came from, which names the persona.
  */
-export async function namesakeReleaseIds(artistId: string, options: { referenceTitles?: string[]; budgetMs?: number } = {}): Promise<Set<string>> {
-  if (process.env.VITEST) return new Set();
+export async function artistPersona(artistId: string, options: { referenceTitles?: string[]; seedAlbum?: string; budgetMs?: number } = {}): Promise<PersonaDecision | null> {
+  if (process.env.VITEST) return null;
   const bare = artistId.replace(/^(deezer:artist:|artist:)/, '');
-  if (!/^\d+$/.test(bare)) return new Set();
-  const refsList = options.referenceTitles || [];
-  const raw = `${bare}:${refsKey(refsList)}`;
+  if (!/^\d+$/.test(bare)) return null;
+  const seed = options.seedAlbum?.replace(/^deezer:album:/, '');
+  const raw = `${bare}:${refsKey(options.referenceTitles || [])}:${seed && /^\d+$/.test(seed) ? seed : ''}`;
+  const cacheKey = `dz-persona:v4:${raw}`;
   const hit = decided.get(raw);
-  if (hit && Date.now() < hit.until) return hit.ids;
+  if (hit && Date.now() < hit.until) return hit.decision;
   let job = pending.get(raw);
   if (!job) {
-    job = decide(bare, refsList).then(({ ids, complete }) => { decided.set(raw, { ids, until: Date.now() + (complete ? DECISION_TTL : 5 * 60_000) }); return ids; })
-      .catch(err => { logger.warn({ err, artistId: bare }, 'Namesake check failed'); return new Set<string>(); })
+    job = decide(bare, options.referenceTitles || [], seed, cacheKey).then(({ decision, complete }) => { decided.set(raw, { decision, until: Date.now() + (complete ? DECISION_TTL : 5 * 60_000) }); if (decided.size > 2000) decided.delete(decided.keys().next().value!); return decision; })
+      .catch(err => { logger.warn({ err, artistId: bare }, 'Artist persona check failed'); return null as unknown as PersonaDecision; })
       .finally(() => pending.delete(raw));
     pending.set(raw, job);
   }
   const stored = async () => {
-    const row = await prisma.artistEnrichment.findUnique({ where: { id: `dz-foreign:v3:${raw}` } }).catch(() => null);
-    return row ? new Set<string>(JSON.parse(row.data)) : new Set<string>();
+    const row = await prisma.artistEnrichment.findUnique({ where: { id: cacheKey } }).catch(() => null);
+    return row ? fromJson(row.data) : null;
   };
   const timeout = new Promise<null>(r => setTimeout(() => r(null), options.budgetMs ?? 7000));
   return (await Promise.race([job, timeout])) || stored();
+}
+
+/** Deezer album ids (numeric strings) on this artist's page that belong to a namesake. */
+export async function namesakeReleaseIds(artistId: string, options: { referenceTitles?: string[]; seedAlbum?: string; budgetMs?: number } = {}): Promise<Set<string>> {
+  return (await artistPersona(artistId, options))?.foreign || new Set();
 }

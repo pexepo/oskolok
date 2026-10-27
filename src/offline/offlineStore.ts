@@ -4,6 +4,7 @@ import {apiBase,scopedStorageKey} from '../telegram/runtime.js';
 import {useToastStore} from '../stores/useToastStore.js';
 import {tr} from '../stores/useLanguageStore.js';
 import type {Track} from '../types/index.js';
+import {isAppShell} from '../utils/nativeShell.js';
 
 /**
  * Offline listening (Spotify / Яндекс «Скачать»): the audio of chosen tracks is kept in Cache Storage on this
@@ -19,7 +20,7 @@ export const useOfflineStore = create<OfflineState>(() => ({entries: {}, pending
 
 const audioKey = (id: string) => `/offline/audio/${encodeURIComponent(id)}`;
 const artKey = (id: string) => `/offline/art/${encodeURIComponent(id)}`;
-const supported = () => typeof caches !== 'undefined' && typeof window !== 'undefined';
+const supported = () => typeof caches !== 'undefined' && typeof window !== 'undefined' && isAppShell();
 
 let loadedFor = '';
 function indexKey() { return scopedStorageKey(INDEX); }
@@ -28,6 +29,7 @@ export function loadOfflineIndex() {
   const key = indexKey();
   if (loadedFor === key) return;
   loadedFor = key;
+  if (!supported()) { useOfflineStore.setState({entries: {}}); return; }
   let entries: Record<string, OfflineEntry> = {};
   try { const list = JSON.parse(localStorage.getItem(key) || '[]') as OfflineEntry[]; for (const e of list) if (e?.track?.id) entries[e.track.id] = e; } catch { entries = {}; }
   useOfflineStore.setState({entries});
@@ -36,6 +38,22 @@ function saveIndex() {
   const list = Object.values(useOfflineStore.getState().entries).sort((a, b) => b.savedAt - a.savedAt).slice(0, LIMIT);
   try { localStorage.setItem(indexKey(), JSON.stringify(list)); } catch { /* storage full: the cache still holds the audio */ }
 }
+/** App-only download settings (Settings → «Музыка без интернета»). */
+export interface OfflinePrefs { autoLiked: boolean; wifiOnly: boolean; limitGb: number /* 0 = no limit */ }
+const PREFS = 'offline-prefs', DEFAULT_PREFS: OfflinePrefs = {autoLiked: false, wifiOnly: true, limitGb: 0};
+export function getOfflinePrefs(): OfflinePrefs { try { return {...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(scopedStorageKey(PREFS)) || '{}')}; } catch { return DEFAULT_PREFS; } }
+export function setOfflinePrefs(patch: Partial<OfflinePrefs>) {
+  try { localStorage.setItem(scopedStorageKey(PREFS), JSON.stringify({...getOfflinePrefs(), ...patch})); } catch { /* private mode */ }
+  void work();
+}
+type NetInfo = { type?: string; addEventListener?: (e: string, f: () => void) => void };
+const connection = () => (navigator as unknown as { connection?: NetInfo }).connection;
+/** Whether the device reports its link type (Android does; desktop and iOS do not). */
+export const knowsNetworkType = () => typeof connection()?.type === 'string';
+const onCellular = () => connection()?.type === 'cellular';
+let waitingForWifi = false;
+if (typeof navigator !== 'undefined') connection()?.addEventListener?.('change', () => { if (!onCellular() && waitingForWifi) { waitingForWifi = false; void work(); } });
+
 export const isDownloaded = (id: string) => { loadOfflineIndex(); return !!useOfflineStore.getState().entries[id]; };
 
 const objectUrls = new Map<string, string>();
@@ -94,6 +112,17 @@ async function work() {
   let failed = 0;
   try {
     while (queue.length) {
+      const prefs = getOfflinePrefs();
+      // Mobile data: the queue waits for Wi-Fi (it resumes by itself when the link changes).
+      if (prefs.wifiOnly && onCellular()) {
+        if (!waitingForWifi) useToastStore.getState().addToast(tr('Скачивание продолжится по Wi-Fi.', 'Downloads will continue on Wi-Fi.'), 'info', 4000);
+        waitingForWifi = true; break;
+      }
+      if (prefs.limitGb && totalOfflineBytes(useOfflineStore.getState()) >= prefs.limitGb * 1024 ** 3) {
+        useToastStore.getState().addToast(tr(`Достигнут лимит скачанного: ${prefs.limitGb} ГБ. Увеличьте его в настройках или удалите старое.`, `Download limit reached: ${prefs.limitGb} GB. Raise it in Settings or remove old downloads.`), 'warning', 6000);
+        for (const t of queue) clearPending(t.id);
+        queue = []; break;
+      }
       const track = queue.shift()!;
       if (isDownloaded(track.id)) { clearPending(track.id); continue; }
       useOfflineStore.setState(s => ({pending: {...s.pending, [track.id]: 'downloading'}, progress: {...s.progress, [track.id]: 0}}));
@@ -126,7 +155,7 @@ async function work() {
 }
 
 /** Queues tracks for download (blocked ones and duplicates are skipped). */
-export function downloadTracks(tracks: Track[]) {
+export function downloadTracks(tracks: Track[], options: {quiet?: boolean} = {}) {
   if (!supported()) { useToastStore.getState().addToast(tr('Это устройство не умеет хранить музыку офлайн.', 'This device cannot keep music offline.'), 'warning'); return; }
   loadOfflineIndex();
   if (!persistAsked) { persistAsked = true; void navigator.storage?.persist?.().catch(() => false); }
@@ -134,7 +163,7 @@ export function downloadTracks(tracks: Track[]) {
   const fresh = tracks.filter(t => t.access !== 'blocked' && !entries[t.id] && pending[t.id] !== 'queued' && pending[t.id] !== 'downloading' && !queue.some(q => q.id === t.id));
   if (!fresh.length) return;
   queue.push(...fresh);
-  useToastStore.getState().addToast(tr(`Скачиваем на устройство: ${fresh.length}. Найдёте в «Коллекция» → «Скачанное».`, `Downloading to this device: ${fresh.length}. Find them in Collection → Downloads.`), 'info', 4000);
+  if (!options.quiet) useToastStore.getState().addToast(tr(`Скачиваем на устройство: ${fresh.length}. Найдёте в «Коллекция» → «Скачанное».`, `Downloading to this device: ${fresh.length}. Find them in Collection → Downloads.`), 'info', 4000);
   useOfflineStore.setState(s => ({pending: {...s.pending, ...Object.fromEntries(fresh.map(t => [t.id, 'queued' as Status]))}}));
   void work();
 }
@@ -148,4 +177,4 @@ export async function removeDownloads(ids: string[]) {
   useOfflineStore.setState({entries}); saveIndex();
 }
 export const totalOfflineBytes = (s: OfflineState) => Object.values(s.entries).reduce((n, e) => n + e.size, 0);
-export function formatBytes(n: number) { return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1).replace('.', ',')} ГБ` : `${Math.max(1, Math.round(n / 1024 ** 2))} МБ`; }
+export function formatBytes(n: number) { return !n ? '0 МБ' : n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1).replace('.', ',')} ГБ` : `${Math.max(1, Math.round(n / 1024 ** 2))} МБ`; }

@@ -30,7 +30,7 @@ import { ToastContainer } from '../common/ToastContainer.js';
 import { TelegramPlaybackLayer } from '../telegram/TelegramPlaybackLayer.js';
 import { ConnectLayer } from '../connect/ConnectLayer.js';
 import { JamLayer } from '../connect/JamLayer.js';
-import { OfflineBanner } from '../../offline/OfflineUI.js';
+import { OfflineAutomation, OfflineBanner } from '../../offline/OfflineUI.js';
 import { initSessionRestore } from '../../audio/sessionRestore.js';
 import { usePlayerStore } from '../../stores/usePlayerStore.js';
 import { useLibraryStore } from '../../stores/useLibraryStore.js';
@@ -192,6 +192,7 @@ export const Layout: React.FC = () => {
       <ConnectLayer />
       <JamLayer />
       <OfflineBanner />
+      <OfflineAutomation />
       <ToastContainer />
     </div>
   );

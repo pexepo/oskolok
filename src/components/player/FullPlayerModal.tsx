@@ -4,6 +4,8 @@ import {VolumeControl} from './VolumeControl.js';
 import {useShallow} from 'zustand/react/shallow';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { Columns2, TextQuote, Disc3 } from 'lucide-react';
+import { scopedStorageKey } from '../../telegram/runtime.js';
 import { ChevronDown, Info, Music2, SlidersHorizontal, Moon, MoreHorizontal, UsersRound, Flag, Sparkles, Play, Pause } from 'lucide-react';
 import { openJamPanel } from '../../connect/jam.js';
 import { DevicesButton } from '../connect/ConnectLayer.js';
@@ -16,11 +18,9 @@ import { LikeBurst } from '../common/LikeBurst.js';
 import { NotesSlotContext } from '../lyrics/notesSlot.js';
 
 /** Type size of the lyric lines right now (0 when there are none). */
-const lyricFont = (root: HTMLElement | null) => { const line = root?.querySelector('.np-lyrics .interference-line'); return line ? parseFloat(getComputedStyle(line).fontSize) || 0 : 0; };
 
 /** Pieces of the player that move between the full and the notes layout. */
-const FLIP_PARTS = '.np-art, .np-heading, .np-progress, .np-controls, .np-lyrics > .interference-lyrics';
-import { MixChip } from './MixChip.js';
+const FLIP_PARTS = '.np-art, .np-heading, .np-progress, .np-controls';
 import { TrackArtistsPopup } from '../tracks/TrackCredits.js';
 import { getPreferredSource, setPreferredSource } from '../../utils/playbackPreferences.js';
 import { useReportStore } from '../common/ReportDialog.js';
@@ -108,42 +108,72 @@ export const FullPlayerModal: React.FC = () => {
   const playlistList = Array.isArray(playlists) ? playlists : [];
   const modalRef = React.useRef<HTMLDivElement>(null);
   const [notesSlot, setNotesSlot] = React.useState<HTMLDivElement | null>(null), [notesOpen, setNotesOpen] = React.useState(false);
-  // Notes open/close re-lays the player out once; FLIP then carries each piece from where it was (transform only):
-  // the cover column folds up into the header, the lyrics glide right and shrink.
-  const notesOpenRef = React.useRef(false), flipFrom = React.useRef<Map<HTMLElement, DOMRect> | null>(null), lyricFontFrom = React.useRef(0);
+  // Notes open/close re-lays the player out once; FLIP then carries the track pieces from where they were (transform only):
+  // the cover column folds into a header above the notes. The lyrics stay put — the explained line is where it was read.
+  // «Только текст» / «Только обложка»: the listener picks how much of Интерференция to see; remembered between visits.
+  type Focus = 'split' | 'lyrics' | 'cover';
+  const [focus, setFocusState] = React.useState<Focus>(() => { try { const v = localStorage.getItem(scopedStorageKey('np-focus')); return v === 'lyrics' || v === 'cover' ? v : 'split'; } catch { return 'split'; } });
+  const captureFlip = () => {
+    const root = modalRef.current;
+    if (!root || !window.matchMedia('(min-width: 701px)').matches) return;
+    const from = new Map<HTMLElement, DOMRect>();
+    root.querySelectorAll<HTMLElement>(FLIP_PARTS).forEach(el => from.set(el, el.getBoundingClientRect()));
+    flipFrom.current = from;
+  };
+  const setFocus = (next: Focus) => {
+    if (next === focus) return;
+    captureFlip(); setFocusState(next);
+    try { localStorage.setItem(scopedStorageKey('np-focus'), next); } catch { /* private mode */ }
+  };
+  const reduceMotionRef = React.useRef(reduceMotion); reduceMotionRef.current = reduceMotion;
+  const captureFlipRef = React.useRef(() => {});
+  const notesOpenRef = React.useRef(false), flipFrom = React.useRef<Map<HTMLElement, DOMRect> | null>(null);
   const setNotesOpenFlip = React.useCallback((open: boolean) => {
     if (open === notesOpenRef.current) return;
     notesOpenRef.current = open;
     const root = modalRef.current;
-    if (root && window.matchMedia('(min-width: 701px)').matches) {
-      const from = new Map<HTMLElement, DOMRect>();
-      root.querySelectorAll<HTMLElement>(FLIP_PARTS).forEach(el => from.set(el, el.getBoundingClientRect()));
-      flipFrom.current = from; lyricFontFrom.current = lyricFont(root);
+    const relayout = () => {
+      if (notesOpenRef.current !== open) return;
+      captureFlipRef.current();
+      setNotesOpen(open);
+    };
+    // Closing: the notes leave first (exit quieter than enter), then the cover unfolds into the space they free.
+    const slot = root?.querySelector<HTMLElement>('.np-layout.notes-open > .np-notes-slot');
+    if (!open && slot && !reduceMotionRef.current) {
+      const exit = slot.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate3d(0, 8px, 0)' }], { duration: 150, easing: 'ease-in', fill: 'forwards' });
+      const after = () => { relayout(); exit.cancel(); };
+      // A timer, not `exit.finished`: a background tab may hold the animation clock and the notes would never close.
+      window.setTimeout(after, 150);
     }
-    setNotesOpen(open);
+    else relayout();
   }, []);
   React.useLayoutEffect(() => {
     const from = flipFrom.current; flipFrom.current = null;
     if (!from || reduceMotion) return;
-    const timing = { duration: 600, easing: 'cubic-bezier(.32, .72, 0, 1)', composite: 'add' as CompositeOperation };
+    const timing = { duration: 380, easing: 'cubic-bezier(.32, .72, 0, 1)' };
     from.forEach((first, el) => {
       const last = el.getBoundingClientRect();
       if (!el.isConnected || !first.width || !last.width || !last.height) return;
-      const wide = el.matches('.np-progress');
-      // The lyrics change type size (smaller beside the notes): they scale by it, not by their box.
-      const font = el.matches('.interference-lyrics') ? lyricFont(modalRef.current) : 0;
-      const k = font && lyricFontFrom.current ? lyricFontFrom.current / font : el.matches('.np-heading') ? first.height / last.height : first.width / last.width;
-      const sx = Math.min(5, Math.max(.2, k)), sy = wide ? 1 : sx;
-      el.animate([{ transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${sx}, ${sy})`, transformOrigin: '0 0' }, { transform: 'translate(0, 0) scale(1)', transformOrigin: '0 0' }], timing);
-      // The lyrics cross under the header on their way: they surface as they travel instead of overlapping it.
-      if (font) el.animate([{ opacity: .2 }, { opacity: 1 }], { duration: 420, easing: 'ease-out' });
+      const dx = first.left - last.left, dy = first.top - last.top;
+      // Only the artwork scales (uniformly); text would smear, the scrub bar stretches along its length only.
+      if (el.matches('.np-art')) el.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${first.width / last.width})`, transformOrigin: '0 0' }, { transform: 'none', transformOrigin: '0 0' }], timing);
+      else if (el.matches('.np-progress')) el.animate([{ transform: `translate(${dx}px, ${dy}px) scaleX(${first.width / last.width})`, transformOrigin: '0 0' }, { transform: 'none', transformOrigin: '0 0' }], timing);
+      else el.animate([{ transform: `translate(${dx}px, ${dy}px)`, opacity: .4 }, { transform: 'none', opacity: 1 }], timing);
     });
-    // The columns clip their content; while pieces travel between them nothing may be cut off.
+    // The column clips its content; while pieces travel nothing may be cut off.
     const layout = modalRef.current?.querySelector<HTMLElement>('.np-layout');
     layout?.classList.add('is-flipping');
     const done = setTimeout(() => layout?.classList.remove('is-flipping'), timing.duration + 40);
     return () => { clearTimeout(done); layout?.classList.remove('is-flipping'); };
-  }, [notesOpen, reduceMotion]);
+  }, [notesOpen, focus, reduceMotion]);
+  captureFlipRef.current = captureFlip;
+  // The lyrics re-wrap to a new width when the view changes: they fade in place instead of jumping.
+  const focusSeen = React.useRef(focus);
+  React.useLayoutEffect(() => {
+    if (focusSeen.current === focus) return;
+    focusSeen.current = focus;
+    if (!reduceMotion) modalRef.current?.querySelector<HTMLElement>('.np-lyrics > .interference-lyrics')?.animate([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  }, [focus, reduceMotion]);
   const notesHost = React.useMemo(() => ({ slot: notesSlot, setOpen: setNotesOpenFlip }), [notesSlot, setNotesOpenFlip]);
 
   React.useEffect(() => {
@@ -202,7 +232,10 @@ export const FullPlayerModal: React.FC = () => {
               <ChevronDown size={22} className="group-hover:-translate-y-0.5 transition-transform" />
               <span className="text-xs font-bold uppercase tracking-wider">{t('Свернуть', 'Collapse')}</span>
             </button>
-            <div className="interference-title" aria-hidden="true" />
+            <div className="np-focus" role="group" aria-label={t('Что показывать', 'What to show')} style={{ WebkitAppRegion: 'no-drag' } as any}>
+              {([['lyrics', TextQuote, t('Только текст', 'Lyrics only')], ['split', Columns2, t('Текст и обложка', 'Lyrics and cover')], ['cover', Disc3, t('Только обложка', 'Cover only')]] as const).map(([value, Icon, label]) =>
+                <button key={value} type="button" aria-pressed={focus === value} title={label} aria-label={label} onClick={() => setFocus(value)}><Icon size={17} /></button>)}
+            </div>
           </div>
 
           <div className="mobile-player-tabs" role="tablist" aria-label={t('Экран трека', 'Track view')} data-view={mobileView}>
@@ -213,7 +246,7 @@ export const FullPlayerModal: React.FC = () => {
 
           {/* The same mounted panels crossfade on phones; lyrics keep their timing state. */}
           <NotesSlotContext.Provider value={notesHost}>
-          <div className={`interference-main np-layout view-${mobileView}${notesOpen ? ' notes-open' : ''} relative z-10 flex-1 min-h-0 overflow-hidden`}>
+          <div className={`interference-main np-layout view-${mobileView} focus-${focus}${notesOpen ? ' notes-open' : ''} relative z-10 flex-1 min-h-0 overflow-hidden`}>
             {/* Genius notes dock here (left), the track shrinks to the top right and the lyrics sit under it. */}
             <div ref={setNotesSlot} className="np-notes-slot interference-lyrics lyrics-v3" />
             {/* Cover column: artwork, scrub bar, title — then our controls (Apple-style "now playing"). */}
@@ -227,7 +260,6 @@ export const FullPlayerModal: React.FC = () => {
                 <button type="button" className="np-artists" onClick={() => setShowArtists(true)} title={t('Исполнители трека', 'Track artists')} aria-haspopup="dialog">{artistName}</button>
                 {/* Why the wave played this: people asked for it instead of a silent algorithm. */}
                 {currentTrack.recommendationReason && <span className="np-reason" title={t('Почему этот трек', 'Why this track')}><Sparkles size={12} aria-hidden="true" />{currentTrack.recommendationReason}</span>}
-                <MixChip />
               </div>
               <div className="np-controls">
                 <PlayerControls

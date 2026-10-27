@@ -1,4 +1,5 @@
 import {getPreferredSource,setPreferredSource,getRecording} from '../utils/playbackPreferences.js';
+const MIX_ENABLED = false;
 import {planMix,DEFAULT_MIX_SETTINGS,type MixAnalysis,type MixPlan,type MixSettings} from './mixPlanner.js';
 import {buildMixChain,mixAnalysis,resetChain,runMix,type MixChain} from './mixer.js';
 import { Track, PlaybackInfo, RepeatMode } from '../types/index.js';
@@ -326,7 +327,8 @@ export class AudioManager {
     if (!seconds) this.cancelCrossfade();
   }
   /** «ИИ-микс»: transitions planned per track pair from beat analysis (beatmatch, bass swap, filters, echo). */
-  public getMix(): boolean { try { return localStorage.getItem(scopedStorageKey('ai-mix')) === '1'; } catch { return false; } }
+  // shortcut: «ИИ-микс» is switched off until the transitions are reworked; flip MIX_ENABLED to bring it back.
+  public getMix(): boolean { if (!MIX_ENABLED) return false; try { return localStorage.getItem(scopedStorageKey('ai-mix')) === '1'; } catch { return false; } }
   public setMix(on: boolean): void {
     try { localStorage.setItem(scopedStorageKey('ai-mix'), on ? '1' : '0'); } catch { /* private mode */ }
     if (on) { this.ensureEqualizer(); this.prefetchNextTrack(); } else this.cancelCrossfade();

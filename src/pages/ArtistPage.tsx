@@ -1,7 +1,8 @@
 import React,{useMemo,useState} from 'react';
 import {PageSkeleton,LoadingSurface,SkeletonRows} from '../components/common/Skeleton.js';
 import {ZoomCoverButton} from '../components/common/CoverViewer.js';
-import {Link,useNavigate,useParams} from 'react-router-dom';
+import {Link,useNavigate,useParams,useSearchParams} from 'react-router-dom';
+import {artistPath} from '../utils/artistPath.js';
 import {useQuery} from '@tanstack/react-query';
 import {Play,Shuffle,Search,X,ChevronDown} from 'lucide-react';
 import {Carousel} from '../components/common/Carousel.js';
@@ -50,12 +51,14 @@ function PopularityMeter({value,pending,max=100}:{value?:TrackPopularity|null;pe
 export function ArtistPage(){
  const {id=''}=useParams(),t=useTranslation();
  const [filter,setFilter]=useState(''),[order,setOrder]=useState<Order>('new'),[topOpen,setTopOpen]=useState(false),[allOpen,setAllOpen]=useState(false),[scOpen,setScOpen]=useState(false);
- const detail=useQuery({queryKey:['artist-details',id],queryFn:()=>apiClient.getArtistDetails(id)});
+ // `from`: the release the listener came from; it says which of several same-named artists this page is.
+ const from=useSearchParams()[0].get('from')||undefined;
+ const detail=useQuery({queryKey:['artist-details',id,from],queryFn:()=>apiClient.getArtistDetails(id,from)});
  const navigate=useNavigate();
- const songs=useQuery({queryKey:['artist-tracks',id],queryFn:()=>apiClient.getArtistTracks(id,1,500)});
+ const songs=useQuery({queryKey:['artist-tracks',id,from],queryFn:()=>apiClient.getArtistTracks(id,1,500,from)});
  // One artist, one card: a SoundCloud profile (or a stray catalogue duplicate) opens the canonical card — Spotify when available, otherwise Deezer.
  const canonicalCard=detail.data?.linked?.spotifyId||(id.startsWith('spotify:')?undefined:detail.data?.linked?.deezerId);
- React.useEffect(()=>{if(canonicalCard&&canonicalCard!==id&&!id.startsWith('spotify:'))navigate(`/artist/${encodeURIComponent(canonicalCard)}`,{replace:true});},[canonicalCard,id,navigate]);
+ React.useEffect(()=>{if(canonicalCard&&canonicalCard!==id&&!id.startsWith('spotify:'))navigate(`/artist/${encodeURIComponent(canonicalCard)}${from?`?from=${encodeURIComponent(from)}`:''}`,{replace:true});},[canonicalCard,id,navigate,from]);
  const soundcloudId=!id.startsWith('soundcloud:')?detail.data?.linked?.soundcloudId:undefined;
  const soundcloudSongs=useQuery({queryKey:['artist-tracks',soundcloudId],queryFn:()=>apiClient.getArtistTracks(soundcloudId!,1,200),enabled:Boolean(soundcloudId),staleTime:10*60*1000});
  const play=usePlayerStore(s=>s.playCollection);
@@ -131,6 +134,7 @@ export function ArtistPage(){
      <span className="eyebrow">{t('Исполнитель','Artist')}</span>
      <h1>{artist.name}</h1>
      {data.homonym&&<p className="artist-homonym">{t('Другой исполнитель с тем же именем. Вы, возможно, искали','A different artist with the same name. You may be looking for')} <button type="button" onClick={()=>navigate(`/artist/${encodeURIComponent(data.homonym!.id)}`)}>{data.homonym.avatarUrl&&<img src={data.homonym.avatarUrl} alt="" referrerPolicy="no-referrer"/>}{data.homonym.name}</button></p>}
+     {!!data.namesakes?.length&&<p className="artist-homonym artist-namesakes">{t('Другие исполнители с этим именем:','Other artists with this name:')} {data.namesakes.map(n=><button type="button" key={`${n.id}:${n.from}`} title={t(`${n.count} релизов, например «${n.title}»`,`${n.count} releases, e.g. “${n.title}”`)} onClick={()=>navigate(artistPath(n.id,`deezer:album:${n.from}`))}>{n.cover&&<img src={n.cover} alt="" referrerPolicy="no-referrer"/>}{n.title}{n.year?` · ${n.year}`:''}</button>)}</p>}
      {aliases.length>0&&<p className="artist-card-aka"><span>{t('Также известен как','Also known as')}</span>{aliases.map(n=><b key={n}>{n}</b>)}</p>}
      {(tracks.length>0||releases.length>0)&&<p className="artist-card-meta">{[tracks.length?`${tracks.length} ${t('треков','tracks')}`:'',releases.length?`${releases.length} ${t('релизов','releases')}`:''].filter(Boolean).join(' · ')}</p>}
      <div className="artist-card-actions">

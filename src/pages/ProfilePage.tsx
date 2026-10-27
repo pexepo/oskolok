@@ -22,6 +22,7 @@ import {usePlayerStore} from '../stores/usePlayerStore.js';
 import {useLibraryStore} from '../stores/useLibraryStore.js';
 import {TelegramLoginFlow} from '../components/telegram/TelegramLoginFlow.js';
 import {TelegramStatusSettings} from '../components/telegram/TelegramStatusSettings.js';
+import {DiscordSettings} from '../components/settings/DiscordSettings.js';
 import {ProfileCustomizationEditor,type Customization} from '../components/profile/ProfileCustomization.js';
 import type {PublicRole} from '../components/profile/RoleBadge.js';
 import {ProfileHero,ProfileAvatar} from '../components/profile/ProfileHero.js';
@@ -61,6 +62,8 @@ export function ProfilePage(){
   const setTab=(next:Tab)=>setParams(next==='showcase'?{}:{tab:next},{replace:true});
   const [p,setP]=useState<Profile>(),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
   const [editing,setEditing]=useState(false);
+  // Links like /profile?tab=settings#listening-status land on that block once the profile has rendered.
+  React.useEffect(()=>{if(!p||!location.hash)return;const id=location.hash.slice(1);const timer=window.setTimeout(()=>{const el=document.getElementById(id);(el?.classList.contains('set-stack')?el.firstElementChild:el)?.scrollIntoView({block:'start',behavior:'smooth'});},60);return()=>window.clearTimeout(timer);},[p,tab]);
   const playlists=usePlaylistStore(s=>s.playlists),fetchPlaylists=usePlaylistStore(s=>s.fetchPlaylists);
   const likedCount=useLibraryStore(s=>s.likedTracks.length);
   const playingTrack=usePlayerStore(s=>s.isPlaying?s.currentTrack:null);
@@ -175,6 +178,8 @@ export function ProfilePage(){
         <Link className="set-row set-row--button" to="/admin"><span>{t('Администрирование','Administration')}</span><Shield size={15}/></Link>
       </section>
       <ProfileCustomizationEditor value={p.customization} onSaved={customization=>setP({...p,customization})}/>
+      {/* Telegram and Discord in one place: accounts, the «Слушает» status and the Telegram session. */}
+      <div id="listening-status" className="set-stack">
       <section className="set-group">
         <h4>Telegram</h4>
         <label className="set-row set-switch"><span>{t('Трек в профиле Telegram','Track in Telegram profile')}<small>{t('Все в Telegram увидят, что вы слушаете','Everyone in Telegram sees what you play')}</small></span><input type="checkbox" role="switch" checked={p.telegramFullIntegration} disabled={busy} onChange={e=>void run(async()=>{await apiClient.request('/profile/telegram-integration',{method:'PATCH',body:JSON.stringify({enabled:e.target.checked})});await load();})}/></label>
@@ -182,6 +187,8 @@ export function ProfilePage(){
         <TelegramStatusSettings fallbackName={p.displayName} fallbackAvatar={p.telegramAvatarUrl||p.avatarUrl} fallbackTrack={nowPlaying||p.currentTrack||p.showcase.find(item=>item.track)?.track} enabled={p.telegramFullIntegration}/>
         <div id="telegram-connection" className="set-row set-row--stack"><span>{t('Пользовательская сессия','User session')}<small>{p.telegramConnected?t('Подключена: текущий трек может появляться в музыке профиля.','Connected: your current track can appear in your profile music.'):t('Нужна, чтобы показывать музыку в Telegram-профиле.','Needed to show music in your Telegram profile.')}</small></span>{!p.telegramConnected&&<TelegramLoginFlow/>}{p.telegramConnected&&<button className="sg-btn" disabled={busy} onClick={()=>void run(async()=>{await apiClient.request('/profile/telegram',{method:'DELETE'});location.reload();})}>{t('Отключить сессию','Disconnect session')}</button>}</div>
       </section>
+      <DiscordSettings/>
+      </div>
       <section className="set-group">
         <button type="button" className="set-row set-row--button set-row--danger" disabled={busy} onClick={()=>void run(async()=>{await apiClient.request('/profile/logout',{method:'POST',body:'{}'});location.reload();})}><span>{t('Выйти из Осколка','Sign out')}</span><LogOut size={15}/></button>
       </section>

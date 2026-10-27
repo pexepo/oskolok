@@ -12,7 +12,6 @@ import { usePlaylistStore } from '../../stores/usePlaylistStore.js';
 import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore } from '../../stores/useThemeStore.js';
 import { useTranslation } from '../../stores/useLanguageStore.js';
-import { MixSettings } from '../player/MixSettings.js';
 import { paletteFromArtwork, type Rgb } from '../../utils/releasePalette.js';
 import { DEFAULT_WAVE_SETTINGS, MUSIC_LANGS, WAVE_MODES, WAVE_ACTIVITIES, type WaveActivity, cachedWaveCatalog, fetchWaveCatalog, validateAgainst, waveSourceState, type MusicLang, type WaveCatalog, type WaveChoice, type WaveEngine, type WaveMode } from '../../stores/waveSettings.js';
 import './wave-settings.css';
@@ -196,7 +195,6 @@ export const WaveSettingsPanel: React.FC<WaveSettingsPanelProps> = ({ open, onCl
           </>, 'wave-segments', waveSettings.engine === 'yandex' && !yandexServes(lang, waveSettings.mode)
             ? <p className="wave-note">{t('Японскую музыку и режим «Из коллекции» Яндекс не подбирает — здесь работает подбор Осколка.', 'Yandex does not cover Japanese music or «From your collection»; Осколок picks these.')}</p> : null)}
 
-          <section className="wave-group"><h3>{t('Сведение', 'Mixing')}</h3><MixSettings compact /></section>
 
           {group(t('Занятие', 'Activity'), [
             radio(!waveSettings.activity, () => setWaveSettings({ activity: null }), 'wave-chip', t('Просто слушаю', 'Just listening'), 'none'),

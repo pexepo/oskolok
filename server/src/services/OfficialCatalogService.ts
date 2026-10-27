@@ -1,4 +1,4 @@
-import { namesakeReleaseIds, namesakeDecisionReady } from './releaseIdentity.js';
+import { artistPersona, namesakeDecisionReady } from './releaseIdentity.js';
 import {
   Track,
   Artist,
@@ -288,10 +288,10 @@ export class OfficialCatalogService {
   }
 
   /** `referenceTitles`: the discography of the card asking (a linked Spotify profile), which decides whose songs these are on a shared Deezer page. */
-  public async getArtistTracks(id: string, options?: PaginationOptions, referenceTitles: string[] = []): Promise<Track[]> {
+  public async getArtistTracks(id: string, options?: PaginationOptions, referenceTitles: string[] = [], seedAlbum?: string): Promise<Track[]> {
     const rawId = id.replace(/^(spotify:artist:|deezer:artist:|artist:)/, '');
     const limit = options?.limit || 500;
-    const cacheKey = `${rawId}:${limit}:${referenceTitles.length}`;
+    const cacheKey = `${rawId}:${limit}:${referenceTitles.length}:${seedAlbum || ''}`;
 
     const cached = this.artistTracksCache.get(cacheKey);
     if (cached && Date.now() < cached.expiresAt) {
@@ -300,7 +300,9 @@ export class OfficialCatalogService {
 
     try {
       // 1. Fetch top tracks and albums list concurrently
-      const namesakes = namesakeReleaseIds(rawId, { referenceTitles });
+      // One act scattered over same-named profiles: its releases from the others join, strangers' leave.
+      const persona = artistPersona(rawId, { referenceTitles, seedAlbum });
+      const namesakes = persona.then(p => p?.foreign || new Set<string>());
       const [topRes, albumsRes, artistInfo] = await Promise.all([
         fetch(`${this.baseUrl}/artist/${rawId}/top?limit=100`, {
           signal: AbortSignal.timeout(6000),
@@ -342,7 +344,8 @@ export class OfficialCatalogService {
         // Every release, not just the first 15: albums, EPs, singles and long mixtapes.
         // Album track lists carry no album reference, so a namesake's albums are skipped before they are fetched.
         const skip = await namesakes;
-        const albumIds = (albumsJson.data || []).map((a) => a.id).filter((albumId) => !skip.has(String(albumId))).slice(0, 120);
+        const borrowed = (await persona)?.borrowed.map(a => a.id) || [];
+        const albumIds = [...(albumsJson.data || []).map((a) => a.id).filter((albumId) => !skip.has(String(albumId))), ...borrowed].slice(0, 120);
 
         const chunkSize = 6;
         for (let i = 0; i < albumIds.length; i += chunkSize) {

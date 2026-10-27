@@ -12,10 +12,13 @@ import type {Track} from '../types/index.js';
  * It only holds what was added inside Oskolok; the Telegram profile music has its own list.
  */
 export const SHOWCASE_SIZES=['s','m','l','wide','tall'] as const;
+/** A tile's layout: a preset above, or `g<cols>x<rows>` (1–6 cells each) with an optional image frame
+ * `;f<x>,<y>` (focus, 0–100 %) and `;z<zoom>` (1–3). Kept in the `size` column, so old rows and clients still read. */
+export const SHOWCASE_LAYOUT=/^(?:s|m|l|wide|tall|g[1-6]x[1-6](?:;f(?:100|\d{1,2}),(?:100|\d{1,2}))?(?:;z(?:[12](?:\.\d{1,2})?|3))?)$/;
 export const SHOWCASE_LIMIT=60;
 export class ShowcaseError extends Error{constructor(message:string,public status=400){super(message);}}
 
-const size=z.enum(SHOWCASE_SIZES).default('m');
+const size=z.string().regex(SHOWCASE_LAYOUT).default('m');
 const caption=z.string().trim().max(200).default('');
 const artwork=z.string().url().max(1000).refine(value=>{try{const url=new URL(value);return url.protocol==='https:'&&ARTWORK_HOSTS.has(url.hostname);}catch{return false;}},'Обложка должна быть из каталога.');
 export const showcaseAddSchema=z.discriminatedUnion('kind',[
@@ -25,7 +28,7 @@ export const showcaseAddSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('image'),fileId:z.string().uuid(),size,caption}),
  z.object({kind:z.literal('note'),text:z.string().trim().min(1).max(600),size,caption}),
 ]);
-export const showcasePatchSchema=z.object({size:z.enum(SHOWCASE_SIZES).optional(),caption:z.string().trim().max(200).optional(),text:z.string().trim().min(1).max(600).optional()}).strict();
+export const showcasePatchSchema=z.object({size:z.string().regex(SHOWCASE_LAYOUT).optional(),caption:z.string().trim().max(200).optional(),text:z.string().trim().min(1).max(600).optional()}).strict();
 export const showcaseOrderSchema=z.object({ids:z.array(z.string().uuid()).max(SHOWCASE_LIMIT)});
 
 type Row={id:string;userId:string;kind:string;refId:string|null;data:string;caption:string;size:string;position:number;fileId:string|null};

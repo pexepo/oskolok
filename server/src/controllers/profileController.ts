@@ -8,7 +8,7 @@ import {lyricSubmissionSchema} from '../validation/lyrics.js';
 import {trackController} from './trackController.js';
 import {isTrustedLocalOrigin,requireTrustedMutation} from '../middleware/trustedOrigin.js';
 import {prisma} from '../database/client.js';
-import {sessionConfigured,beginLogin,beginPhoneLogin,beginBotLogin,cancelLogin,loginStatus,consumeLogin,submitPhoneCode,submitLoginPassword,hashToken,disconnectSession} from '../services/telegramSession.js';
+import {sessionConfigured,beginLogin,beginPhoneLogin,beginBotLogin,cancelLogin,loginStatus,consumeLogin,submitPhoneCode,submitLoginPassword,resendPhoneCode,hashToken,disconnectSession} from '../services/telegramSession.js';
 import {updateNowPlaying,refreshTelegramIntegration,clearNowPlayingOnExit} from '../services/telegramNowPlaying.js';
 import {profileCustomizationSchema,customizationColumns,readCustomization,ProfileValidationError} from '../services/profileCustomization.js';
 import {rolesForUser} from '../services/roles.js';
@@ -62,11 +62,15 @@ telegramLogin.get('/status',route(async(req:any,res:any)=>{
     const token=randomBytes(32).toString('hex');await prisma.webSession.create({data:{tokenHash:hashToken(token),userId:l.userId,expiresAt:new Date(Date.now()+30*86400000)}});
     res.cookie('oskolok_session',token,{httpOnly:true,sameSite:'strict',secure:req.secure,maxAge:30*86400000,path:'/'});consumeLogin(id);
   }
-  res.json({data:{state:l.state,method:l.method,configured:sessionConfigured,error:l.error,passwordHint:l.passwordHint,codeViaApp:l.codeViaApp,expires:l.expires,qrExpires:l.qrExpires,botUrl:l.method==='bot'?`https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=connect_${id}`:undefined,qr:l.state==='qr'&&l.url?await QRCode.toDataURL(l.url,{width:256,margin:2}):undefined}});
+  res.json({data:{state:l.state,method:l.method,configured:sessionConfigured,error:l.error,passwordHint:l.passwordHint,codeViaApp:l.codeViaApp,codeChannel:l.codeChannel,codeLength:l.codeLength,codeText:l.codeText,emailPattern:l.emailPattern,nextChannel:l.nextChannel,resendAt:l.resendAt,expires:l.expires,qrExpires:l.qrExpires,botUrl:l.method==='bot'?`https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=connect_${id}`:undefined,qr:l.state==='qr'&&l.url?await QRCode.toDataURL(l.url,{width:256,margin:2}):undefined}});
 }));
 telegramLogin.post('/code',route(async(req:any,res:any)=>{
   const code=z.string().trim().min(1).max(64).parse(req.body?.code);
   try{submitPhoneCode(cookies(req).oskolok_login,code);res.json({data:{ok:true}});}
+  catch(error){res.status(409).json({error:{message:error instanceof Error?error.message:'Запросите код заново.'}});}
+}));
+telegramLogin.post('/resend',route(async(req:any,res:any)=>{
+  try{await resendPhoneCode(cookies(req).oskolok_login);res.json({data:{ok:true}});}
   catch(error){res.status(409).json({error:{message:error instanceof Error?error.message:'Запросите код заново.'}});}
 }));
 telegramLogin.post('/password',route(async(req:any,res:any)=>{

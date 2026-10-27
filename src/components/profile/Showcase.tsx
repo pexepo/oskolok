@@ -3,7 +3,8 @@ import {Link} from 'react-router-dom';
 import {DndContext,closestCenter,KeyboardSensor,PointerSensor,TouchSensor,useSensor,useSensors,type DragEndEvent} from '@dnd-kit/core';
 import {arrayMove,SortableContext,rectSortingStrategy,sortableKeyboardCoordinates,useSortable} from '@dnd-kit/sortable';
 import {CSS} from '@dnd-kit/utilities';
-import {Play,Plus,GripVertical,Trash2,Type,Music2,Disc3,ListMusic,ImagePlus,StickyNote,Search,Check} from 'lucide-react';
+import {Play,Plus,GripVertical,Trash2,Type,Music2,Disc3,ListMusic,ImagePlus,StickyNote,Search,Check,Crop,ZoomIn,ZoomOut,MoveDiagonal2} from 'lucide-react';
+import {formatLayout,parseLayout,type TileLayout} from './showcaseLayout.js';
 import {apiClient} from '../../api/apiClient.js';
 import {usePlayerStore} from '../../stores/usePlayerStore.js';
 import {usePlaylistStore} from '../../stores/usePlaylistStore.js';
@@ -14,7 +15,8 @@ import {ArtworkImage} from '../common/ArtworkImage.js';
 import type {Release,Track} from '../../types/index.js';
 import './showcase.css';
 
-export type ShowcaseSize='s'|'m'|'l'|'wide'|'tall';
+/** A preset (`s`…`tall`) or a custom span and frame, see showcaseLayout.ts. */
+export type ShowcaseSize=string;
 export type ShowcaseItem={id:string;kind:'track'|'album'|'playlist'|'image'|'note';size:ShowcaseSize;caption:string;track?:Track;album?:{id:string;title:string;artistName:string;artworkUrl?:string;date?:string};playlist?:{playlistId:string;title:string;artworkUrl?:string;tracks:Track[]};image?:{url:string;mime:string};text?:string};
 type NewItem={kind:'track';trackId:string}|{kind:'album';album:NonNullable<ShowcaseItem['album']>}|{kind:'playlist';playlistId:string}|{kind:'image';fileId:string}|{kind:'note';text:string};
 
@@ -56,7 +58,12 @@ function ShowcaseTile({item,editing,canPlay,tracks,onUpdate,onRemove}:{item:Show
   const t=useTranslation(),sortable=useSortable({id:item.id,disabled:!editing});
   const [captioning,setCaptioning]=useState(false),[caption,setCaption]=useState(item.caption);
   useEffect(()=>setCaption(item.caption),[item.caption]);
-  const style={transform:CSS.Translate.toString(sortable.transform),transition:sortable.transition};
+  // Span and picture frame: edited live here, saved when the gesture ends.
+  const [layout,setLayout]=useState(()=>parseLayout(item.size)),[framing,setFraming]=useState(false);
+  useEffect(()=>setLayout(parseLayout(item.size)),[item.size]);
+  useEffect(()=>{if(!editing)setFraming(false);},[editing]);
+  const commit=(next:TileLayout)=>{setLayout(next);const size=formatLayout(next);if(size!==item.size)onUpdate({size});};
+  const style={transform:CSS.Translate.toString(sortable.transform),transition:sortable.transition,'--w':layout.w,'--h':layout.h,'--fx':`${layout.fx}%`,'--fy':`${layout.fy}%`,'--z':layout.z} as React.CSSProperties;
   const player=usePlayerStore.getState;
   const play=async()=>{
     try{
@@ -71,7 +78,7 @@ function ShowcaseTile({item,editing,canPlay,tracks,onUpdate,onRemove}:{item:Show
   const playable=canPlay&&!editing&&(!!item.track||!!item.album||!!item.playlist?.tracks.length);
   const KindIcon=item.kind==='album'?Disc3:item.kind==='playlist'?ListMusic:Music2;
   const href=item.album?`/release/${encodeURIComponent(item.album.id)}`:item.track?`/track/${encodeURIComponent(item.track.id)}`:undefined;
-  return <article ref={sortable.setNodeRef} style={style} className={`showcase-tile showcase-tile--${item.kind}`} data-size={item.size} data-dragging={sortable.isDragging||undefined}>
+  return <article ref={sortable.setNodeRef} style={style} className={`showcase-tile showcase-tile--${item.kind}`} data-size={layout.w===1&&layout.h===1?'s':'x'} data-framing={framing||undefined} data-dragging={sortable.isDragging||undefined}>
     {item.kind==='image'&&item.image&&<img className="showcase-media" src={item.image.url} alt={item.caption||t('Картинка из витрины','Showcase picture')} loading="lazy" decoding="async" draggable={false}/>}
     {cover&&<ArtworkImage src={cover} alt="" className="showcase-media"/>}
     {item.kind==='note'&&<p className="showcase-note">{item.text}</p>}
@@ -85,11 +92,53 @@ function ShowcaseTile({item,editing,canPlay,tracks,onUpdate,onRemove}:{item:Show
     </div>}
     {editing&&<div className="showcase-tools" role="toolbar" aria-label={t('Настройка плитки','Tile settings')}>
       <button type="button" className="showcase-tool showcase-grip" {...sortable.attributes} {...sortable.listeners} aria-label={t('Перетащить','Drag')}><GripVertical size={15}/></button>
-      <span className="showcase-sizes" role="radiogroup" aria-label={t('Размер','Size')}>{SIZES.map(([size,label,name])=><button key={size} type="button" role="radio" aria-checked={item.size===size} className={item.size===size?'is-on':''} onClick={()=>onUpdate({size})} title={t(name,size)}>{label}</button>)}</span>
+      {(cover||item.kind==='image')&&<button type="button" className={`showcase-tool${framing?' is-on':''}`} onClick={()=>setFraming(v=>!v)} aria-pressed={framing} aria-label={t('Область изображения','Picture area')} title={t('Область изображения','Picture area')}><Crop size={15}/></button>}
       <button type="button" className="showcase-tool" onClick={()=>setCaptioning(true)} aria-label={t('Подпись','Caption')}><Type size={15}/></button>
       <button type="button" className="showcase-tool is-danger" onClick={onRemove} aria-label={t('Убрать из витрины','Remove from showcase')}><Trash2 size={15}/></button>
     </div>}
+    {editing&&framing&&<FrameEditor layout={layout} onChange={setLayout} onCommit={commit} onDone={()=>setFraming(false)}/>}
+    {editing&&!framing&&<ResizeHandle layout={layout} onChange={setLayout} onCommit={commit}/>}
   </article>;
+}
+
+/** Drag the corner by whole grid cells (1–6 each way); arrow keys do the same. */
+function ResizeHandle({layout,onChange,onCommit}:{layout:TileLayout;onChange:(l:TileLayout)=>void;onCommit:(l:TileLayout)=>void}){
+  const t=useTranslation(),start=useRef<{x:number;y:number;w:number;h:number;cell:number}|null>(null),last=useRef(layout);
+  last.current=layout;
+  const down=(e:React.PointerEvent<HTMLButtonElement>)=>{
+    const grid=e.currentTarget.closest('.showcase-grid') as HTMLElement|null;if(!grid)return;
+    const cs=getComputedStyle(grid),cols=cs.gridTemplateColumns.split(' ').length,gap=parseFloat(cs.columnGap)||0;
+    start.current={x:e.clientX,y:e.clientY,w:layout.w,h:layout.h,cell:(grid.clientWidth-gap*(cols-1))/cols+gap};
+    e.currentTarget.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();
+  };
+  const move=(e:React.PointerEvent)=>{const s=start.current;if(!s)return;const w=Math.min(6,Math.max(1,s.w+Math.round((e.clientX-s.x)/s.cell))),h=Math.min(6,Math.max(1,s.h+Math.round((e.clientY-s.y)/s.cell)));if(w!==last.current.w||h!==last.current.h)onChange({...last.current,w,h});};
+  const up=()=>{if(!start.current)return;start.current=null;onCommit(last.current);};
+  const key=(e:React.KeyboardEvent)=>{const d:Record<string,[number,number]>={ArrowRight:[1,0],ArrowLeft:[-1,0],ArrowDown:[0,1],ArrowUp:[0,-1]};const step=d[e.key];if(!step)return;e.preventDefault();onCommit({...layout,w:Math.min(6,Math.max(1,layout.w+step[0])),h:Math.min(6,Math.max(1,layout.h+step[1]))});};
+  return <button type="button" className="showcase-resize" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
+    aria-label={t(`Размер плитки: ${layout.w} × ${layout.h}. Стрелки меняют ширину и высоту`,`Tile size: ${layout.w} × ${layout.h}. Arrow keys change width and height`)}>
+    <MoveDiagonal2 size={14}/><span className="showcase-resize-badge" aria-hidden="true">{layout.w}×{layout.h}</span>
+  </button>;
+}
+
+/** Pick the visible part of the picture: drag to move it, wheel or the buttons to zoom. */
+function FrameEditor({layout,onChange,onCommit,onDone}:{layout:TileLayout;onChange:(l:TileLayout)=>void;onCommit:(l:TileLayout)=>void;onDone:()=>void}){
+  const t=useTranslation(),drag=useRef<{x:number;y:number;fx:number;fy:number;w:number;h:number}|null>(null),last=useRef(layout),wheelTimer=useRef(0);
+  last.current=layout;
+  const clamp=(v:number)=>Math.min(100,Math.max(0,v));
+  const zoom=(dz:number,save=true)=>{const next={...last.current,z:Math.min(3,Math.max(1,Math.round((last.current.z+dz)*100)/100))};if(save)onCommit(next);else onChange(next);};
+  return <div className="showcase-frame" role="group" aria-label={t('Область изображения','Picture area')}
+    onPointerDown={e=>{const r=e.currentTarget.getBoundingClientRect();drag.current={x:e.clientX,y:e.clientY,fx:layout.fx,fy:layout.fy,w:r.width,h:r.height};e.currentTarget.setPointerCapture(e.pointerId);e.stopPropagation();}}
+    onPointerMove={e=>{const d=drag.current;if(!d)return;onChange({...last.current,fx:clamp(d.fx-(e.clientX-d.x)/d.w*100/last.current.z),fy:clamp(d.fy-(e.clientY-d.y)/d.h*100/last.current.z)});}}
+    onPointerUp={()=>{if(drag.current){drag.current=null;onCommit(last.current);}}} onPointerCancel={()=>{drag.current=null;}}
+    onWheel={e=>{zoom(e.deltaY<0?.08:-.08,false);window.clearTimeout(wheelTimer.current);wheelTimer.current=window.setTimeout(()=>onCommit(last.current),400);}}
+    onKeyDown={e=>{const d:Record<string,[number,number]>={ArrowRight:[5,0],ArrowLeft:[-5,0],ArrowDown:[0,5],ArrowUp:[0,-5]};const step=d[e.key];if(step){e.preventDefault();onCommit({...layout,fx:clamp(layout.fx+step[0]),fy:clamp(layout.fy+step[1])});}if(e.key==='Escape')onDone();}} tabIndex={0}>
+    <span className="showcase-frame-hint">{t('Тяните картинку · колесо — масштаб','Drag the picture · wheel to zoom')}</span>
+    <span className="showcase-frame-tools" onPointerDown={e=>e.stopPropagation()}>
+      <button type="button" onClick={()=>zoom(-.2)} disabled={layout.z<=1} aria-label={t('Отдалить','Zoom out')}><ZoomOut size={15}/></button>
+      <button type="button" onClick={()=>zoom(.2)} disabled={layout.z>=3} aria-label={t('Приблизить','Zoom in')}><ZoomIn size={15}/></button>
+      <button type="button" onClick={onDone} aria-label={t('Готово','Done')}><Check size={15}/></button>
+    </span>
+  </div>;
 }
 
 type AddTab='track'|'album'|'playlist'|'image'|'note';

@@ -1,3 +1,4 @@
+import {artistPath} from '../../utils/artistPath.js';
 import React from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {NavLink,useNavigate} from 'react-router-dom';
@@ -73,7 +74,7 @@ export function CreditsList({info,compact=false}:{info:GeniusSongInfo;compact?:b
 export function TrackArtistLink({track,className}:{track:Track;className?:string}){
  const [open,setOpen]=React.useState(false);
  const choose=isReupload(track)||performerNames(track.artist.name).length>1;
- if(!choose)return <NavLink to={`/artist/${encodeURIComponent(track.artist.id)}`} className={className} title={track.artist.name}>{track.artist.name}</NavLink>;
+ if(!choose)return <NavLink to={artistPath(track.artist.id,track.release?.id)} className={className} title={track.artist.name}>{track.artist.name}</NavLink>;
  return <><button type="button" className={`${className||''} track-artist-choice`} title={track.artist.name} aria-haspopup="dialog" onClick={e=>{e.stopPropagation();setOpen(true);}}>{track.artist.name}</button>{open&&<TrackArtistsPopup track={track} open onClose={()=>setOpen(false)}/>}</>;
 }
 
@@ -83,7 +84,7 @@ export function useOpenArtist(){
   usePlayerStore.getState().setFullPlayerOpen(false);
   const fold=(value:string)=>value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
   const variants=[name,displayName(name),...[...name.matchAll(/\(([^)]+)\)/g)].map(m=>m[1])].map(fold);
-  if(track?.artist?.id&&!isReupload(track)&&variants.includes(fold(track.artist.name))){navigate(`/artist/${encodeURIComponent(track.artist.id)}`);return;}
+  if(track?.artist?.id&&!isReupload(track)&&variants.includes(fold(track.artist.name))){navigate(artistPath(track.artist.id,track.release?.id));return;}
   try{
    const found=await apiClient.suggestions(displayName(name));
    const artist=found.artists?.find(a=>variants.includes(fold(a.name)))||found.artists?.[0];

@@ -16,18 +16,10 @@
 @container (max-width: 820px) { .showcase-grid { --sc-cols: 4; } }
 @container (max-width: 480px) { .showcase-grid { --sc-cols: 2; --sc-gap: 10px; } }
 
-.showcase-tile { grid-column: span 2; grid-row: span 2; }
+/* Each tile spans --w × --h cells (1–6, set inline from its layout); never wider than the grid. */
+.showcase-tile { grid-column: span min(var(--w, 2), var(--sc-cols)); grid-row: span var(--h, 2); }
 /* One cell: it fills whatever gap the dense grid leaves. */
 .showcase-add-tile { grid-column: span 1; grid-row: span 1; text-align: center; padding: 8px; }
-.showcase-tile[data-size="s"] { grid-column: span 1; grid-row: span 1; }
-.showcase-tile[data-size="l"] { grid-column: span 3; grid-row: span 3; }
-.showcase-tile[data-size="wide"] { grid-column: span 3; grid-row: span 2; }
-.showcase-tile[data-size="tall"] { grid-column: span 2; grid-row: span 3; }
-@container (max-width: 480px) {
-  .showcase-tile[data-size="l"] { grid-column: span 2; grid-row: span 2; }
-  .showcase-tile[data-size="wide"] { grid-column: span 2; grid-row: span 1; }
-  .showcase-tile[data-size="tall"] { grid-column: span 1; grid-row: span 2; }
-}
 
 .showcase-tile {
   position: relative;
@@ -45,7 +37,7 @@
 }
 .showcase-tile[data-dragging] { z-index: 5; box-shadow: 0 30px 60px -20px rgba(10, 25, 55, .6); opacity: .92; }
 .showcase-media { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; border-radius: 0 !important; z-index: -1; }
-.showcase-media img, img.showcase-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+.showcase-media img, img.showcase-media { width: 100%; height: 100%; object-fit: cover; display: block; object-position: var(--fx, 50%) var(--fy, 50%); transform: scale(var(--z, 1)); transform-origin: var(--fx, 50%) var(--fy, 50%); }
 
 /* Glass bar over the artwork: title, artist, play. */
 .showcase-bar {
@@ -159,3 +151,18 @@ a.showcase-title:hover { text-decoration: underline; }
   .showcase-tile, .showcase-play, .showcase-add-tile { transition: none; }
   .showcase-grid[data-editing] .showcase-tile { animation: none; }
 }
+
+/* Arrange mode: corner handle resizes by cells, the frame editor picks the visible part of the picture. */
+.showcase-resize { position: absolute; right: 6px; bottom: 6px; z-index: 4; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; border: 0; color: #fff; background: rgba(10, 20, 40, .55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: nwse-resize; touch-action: none; }
+.showcase-resize:focus-visible { outline: 2px solid var(--accent, #8fb5ff); outline-offset: 2px; }
+.showcase-resize-badge { position: absolute; right: calc(100% + 6px); bottom: 4px; padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; background: rgba(10, 20, 40, .55); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.showcase-resize:is(:hover, :focus-visible, :active) .showcase-resize-badge { opacity: 1; }
+.showcase-tile[data-framing] .showcase-tools { display: none; }
+.showcase-frame { position: absolute; inset: 0; z-index: 4; cursor: grab; touch-action: none; outline: 2px dashed rgba(255, 255, 255, .8); outline-offset: -7px; border-radius: inherit; }
+.showcase-frame:active { cursor: grabbing; }
+.showcase-frame:focus-visible { outline-style: solid; }
+.showcase-frame-hint { position: absolute; left: 10px; top: 10px; right: 10px; font-size: 11px; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); pointer-events: none; }
+.showcase-frame-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
+.showcase-frame-tools button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; border: 0; color: #fff; background: rgba(10, 20, 40, .6); cursor: pointer; }
+.showcase-frame-tools button:disabled { opacity: .4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .showcase-resize-badge { transition: none; } }

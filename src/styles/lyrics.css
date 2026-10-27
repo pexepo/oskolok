@@ -309,37 +309,55 @@ html body .interference-lyrics.lyrics-v3 .lyrics-credits .credits-genius-link { 
 }
 @media (prefers-reduced-motion: reduce) { html body .interference-modal.np-v2 :is(.np-layout, .np-panel), html body .interference-lyrics.lyrics-v3 .lyrics-scroll { transition: none !important; } }
 
-/* ── Full player: notes docked in the left column. The layout switches once (no animated grid or padding, which
- * re-laid out every lyric span per frame); the panels then enter with transform and opacity only. ── */
+/* ── Full player: notes dock beside the lyrics, under the track. The lyrics never move (the line being explained stays
+ * where the listener reads it); the cover column folds into a compact header and the notes take its place. The layout
+ * switches once; the header pieces FLIP (transform only) and the notes enter with opacity and a short rise. ── */
 html body .interference-modal.np-v2 .np-notes-slot { display: none; }
 @media (min-width: 701px) {
   html body .interference-modal.np-v2 .np-layout.notes-open {
-    grid-template-columns: minmax(320px, .8fr) minmax(0, 1.25fr) !important;
     grid-template-rows: auto minmax(0, 1fr) !important;
     align-items: stretch !important;
     row-gap: clamp(14px, 2.4vh, 26px) !important;
   }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-notes-slot { display: block; grid-column: 1; grid-row: 1 / span 2; min-height: 0; position: relative; background: none !important; animation: np-notes-in .5s cubic-bezier(.2, .8, .2, 1) both; }
+  html body .interference-modal.np-v2 .np-layout.notes-open > .np-lyrics { grid-area: 1 / 1 / span 2 / 2 !important; }
+  html body .interference-modal.np-v2 .np-layout.notes-open > .np-notes-slot { display: block; grid-area: 2 / 2 !important; min-height: 0; position: relative; background: none !important; animation: np-notes-in .32s cubic-bezier(.2, .8, .2, 1) .06s both; }
   html body .interference-modal.np-v2 .np-notes-slot .genius-drawer { position: absolute; inset: 0; width: auto; transform: none; transition: none; }
   html body .interference-modal.np-v2 .np-notes-slot .genius-drawer[data-open=true] { transition: none; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-lyrics { grid-column: 2; grid-row: 2; order: 0; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel {
-    grid-column: 2; grid-row: 1; order: 0;
-    display: grid !important; grid-template-columns: clamp(84px, 11vh, 132px) minmax(0, 1fr); grid-template-areas: "art heading" "art progress" "art controls";
-    align-items: center; justify-items: stretch; column-gap: 22px; row-gap: 4px; max-width: none !important; margin: 0 !important;
+  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel { grid-area: 1 / 2 !important; align-self: end; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel {
+    display: grid !important; grid-template-columns: clamp(72px, 9vh, 112px) minmax(0, 1fr); grid-template-areas: "art heading" "art progress" "art controls";
+    align-items: center; justify-items: stretch; column-gap: 18px; row-gap: 4px; max-width: none !important; margin: 0 !important;
   }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-art { grid-area: art; width: 100% !important; border-radius: 10px; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading { grid-area: heading; text-align: start; justify-items: start; margin: 0; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading > * { justify-self: start; text-align: start; max-width: 100%; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-heading h2 { font-size: clamp(18px, 1.7vw, 24px); }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-progress { grid-area: progress; margin: 0; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > .np-controls { grid-area: controls; justify-content: flex-start; }
-  html body .interference-modal.np-v2 .np-layout.notes-open > .np-panel > :is(.np-actions, .np-meta) { display: none !important; }
-  html body .interference-modal.np-v2 .np-layout.notes-open .lyrics-scroll { padding-block: 18vh 30vh !important; }
-  html body .interference-modal.np-v2 .np-layout.notes-open .interference-lyrics .interference-line { font-size: clamp(22px, 2.3vw, 38px); }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-art { grid-area: art; width: 100% !important; border-radius: 10px; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-heading { grid-area: heading; text-align: start; justify-items: start; margin: 0; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-heading > * { justify-self: start; text-align: start; max-width: 100%; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-heading h2 { font-size: clamp(17px, 1.5vw, 22px); }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-progress { grid-area: progress; margin: 0; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > .np-controls { grid-area: controls; justify-content: flex-start; }
+  html body .interference-modal.np-v2 .np-layout:is(.notes-open, .focus-lyrics) > .np-panel > :is(.np-actions, .np-meta) { display: none !important; }
 }
-html body .interference-modal.np-v2 .np-layout.is-flipping > :is(.np-panel, .np-lyrics) { overflow: visible !important; }
-@keyframes np-notes-in { from { opacity: 0; transform: translate3d(-28px, 0, 0); } }
+html body .interference-modal.np-v2 .np-layout.is-flipping > .np-panel { overflow: visible !important; }
+@keyframes np-notes-in { from { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) { html body .interference-modal.np-v2 .np-layout.notes-open > .np-notes-slot { animation: np-notes-fade .2s linear both; } }
+@keyframes np-notes-fade { from { opacity: 0; } }
+
+/* ── Интерференция views: lyrics only (a compact track header on top) or cover only (the player alone, larger). ── */
+html body .interference-modal.np-v2 .np-focus { display: none; }
+@media (min-width: 701px) {
+  html body .interference-modal.np-v2 .np-focus { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: rgba(255, 255, 255, .08); }
+  html body .interference-modal.np-v2 .np-focus button { display: grid; place-items: center; width: 34px; height: 30px; border-radius: 9px; color: rgba(255, 255, 255, .62); transition: background-color .18s ease, color .18s ease; }
+  html body .interference-modal.np-v2 .np-focus button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+  html body .interference-modal.np-v2 .np-focus button[aria-pressed=true] { color: #fff; background: rgba(255, 255, 255, .18); }
+  html body .interference-modal.np-v2 .np-focus button:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 1px; }
+  html body .interference-modal.np-v2 .np-layout.focus-lyrics:not(.notes-open) { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr) !important; align-items: stretch !important; row-gap: clamp(10px, 2vh, 22px) !important; }
+  html body .interference-modal.np-v2 .np-layout.focus-lyrics:not(.notes-open) > .np-panel { grid-area: 1 / 1 !important; justify-self: center; width: min(560px, 100%); }
+  html body .interference-modal.np-v2 .np-layout.focus-lyrics:not(.notes-open) > .np-lyrics { grid-area: 2 / 1 !important; justify-self: center; width: min(100%, 1040px) !important; }
+  html body .interference-modal.np-v2 .np-layout.focus-cover:not(.notes-open) { grid-template-columns: minmax(0, 1fr) !important; }
+  html body .interference-modal.np-v2 .np-layout.focus-cover:not(.notes-open) > .np-lyrics { display: none !important; }
+  html body .interference-modal.np-v2 .np-layout.focus-cover:not(.notes-open) > .np-panel { grid-area: 1 / 1 !important; max-width: min(600px, 62vh) !important; }
+  html body .interference-modal:is(.np-v2, #np-v2) .np-layout.focus-cover:not(.notes-open) > .np-panel > .np-art { width: min(100%, max(220px, calc(var(--app-viewport-height, 100dvh) - 360px))) !important; }
+}
+@media (prefers-reduced-motion: reduce) { html body .interference-modal.np-v2 .np-focus button { transition: none; } }
 
 /* Phones: the notes are a bottom sheet over the lyrics — opaque, so nothing behind is blurred every frame. */
 @media (max-width: 700px) {

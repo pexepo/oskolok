@@ -468,7 +468,7 @@ export class TrackController {
         // A SoundCloud profile shows its own songs: other artists' official songs it re-uploaded are dropped.
         tracks = await canonicalizeTracks(await soundCloudService.getArtistTracks(id, { page, limit }), { mode: 'drop', maxLookups: 40, budgetMs: 3000 });
       } else {
-        tracks = id.startsWith('deezer:') ? await officialCatalogService.getArtistTracks(id, { page, limit }) : await spotifyService.getArtistTracks(id, { page, limit });
+        tracks = id.startsWith('deezer:') ? await officialCatalogService.getArtistTracks(id, { page, limit }, [], typeof req.query.from === 'string' && /^(deezer:album:)?\d{1,15}$/.test(req.query.from) ? req.query.from.replace('deezer:album:', '') : undefined) : await spotifyService.getArtistTracks(id, { page, limit });
       }
 
       res.json({ data: tracks });

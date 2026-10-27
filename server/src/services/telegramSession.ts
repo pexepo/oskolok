@@ -13,7 +13,8 @@ import {classifyTelegramError,clearHealth,floodWaitSeconds,getHealth,retry,setHe
 const apiId=Number(process.env.TELEGRAM_API_ID||0),apiHash=process.env.TELEGRAM_API_HASH||'';
 export const sessionConfigured=!!apiId&&!!apiHash;
 const clients=new Map<string,TelegramClient>();
-type Login={client?:TelegramClient;method:'qr'|'phone'|'bot';expected?:string;state:string;url?:string;error?:string;userId?:string;passwordHint?:string;password?:(s:string)=>void;rejectPassword?:(e:Error)=>void;code?:(s:string)=>void;rejectCode?:(e:Error)=>void;codeViaApp?:boolean;attempts:number;expires:number;botChatId?:string;appUrl?:string;phase?:string;abort?:AbortController;qrExpires?:number};
+type Login={client?:TelegramClient;method:'qr'|'phone'|'bot';expected?:string;state:string;url?:string;error?:string;userId?:string;passwordHint?:string;password?:(s:string)=>void;rejectPassword?:(e:Error)=>void;code?:(s:string)=>void;rejectCode?:(e:Error)=>void;codeViaApp?:boolean;codeChannel?:CodeChannel;codeLength?:number;codeText?:boolean;emailPattern?:string;nextChannel?:CodeChannel;resendAt?:number;phone?:string;phoneCodeHash?:string;attempts:number;expires:number;botChatId?:string;appUrl?:string;phase?:string;abort?:AbortController;qrExpires?:number};
+export type CodeChannel='app'|'sms'|'call'|'email'|'fragment';
 const logins=new Map<string,Login>();
 const phoneRequests=new Map<string,number[]>();
 let botLoginNotifier:((login:Login)=>void)|undefined;
@@ -116,25 +117,70 @@ function validatePhone(rawPhone:string){
   phoneRequests.set(phoneKey,[...recent,now]);
   return phone;
 }
+/** Канал доставки кода. Telegram часто шлёт его не в приложение, а по SMS, звонком или на почту входа. */
+function channelOf(type:Api.auth.TypeSentCodeType|Api.auth.TypeCodeType|undefined):CodeChannel|undefined{
+  if(!type)return undefined;
+  if(type instanceof Api.auth.SentCodeTypeApp)return 'app';
+  if(type instanceof Api.auth.SentCodeTypeEmailCode)return 'email';
+  if(type instanceof Api.auth.SentCodeTypeFragmentSms||type instanceof Api.auth.CodeTypeFragmentSms)return 'fragment';
+  if(type instanceof Api.auth.SentCodeTypeCall||type instanceof Api.auth.SentCodeTypeFlashCall||type instanceof Api.auth.SentCodeTypeMissedCall||type instanceof Api.auth.CodeTypeCall||type instanceof Api.auth.CodeTypeFlashCall||type instanceof Api.auth.CodeTypeMissedCall)return 'call';
+  return 'sms';
+}
+function applySentCode(l:Login,sent:Api.auth.TypeSentCode){
+  if(sent instanceof Api.auth.SentCodePaymentRequired)throw new Error('Telegram требует оплатить SMS с кодом для этого номера. Войдите по QR-коду: откройте Telegram на телефоне → Настройки → Устройства.');
+  if(!(sent instanceof Api.auth.SentCode))throw new Error('Telegram не прислал код. Попробуйте QR-вход.');
+  if(sent.type instanceof Api.auth.SentCodeTypeSetUpEmailRequired)throw new Error('Telegram требует почту для входа на новых устройствах. Привяжите её в приложении Telegram (Настройки → Конфиденциальность → Почта для входа) или войдите по QR-коду.');
+  const type=sent.type;
+  l.phoneCodeHash=sent.phoneCodeHash;
+  l.codeChannel=channelOf(type);l.codeViaApp=l.codeChannel==='app';
+  l.codeLength='length' in type&&typeof type.length==='number'?type.length:undefined;
+  l.codeText=type instanceof Api.auth.SentCodeTypeSmsWord||type instanceof Api.auth.SentCodeTypeSmsPhrase;
+  l.emailPattern=type instanceof Api.auth.SentCodeTypeEmailCode?type.emailPattern:undefined;
+  l.nextChannel=channelOf(sent.nextType);
+  l.resendAt=l.nextChannel?Date.now()+(sent.timeout??30)*1000:undefined;
+  try{appendFileSync('/tmp/oskolok-login-diag.log',JSON.stringify({ts:new Date().toISOString(),method:l.method,phase:'code_sent',type:type.className,next:sent.nextType?.className})+'\n');}catch{}
+}
+const waitCode=(l:Login)=>new Promise<string>((resolve,reject)=>{l.code=resolve;l.rejectCode=reject;setLoginState(l,'code',l.error);});
 function runPhoneLogin(id:string,l:Login,phone:string){
-  const c=client();l.client=c;setLoginState(l,'connecting');
+  const c=client();l.client=c;l.phone=phone;setLoginState(l,'connecting');
   void (async()=>{
     try{
       await c.connect();
-      const u=await c.signInUser({apiId,apiHash},{
-        phoneNumber:phone,
-        phoneCode:async(isCodeViaApp)=>{l.codeViaApp=!!isCodeViaApp;setLoginState(l,'code',l.error);return new Promise<string>((resolve,reject)=>{l.code=resolve;l.rejectCode=reject;});},
-        password:async(hint)=>{l.passwordHint=hint||undefined;setLoginState(l,'password',l.error);return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},
-        onError:async(error)=>{
-          if(logins.get(id)!==l||Date.now()>l.expires)return true;
-          l.attempts++;
+      const sent=await c.invoke(new Api.auth.SendCode({phoneNumber:phone,apiId,apiHash,settings:new Api.CodeSettings({})}));
+      let user:Api.TypeUser|undefined;
+      if(sent instanceof Api.auth.SentCodeSuccess&&sent.authorization instanceof Api.auth.Authorization)user=sent.authorization.user;
+      else applySentCode(l,sent);
+      while(!user){
+        const code=await waitCode(l);
+        try{
+          const result=await c.invoke(new Api.auth.SignIn({phoneNumber:phone,phoneCodeHash:l.phoneCodeHash,...(l.codeChannel==='email'?{emailVerification:new Api.EmailVerificationCode({code})}:{phoneCode:code})}));
+          if(!(result instanceof Api.auth.Authorization))throw new Error('Этот номер не зарегистрирован в Telegram. Сначала создайте аккаунт в приложении Telegram.');
+          user=result.user;
+        }catch(error){
+          const rpc=(error as {errorMessage?:string}).errorMessage||'';
+          if(rpc==='SESSION_PASSWORD_NEEDED'){
+            user=await c.signInWithPassword({apiId,apiHash},{
+              password:async(hint)=>{l.passwordHint=hint||undefined;setLoginState(l,'password',l.error);return new Promise<string>((resolve,reject)=>{l.password=resolve;l.rejectPassword=reject;});},
+              onError:async(e)=>{if(logins.get(id)!==l||Date.now()>l.expires)return true;l.attempts++;l.error=loginError(e);return l.attempts>=5||!/PASSWORD_HASH_INVALID|Password is empty/i.test(`${(e as {errorMessage?:string}).errorMessage||''} ${e.message}`);},
+            });
+            break;
+          }
+          if(logins.get(id)!==l||!/PHONE_CODE_INVALID|PHONE_CODE_EMPTY|EMAIL_CODE_INVALID|CODE_INVALID/.test(rpc)||++l.attempts>=5)throw error;
           l.error=loginError(error);
-          return l.attempts>=5||!/PHONE_CODE_INVALID|PHONE_CODE_EMPTY|PASSWORD_HASH_INVALID|Password is empty|Code is empty/i.test(`${(error as {errorMessage?:string}).errorMessage||''} ${error.message}`);
-        },
-      });
-      await finishLogin(id,l,u);
-    }catch(e){if(logins.get(id)===l){logLoginFailure('phone',undefined,e);setLoginState(l,'error',e instanceof Error&&e.message.startsWith('Подтвердите')?e.message:l.error||loginError(e));}await c.disconnect();}
+        }
+      }
+      await finishLogin(id,l,user);
+    }catch(e){if(logins.get(id)===l){logLoginFailure('phone',l.codeChannel,e);setLoginState(l,'error',e instanceof Error&&/^(Подтвердите|Telegram требует|Telegram не прислал|Этот номер)/.test(e.message)?e.message:l.error||loginError(e));}await c.disconnect();}
   })();
+}
+/** Повторная отправка следующим каналом (SMS, звонок), когда Telegram это разрешает. */
+export async function resendPhoneCode(id:string|undefined){
+  const l=id?logins.get(id):undefined;
+  if(!l||l.state!=='code'||!l.client||!l.phone||!l.phoneCodeHash||Date.now()>l.expires)throw new Error('Запросите код заново.');
+  if(!l.nextChannel)throw new Error('Telegram не предлагает другой способ. Войдите по QR-коду.');
+  if(Date.now()<(l.resendAt||0))throw new Error(`Повторить можно через ${Math.ceil(((l.resendAt||0)-Date.now())/1000)} с.`);
+  try{applySentCode(l,await l.client.invoke(new Api.auth.ResendCode({phoneNumber:l.phone,phoneCodeHash:l.phoneCodeHash})));l.error=undefined;setLoginState(l,'code');}
+  catch(e){logLoginFailure('phone','resend',e);throw new Error(e instanceof Error&&/^Telegram (требует|не прислал)/.test(e.message)?e.message:loginError(e));}
 }
 export async function beginPhoneLogin(expected:string|undefined,rawPhone:string){
   if(logins.size>=20)throw new Error('Слишком много попыток входа. Попробуйте позже.');
@@ -168,8 +214,8 @@ export function startBotPhoneLogin(id:string,rawPhone:string){
 export function submitPhoneCode(id:string|undefined,code:string){
   const l=id?logins.get(id):undefined;
   if(!l||!['phone','bot'].includes(l.method)||l.state!=='code'||!l.code||Date.now()>l.expires)throw new Error('Запросите код заново.');
-  const normalized=code.replace(/[\s-]/g,'');
-  if(!/^\d{5,7}$/.test(normalized))throw new Error('Введите 5–7 цифр из сообщения Telegram.');
+  const normalized=l.codeText?code.trim().replace(/\s+/g,' '):code.replace(/[\s-]/g,'');
+  if(!l.codeText&&!/^\d{4,8}$/.test(normalized))throw new Error('Введите цифры кода целиком.');
   l.state='verifying';l.error=undefined;
   const resolve=l.code;l.code=undefined;l.rejectCode=undefined;resolve(normalized);
 }
